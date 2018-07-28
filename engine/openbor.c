@@ -22,7 +22,6 @@
 static const char *E_OUT_OF_MEMORY = "Error: Could not allocate sufficient memory.\n";
 static int DEFAULT_OFFSCREEN_KILL = 3000;
 
-
 s_sprite_list *sprite_list;
 s_sprite_map *sprite_map;
 
