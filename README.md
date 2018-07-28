@@ -1,6 +1,8 @@
- # OpenBOR
+ # OpenBOR PLUS
 OpenBOR is a continuation of the Beats Of Rage 2D game engine, which was originally
-created by the wonderful folks over at [Senile Team](http://www.senileteam.com). 
+created by the wonderful folks over at [Senile Team](http://www.senileteam.com).
+The plus version is based on official version and it has all official features plus
+new features!
 
 ## History
 In 2004, [Senile Team](http://www.senileteam.com) released Beats of Rage, a free beat-'em-up for DOS inspired
