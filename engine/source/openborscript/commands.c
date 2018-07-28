@@ -71,14 +71,13 @@ List *createModelstxtCommandList(void)
     LIST_ADD(CMD_MODELSTXT_DEBUG_NAD, "noatk_duration");
     LIST_ADD(CMD_MODELSTXT_DEBUG_OSNAF, "offscreen_noatk_factor");
     LIST_ADD(CMD_MODELSTXT_DROPV, "dropv");
-    LIST_ADD(CMD_MODELSTXT_ENABLE_ENTITY_COLLISION, "enable_entity_collision");
     LIST_ADD(CMD_MODELSTXT_GRABDISTANCE, "grabdistance");
     LIST_ADD(CMD_MODELSTXT_JUMPHEIGHT, "jumpheight");
     LIST_ADD(CMD_MODELSTXT_JUMPSPEED, "jumpspeed");
     LIST_ADD(CMD_MODELSTXT_KNOW, "know");
     LIST_ADD(CMD_MODELSTXT_LIFESCORE, "lifescore");
     LIST_ADD(CMD_MODELSTXT_LOAD, "load");
-    LIST_ADD(CMD_MODELSTXT_MAX_COLLISIONS, "maxcollisions");
+    LIST_ADD(CMD_MODELSTXT_MAX_COLLISIONS, "collisions.max");
     LIST_ADD(CMD_MODELSTXT_MAXATTACKS, "maxattacks");
     LIST_ADD(CMD_MODELSTXT_MAXATTACKTYPES, "maxattacktypes");
     LIST_ADD(CMD_MODELSTXT_MAXBACKWALKS, "maxbackwalks");
@@ -431,9 +430,6 @@ List *createModelCommandList(void)
     LIST_ADD(CMD_MODEL_SEAL, "seal");
     LIST_ADD(CMD_MODEL_SECRET, "secret");
     LIST_ADD(CMD_MODEL_SETA, "seta");
-    LIST_ADD(CMD_MODEL_SET_ABOX_INDEX, "setaboxindex");
-    LIST_ADD(CMD_MODEL_SET_BBOX_INDEX, "setbboxindex");
-    LIST_ADD(CMD_MODEL_SET_EBOX_INDEX, "seteboxindex");
     LIST_ADD(CMD_MODEL_SETLAYER, "setlayer");
     LIST_ADD(CMD_MODEL_SHADOW, "shadow");
     LIST_ADD(CMD_MODEL_SHADOWCOORDS, "shadowcoords");

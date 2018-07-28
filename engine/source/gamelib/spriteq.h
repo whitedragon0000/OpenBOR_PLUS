@@ -17,7 +17,9 @@
 
 // Max layer values, used at debug performance menu
 #define			LAYER_Z_LIMIT_MAX		1410065407
-#define			LAYER_Z_LIMIT_BOX_MAX	0x540BE3FF
+#define			LAYER_Z_LIMIT_BOX_MAX		0x540BE3FF
+
+
 
 extern int  pixelformat;
 // Sprite queueing and sorting
@@ -41,4 +43,3 @@ void spriteq_clear(void);
 
 
 #endif
-
