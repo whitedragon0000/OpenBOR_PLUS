@@ -41,6 +41,11 @@ The following platforms are still available as legacy binaries, but are no longe
 
 ### Current Members
 
+#### [White Dragon](https://github.com/whitedragon0000) (2016-)
+A long time module author and extremely knowledgeable coder who joined the development team in 2016 and immediately began making an impact. White Dragon generally focuses on level and menu properties, but has branched out into various other facets of the engine over time.
+
+### Former members and contributors
+
 #### [Damon Caskey](https://github.com/DCurrent) (2007-)
 OpenBOR project manager and site owner of the OpenBOR community. Primary
 contributions are core engine and scripting development, code cleanup, and organization. Main focus is keeping OpenBOR future proof and modular by replacing specialized hardcoding and overlap with generalized features that allow for more author creativity.
@@ -49,11 +54,6 @@ contributions are core engine and scripting development, code cleanup, and organ
 A developer who prefers to work on OpenBOR's supporting libraries and
 platform-specific backends.  Known for maintaining the Wii port, writing the
 GPU-accelerated video code for Wii and OpenGL, and a few engine features.
-
-#### [White Dragon](https://github.com/whitedragon0000) (2016-)
-A long time module author and extremely knowledgeable coder who joined the development team in 2016 and immediately began making an impact. White Dragon generally focuses on level and menu properties, but has branched out into various other facets of the engine over time.
-
-### Former members and contributors
 
 #### uTunnels (2007-2014)
 Among many other powerful additions, contributed the original scripting engine to OpenBOR, single handedly
