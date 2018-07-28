@@ -38101,9 +38101,12 @@ void menu_options_debug()
         _menutext((selector == ITEM_COL_BODY),       COLUMN_2_POS_X, pos_y, (savedata.debug_collision_body ? Tr("Enabled") : Tr("Disabled")));
         pos_y++;
 
-        _menutext((selector == ITEM_COL_ENTITY),       COLUMN_1_POS_X, pos_y, Tr("Collision Entity:"));
-        _menutext((selector == ITEM_COL_ENTITY),       COLUMN_2_POS_X, pos_y, (savedata.debug_collision_entity ? Tr("Enabled") : Tr("Disabled")));
-        pos_y++;
+        if (enable_entity_collision)
+        {
+            _menutext((selector == ITEM_COL_ENTITY),       COLUMN_1_POS_X, pos_y, Tr("Collision Entity:"));
+            _menutext((selector == ITEM_COL_ENTITY),       COLUMN_2_POS_X, pos_y, (savedata.debug_collision_entity ? Tr("Enabled") : Tr("Disabled")));
+            pos_y++;
+        }
 
         _menutext((selector == ITEM_COL_RANGE),      COLUMN_1_POS_X, pos_y, Tr("Range:"));
         _menutext((selector == ITEM_COL_RANGE),      COLUMN_2_POS_X, pos_y, (savedata.debug_collision_range ? Tr("Enabled") : Tr("Disabled")));
@@ -38142,6 +38145,7 @@ void menu_options_debug()
                 else
                 {
                     --selector;
+                    if (selector == ITEM_COL_ENTITY && !enable_entity_collision) --selector;
                 }
             }
             else if(bothnewkeys & FLAG_MOVEDOWN)
@@ -38157,6 +38161,7 @@ void menu_options_debug()
                 else
                 {
                     ++selector;
+                    if (selector == ITEM_COL_ENTITY && !enable_entity_collision) ++selector;
                 }
             }
         }
