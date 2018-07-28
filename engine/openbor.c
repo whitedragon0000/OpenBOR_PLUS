@@ -299,6 +299,7 @@ int                 SAMPLE_PAUSE		= -1;
 // be moved into a structure. Globals BAD!
 int                 max_collisions      = MAX_COLLISIONS;
 int                 *collisions         = NULL;
+int                 enable_entity_collision = 0;
 
 
 int                 max_downs           = MAX_DOWNS;
@@ -12490,6 +12491,9 @@ int load_models()
                 default_model_dropv.x =  GET_FLOAT_ARG(2);
                 default_model_dropv.z =  GET_FLOAT_ARG(3);
                 break;
+            case CMD_MODELSTXT_ENABLE_ENTITY_COLLISION:
+                enable_entity_collision =  GET_INT_ARG(1);
+                break;
             case CMD_MODELSTXT_JUMPSPEED:
                 default_model_jumpspeed =  GET_FLOAT_ARG(1);
                 break;
@@ -19217,10 +19221,10 @@ float checkbase(float x, float z, float y, entity *ent)
     int index = -1;
     entity *platform = NULL;
 
-    base = (checkhole(self->position.x, self->position.z)) ? -1.0f : 0.0f;
+    base = (checkhole(x, z)) ? -1.0f : 0.0f;
     if (base > maxbase) maxbase = base;
 
-    base = check_basemap(self->position.x, self->position.z);
+    base = check_basemap(x, z);
     if (base > maxbase) maxbase = base;
 
     base = -1.0f;
@@ -19610,8 +19614,8 @@ void do_attack(entity *e)
             }
         }
 
-        // If in the air, then check the juggle cost.
-        if(inair(target))
+        // If falling, then check the juggle cost.
+        if(target->falling == 1)
         {
             if(attack->jugglecost > target->modeldata.jugglepoints.current)
             {
@@ -20240,8 +20244,10 @@ int check_edge(entity *ent)
     float y = ent->position.y;
     e_direction dir = ent->direction;
     float height = 0.0f;
-    float t_alt = 1.0f, t_walkoff = 1.0f, t_edge_default = 8.0f;
+    float t_alt = 0.0f, t_walkoff = 1.0f, t_edge_default = 8.0f;
     float t_edge_x = t_edge_default, t_edge_z = t_edge_default / 2;
+
+    if (ent->position.y > ent->base) return EDGE_NO;
 
     if (ent->modeldata.edgerange.x > t_edge_x) t_edge_x = ent->modeldata.edgerange.x;
     if (ent->modeldata.edgerange.z > t_edge_z) t_edge_z = ent->modeldata.edgerange.z;
@@ -20300,8 +20306,7 @@ void check_gravity(entity *e)
 
     adjust_base(self, &plat);
 
-    if (self->position.y <= self->base) self->edge = check_edge(self); // && self->idling & IDLING_ACTIVE
-    else self->edge = EDGE_NO;
+    self->edge = check_edge(self); // && self->idling & IDLING_ACTIVE
 
     if(!is_frozen(self) )// Incase an entity is in the air, don't update animations
     {
@@ -21551,7 +21556,7 @@ void check_move(entity *e)
 void ent_post_update(entity *e)
 {
     check_gravity(e);// check gravity
-    check_entity_collision_for(e);
+    if (enable_entity_collision) check_entity_collision_for(e);
     check_move(e);
 
     adjust_bind(e);

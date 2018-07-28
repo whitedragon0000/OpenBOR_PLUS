@@ -71,6 +71,7 @@ List *createModelstxtCommandList(void)
     LIST_ADD(CMD_MODELSTXT_DEBUG_NAD, "noatk_duration");
     LIST_ADD(CMD_MODELSTXT_DEBUG_OSNAF, "offscreen_noatk_factor");
     LIST_ADD(CMD_MODELSTXT_DROPV, "dropv");
+    LIST_ADD(CMD_MODELSTXT_ENABLE_ENTITY_COLLISION, "enable_entity_collision");
     LIST_ADD(CMD_MODELSTXT_GRABDISTANCE, "grabdistance");
     LIST_ADD(CMD_MODELSTXT_JUMPHEIGHT, "jumpheight");
     LIST_ADD(CMD_MODELSTXT_JUMPSPEED, "jumpspeed");
