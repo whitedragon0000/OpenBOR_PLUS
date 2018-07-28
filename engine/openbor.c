@@ -16783,11 +16783,11 @@ void predrawstatus()
     // Performance info.
     if(savedata.debuginfo)
     {
-        spriteq_add_box(0, videomodes.dOffset - 12, videomodes.hRes, videomodes.dOffset + 12, 0x0FFFFFFE, 0, NULL);
-        font_printf(2,                   videomodes.dOffset - 10, 0, 0, Tr("FPS: %03d"), getFPS());
-        font_printf(videomodes.hRes / 2, videomodes.dOffset - 10, 0, 0, Tr("Free Ram: %s KB"), commaprint(freeram / KBYTES));
-        font_printf(2,                   videomodes.dOffset,    0, 0, Tr("Sprites: %d / %d"), spriteq_get_sprite_count(), spriteq_get_sprite_max());
-        font_printf(videomodes.hRes / 2, videomodes.dOffset,    0, 0, Tr("Used Ram: %s KB"), commaprint(usedram / KBYTES));
+        spriteq_add_box(0, videomodes.dOffset - 12, videomodes.hRes, videomodes.dOffset + 12, LAYER_Z_LIMIT_BOX_MAX, 0, NULL);
+        font_printf(2, videomodes.dOffset - 10, 0, LAYER_Z_LIMIT_MAX, Tr("FPS: %03d"), getFPS());
+        font_printf(videomodes.hRes / 2, videomodes.dOffset - 10, 0, LAYER_Z_LIMIT_MAX, Tr("Free Ram: %s KB"), commaprint(freeram / KBYTES));
+        font_printf(2, videomodes.dOffset, 0, LAYER_Z_LIMIT_MAX, Tr("Sprites: %d / %d"), spriteq_get_sprite_count(), spriteq_get_sprite_max());
+        font_printf(videomodes.hRes / 2, videomodes.dOffset, 0, LAYER_Z_LIMIT_MAX, Tr("Used Ram: %s KB"), commaprint(usedram / KBYTES));
     }
 }
 
@@ -19614,8 +19614,8 @@ void do_attack(entity *e)
             }
         }
 
-        // If falling, then check the juggle cost.
-        if(target->falling == 1)
+        // If in the air, then check the juggle cost.
+        if(inair(target))
         {
             if(attack->jugglecost > target->modeldata.jugglepoints.current)
             {
