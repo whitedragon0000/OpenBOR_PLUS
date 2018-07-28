@@ -121,6 +121,7 @@ extern int shadowopacity;
 extern s_axis_plane_vertical_int light;
 extern int max_attack_types;
 extern int max_animations;
+extern int max_collisions;
 
 static void clear_named_var_list(List *list, int level)
 {
@@ -979,6 +980,7 @@ static const char *svlist[] =
     "lightz",
     "maxanimations",
     "maxattacktypes",
+    "maxcollisions",
     "maxentityvars",
     "maxglobalvars",
     "maxindexedvars",
@@ -8798,6 +8800,10 @@ int getsyspropertybyindex(ScriptVariant *var, int index)
     case _sv_maxanimations:
         ScriptVariant_ChangeType(var, VT_INTEGER);
         var->lVal = max_animations;
+        break;
+    case _sv_maxcollisions:
+        ScriptVariant_ChangeType(var, VT_INTEGER);
+        var->lVal = max_collisions;
         break;
     case _sv_ticks:
         ScriptVariant_ChangeType(var, VT_INTEGER);
