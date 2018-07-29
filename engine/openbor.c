@@ -22,7 +22,6 @@
 static const char *E_OUT_OF_MEMORY = "Error: Could not allocate sufficient memory.\n";
 static int DEFAULT_OFFSCREEN_KILL = 3000;
 
-
 s_sprite_list *sprite_list;
 s_sprite_map *sprite_map;
 
@@ -25533,19 +25532,19 @@ int trygrab(entity *other)
     return result;
 }
 
-int check_entity_collision(entity *ent, entity *target)
+int check_potential_entity_collision(entity              *ent,
+                                     s_collision_entity  *col_entity_ent,
+                                     s_hitbox            *coords_col_entity_ent,
+                                     entity              *target,
+                                     s_collision_entity  *col_entity_target,
+                                     s_hitbox            *coords_col_entity_target)
 {
-    s_hitbox *coords_col_entity_ent;
-    s_hitbox *coords_col_entity_target;
-    s_collision_entity  *col_entity_ent = NULL;
-    s_collision_entity  *col_entity_target = NULL;
     int     x1,
             x2,
             y1,
             y2,
             z1,
             z2;
-    int col_entity_ent_instance;
     int     col_entity_ent_pos_x        = 0,
             col_entity_ent_pos_y        = 0,
             col_entity_ent_size_x       = 0,
@@ -25559,132 +25558,87 @@ int check_entity_collision(entity *ent, entity *target)
     int     entity_pushing = ent->modeldata.entitypushing;
     float   PUSH_FACTOR = ent->modeldata.pushingfactor;
 
-    if(ent == target
-       || !target->animation->collision_entity
-       || !ent->animation->collision_entity
-       )
-    {
-        return 0;
-    }
-
-    if(ent->link || target->link)
-    {
-        return 0;
-    }
-
-    int col_entity_target_instance = 0;
-    int collision_found = 0;
-
     if (entity_pushing && !PUSH_FACTOR) PUSH_FACTOR = 1.0f;
 
-    for(col_entity_ent_instance = 0; col_entity_ent_instance < max_collisions; col_entity_ent_instance++)
+    z1      = ent->position.z + ent->movez;
+    z2      = target->position.z + target->movez;
+    zdist   = 0;
+
+    if(coords_col_entity_ent->z2 > coords_col_entity_ent->z1)
     {
-        col_entity_ent  = ent->animation->collision_entity[ent->animpos]->instance[col_entity_ent_instance];
-        coords_col_entity_ent   = col_entity_ent->coords;
-
-        for(col_entity_target_instance = 0; col_entity_target_instance < max_collisions; col_entity_target_instance++)
-        {
-            col_entity_target          = target->animation->collision_entity[target->animpos]->instance[col_entity_target_instance];
-            coords_col_entity_target   = col_entity_target->coords;
-
-            z1      = ent->position.z + ent->movez;
-            z2      = target->position.z + target->movez;
-            zdist   = 0;
-
-            if(coords_col_entity_ent->z2 > coords_col_entity_ent->z1)
-            {
-                zdepth1 = (coords_col_entity_ent->z2 - coords_col_entity_ent->z1) / 2;
-                z1 += coords_col_entity_ent->z1 + zdepth1;
-                zdist += zdepth1;
-            }
-            else if(coords_col_entity_ent->z1)
-            {
-                zdepth1 = coords_col_entity_ent->z1;
-                zdist += coords_col_entity_ent->z1;
-            }
-
-            if(coords_col_entity_target->z2 > coords_col_entity_target->z1)
-            {
-                zdepth2 = (coords_col_entity_target->z2 - coords_col_entity_target->z1) / 2;
-                z2 += coords_col_entity_target->z1 + zdepth2;
-                zdist += zdepth2;
-            }
-            else if(coords_col_entity_target->z1)
-            {
-                zdepth2 = coords_col_entity_target->z1;
-                zdist += coords_col_entity_target->z1;
-            }
-
-            if(diff(z1, z2) > zdist)
-            {
-                continue;
-            }
-
-            x1 = (int)ent->position.x + ent->movex;
-            z1 = (int)ent->position.z + ent->movez;
-            y1 = (int)z1 - ent->position.y;
-            x2 = (int)target->position.x + target->movex;
-            z2 = (int)target->position.z + target->movez;
-            y2 = (int)z2 - target->position.y;
-
-            if(ent->direction == DIRECTION_LEFT)
-            {
-                col_entity_ent_pos_x   = x1 - coords_col_entity_ent->width;
-                col_entity_ent_size_x  = x1 - coords_col_entity_ent->x;
-            }
-            else
-            {
-                col_entity_ent_pos_x    = x1 + coords_col_entity_ent->x;
-                col_entity_ent_size_x   = x1 + coords_col_entity_ent->width;
-            }
-            col_entity_ent_pos_y    = y1 + coords_col_entity_ent->y;
-            col_entity_ent_size_y   = y1 + coords_col_entity_ent->height;
-
-            if(target->direction == DIRECTION_LEFT)
-            {
-                col_entity_target_pos_x    = x2 - coords_col_entity_target->width;
-                col_entity_target_size_x   = x2 - coords_col_entity_target->x;
-            }
-            else
-            {
-                col_entity_target_pos_x    = x2 + coords_col_entity_target->x;
-                col_entity_target_size_x   = x2 + coords_col_entity_target->width;
-            }
-            col_entity_target_pos_y    = y2 + coords_col_entity_target->y;
-            col_entity_target_size_y   = y2 + coords_col_entity_target->height;
-
-            if(col_entity_ent_pos_x > col_entity_target_size_x)
-            {
-                continue;
-            }
-            if(col_entity_target_pos_x > col_entity_ent_size_x)
-            {
-                continue;
-            }
-            if(col_entity_ent_pos_y > col_entity_target_size_y)
-            {
-                continue;
-            }
-            if(col_entity_target_pos_y > col_entity_ent_size_y)
-            {
-                continue;
-            }
-
-            // If we got this far, set collision flag
-            // and break this loop.
-            collision_found = 1;
-            break;
-        }
-
-        // If a collision was found
-        // break out of loop.
-        if(collision_found)
-        {
-            break;
-        }
+        zdepth1 = (coords_col_entity_ent->z2 - coords_col_entity_ent->z1) / 2;
+        z1 += coords_col_entity_ent->z1 + zdepth1;
+        zdist += zdepth1;
+    }
+    else if(coords_col_entity_ent->z1)
+    {
+        zdepth1 = coords_col_entity_ent->z1;
+        zdist += coords_col_entity_ent->z1;
     }
 
-    if(!collision_found)
+    if(coords_col_entity_target->z2 > coords_col_entity_target->z1)
+    {
+        zdepth2 = (coords_col_entity_target->z2 - coords_col_entity_target->z1) / 2;
+        z2 += coords_col_entity_target->z1 + zdepth2;
+        zdist += zdepth2;
+    }
+    else if(coords_col_entity_target->z1)
+    {
+        zdepth2 = coords_col_entity_target->z1;
+        zdist += coords_col_entity_target->z1;
+    }
+
+    if(diff(z1, z2) > zdist)
+    {
+        return 0;
+    }
+
+    x1 = (int)ent->position.x + ent->movex;
+    z1 = (int)ent->position.z + ent->movez;
+    y1 = (int)z1 - ent->position.y;
+    x2 = (int)target->position.x + target->movex;
+    z2 = (int)target->position.z + target->movez;
+    y2 = (int)z2 - target->position.y;
+
+    if(ent->direction == DIRECTION_LEFT)
+    {
+        col_entity_ent_pos_x   = x1 - coords_col_entity_ent->width;
+        col_entity_ent_size_x  = x1 - coords_col_entity_ent->x;
+    }
+    else
+    {
+        col_entity_ent_pos_x    = x1 + coords_col_entity_ent->x;
+        col_entity_ent_size_x   = x1 + coords_col_entity_ent->width;
+    }
+    col_entity_ent_pos_y    = y1 + coords_col_entity_ent->y;
+    col_entity_ent_size_y   = y1 + coords_col_entity_ent->height;
+
+    if(target->direction == DIRECTION_LEFT)
+    {
+        col_entity_target_pos_x    = x2 - coords_col_entity_target->width;
+        col_entity_target_size_x   = x2 - coords_col_entity_target->x;
+    }
+    else
+    {
+        col_entity_target_pos_x    = x2 + coords_col_entity_target->x;
+        col_entity_target_size_x   = x2 + coords_col_entity_target->width;
+    }
+    col_entity_target_pos_y    = y2 + coords_col_entity_target->y;
+    col_entity_target_size_y   = y2 + coords_col_entity_target->height;
+
+    if(col_entity_ent_pos_x > col_entity_target_size_x)
+    {
+        return 0;
+    }
+    if(col_entity_target_pos_x > col_entity_ent_size_x)
+    {
+        return 0;
+    }
+    if(col_entity_ent_pos_y > col_entity_target_size_y)
+    {
+        return 0;
+    }
+    if(col_entity_target_pos_y > col_entity_ent_size_y)
     {
         return 0;
     }
@@ -25757,6 +25711,209 @@ int check_entity_collision(entity *ent, entity *target)
             }
             if (ent->movez != -1 * target->movez || (!target->movez)) ent->movez -= PUSH_FACTOR;
         }
+    }
+
+    return 1;
+}
+
+int check_inaction_entity_collision(entity              *ent,
+                                    s_collision_entity  *col_entity_ent,
+                                    s_hitbox            *coords_col_entity_ent,
+                                    entity              *target,
+                                    s_collision_entity  *col_entity_target,
+                                    s_hitbox            *coords_col_entity_target)
+{
+    int     x1,
+            x2,
+            y1,
+            y2,
+            z1,
+            z2;
+    int     col_entity_ent_pos_x        = 0,
+            col_entity_ent_pos_y        = 0,
+            col_entity_ent_size_x       = 0,
+            col_entity_ent_size_y       = 0,
+            col_entity_target_pos_x     = 0,
+            col_entity_target_pos_y     = 0,
+            col_entity_target_size_x    = 0,
+            col_entity_target_size_y    = 0;
+    int     zdist = 0;
+    int     zdepth1 = 0, zdepth2 = 0;
+    float   PUSH_FACTOR = ent->modeldata.pushingfactor;
+
+    if (!PUSH_FACTOR) PUSH_FACTOR = 1.0f;
+
+    z1      = ent->position.z;
+    z2      = target->position.z;
+    zdist   = 0;
+
+    if(coords_col_entity_ent->z2 > coords_col_entity_ent->z1)
+    {
+        zdepth1 = (coords_col_entity_ent->z2 - coords_col_entity_ent->z1) / 2;
+        z1 += coords_col_entity_ent->z1 + zdepth1;
+        zdist += zdepth1;
+    }
+    else if(coords_col_entity_ent->z1)
+    {
+        zdepth1 = coords_col_entity_ent->z1;
+        zdist += coords_col_entity_ent->z1;
+    }
+
+    if(coords_col_entity_target->z2 > coords_col_entity_target->z1)
+    {
+        zdepth2 = (coords_col_entity_target->z2 - coords_col_entity_target->z1) / 2;
+        z2 += coords_col_entity_target->z1 + zdepth2;
+        zdist += zdepth2;
+    }
+    else if(coords_col_entity_target->z1)
+    {
+        zdepth2 = coords_col_entity_target->z1;
+        zdist += coords_col_entity_target->z1;
+    }
+
+    if(diff(z1, z2) > zdist)
+    {
+        return 0;
+    }
+
+    x1 = (int)ent->position.x;
+    z1 = (int)ent->position.z;
+    y1 = (int)z1 - ent->position.y;
+    x2 = (int)target->position.x;
+    z2 = (int)target->position.z;
+    y2 = (int)z2 - target->position.y;
+
+    if(ent->direction == DIRECTION_LEFT)
+    {
+        col_entity_ent_pos_x   = x1 - coords_col_entity_ent->width;
+        col_entity_ent_size_x  = x1 - coords_col_entity_ent->x;
+    }
+    else
+    {
+        col_entity_ent_pos_x    = x1 + coords_col_entity_ent->x;
+        col_entity_ent_size_x   = x1 + coords_col_entity_ent->width;
+    }
+    col_entity_ent_pos_y    = y1 + coords_col_entity_ent->y;
+    col_entity_ent_size_y   = y1 + coords_col_entity_ent->height;
+
+    if(target->direction == DIRECTION_LEFT)
+    {
+        col_entity_target_pos_x    = x2 - coords_col_entity_target->width;
+        col_entity_target_size_x   = x2 - coords_col_entity_target->x;
+    }
+    else
+    {
+        col_entity_target_pos_x    = x2 + coords_col_entity_target->x;
+        col_entity_target_size_x   = x2 + coords_col_entity_target->width;
+    }
+    col_entity_target_pos_y    = y2 + coords_col_entity_target->y;
+    col_entity_target_size_y   = y2 + coords_col_entity_target->height;
+
+    if(col_entity_ent_pos_x > col_entity_target_size_x)
+    {
+        return 0;
+    }
+    if(col_entity_target_pos_x > col_entity_ent_size_x)
+    {
+        return 0;
+    }
+    if(col_entity_ent_pos_y > col_entity_target_size_y)
+    {
+        return 0;
+    }
+    if(col_entity_target_pos_y > col_entity_ent_size_y)
+    {
+        return 0;
+    }
+
+    // check on axis x
+    if(col_entity_ent_pos_x <= col_entity_target_pos_x)
+    {
+        if (ent->velocity.x >= 0) ent->velocity.x -= PUSH_FACTOR;
+    }
+    else
+    {
+        if (ent->velocity.x <= 0) ent->velocity.x  += PUSH_FACTOR;
+    }
+
+    // check on axis z
+    if(z1 - zdepth1 <= z2 + zdepth2 &&
+       z1 - zdepth1 >= z2)
+    {
+        if (ent->velocity.z <= 0) ent->velocity.z += PUSH_FACTOR;
+    }
+    else if(z1 + zdepth1 >= z2 - zdepth2 &&
+            z1 + zdepth1 <= z2)
+    {
+        if (ent->velocity.z >= 0) ent->velocity.z -= PUSH_FACTOR;
+    }
+
+    return 1;
+}
+
+int check_entity_collision(entity *ent, entity *target)
+{
+    s_hitbox *coords_col_entity_ent;
+    s_hitbox *coords_col_entity_target;
+    s_collision_entity  *col_entity_ent = NULL;
+    s_collision_entity  *col_entity_target = NULL;
+    int col_entity_ent_instance;
+    int col_entity_target_instance = 0;
+    int collision_found = 0;
+
+    if(ent == target
+       || !target->animation->collision_entity
+       || !ent->animation->collision_entity
+       )
+    {
+        return 0;
+    }
+
+    if(ent->link || target->link)
+    {
+        return 0;
+    }
+
+    for(col_entity_ent_instance = 0; col_entity_ent_instance < max_collisions; col_entity_ent_instance++)
+    {
+        col_entity_ent  = ent->animation->collision_entity[ent->animpos]->instance[col_entity_ent_instance];
+        coords_col_entity_ent   = col_entity_ent->coords;
+
+        for(col_entity_target_instance = 0; col_entity_target_instance < max_collisions; col_entity_target_instance++)
+        {
+            col_entity_target          = target->animation->collision_entity[target->animpos]->instance[col_entity_target_instance];
+            coords_col_entity_target   = col_entity_target->coords;
+
+            if ( check_potential_entity_collision(ent,
+                                                  col_entity_ent,
+                                                  coords_col_entity_ent,
+                                                  target,
+                                                  col_entity_target,
+                                                  coords_col_entity_target) ) collision_found |= 1;
+            else if ( check_inaction_entity_collision(ent,
+                                      col_entity_ent,
+                                      coords_col_entity_ent,
+                                      target,
+                                      col_entity_target,
+                                      coords_col_entity_target) ) collision_found |= 1;
+
+            // If we got this far, set collision flag
+            // and break this loop.
+            collision_found = 1;
+            break;
+        }
+
+        // If a collision was found
+        // break out of loop.
+        if(collision_found)
+        {
+            break;
+        }
+    }
+
+    if(!collision_found)
+    {
+        return 0;
     }
 
     // execute event
