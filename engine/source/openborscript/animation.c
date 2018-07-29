@@ -20,7 +20,7 @@
 //
 // Access animation property by handle (pointer).
 //
-// get_animation_property(void handle, int frame, int property)
+// get_animation_property(void handle, int property)
 HRESULT openbor_get_animation_property(ScriptVariant **varlist, ScriptVariant **pretvar, int paramCount)
 {
     #define SELF_NAME       "get_animation_property(void handle, int property)"
@@ -142,6 +142,63 @@ HRESULT openbor_get_animation_property(ScriptVariant **varlist, ScriptVariant **
             (*pretvar)->lVal = (LONG)handle->numframes;
             break;
 
+        case ANI_PROP_PLATFORM:
+        {
+            int subprop, frame;
+            if(paramCount > 1 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[1], &frame)))
+            {
+                if(varlist[1]->vt != VT_INTEGER)
+                {
+                    printf("You must provide an integer value for frame.\n");
+                    goto error_local;
+                }
+            }
+            if(paramCount > 3 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[3], &subprop)))
+            {
+                if(varlist[3]->vt != VT_INTEGER)
+                {
+                    printf("You must provide an integer value for subproperty.\n");
+                    goto error_local;
+                }
+            }
+
+            ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
+            (*pretvar)->dblVal = (DOUBLE)0.0f;
+            if (handle->platform)
+            {
+                switch(subprop)
+                {
+                    case PLATFORM_X:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_X];
+                        break;
+                    case PLATFORM_Z:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_Z];
+                        break;
+                    case PLATFORM_UPPERLEFT:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_UPPERLEFT];
+                        break;
+                    case PLATFORM_LOWERLEFT:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_LOWERLEFT];
+                        break;
+                    case PLATFORM_UPPERRIGHT:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_UPPERRIGHT];
+                        break;
+                    case PLATFORM_LOWERRIGHT:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_LOWERRIGHT];
+                        break;
+                    case PLATFORM_DEPTH:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_DEPTH];
+                        break;
+                    case PLATFORM_HEIGHT:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_HEIGHT];
+                        break;
+                    default:
+                        break;
+                }
+            }
+            break;
+        }
+
         default:
 
             printf("Unsupported property.\n");
@@ -187,7 +244,7 @@ HRESULT openbor_set_animation_property(ScriptVariant **varlist, ScriptVariant **
     // Value carriers to apply on properties after
     // taken from argument.
     LONG     temp_int;
-    //DOUBLE  temp_float;
+    DOUBLE   temp_float;
 
     // Verify incoming arguments. There must be a
     // pointer for the animation handle, an integer
@@ -234,6 +291,70 @@ HRESULT openbor_set_animation_property(ScriptVariant **varlist, ScriptVariant **
             }
 
             break;
+
+        case ANI_PROP_PLATFORM:
+        {
+            int subprop, frame;
+            if(paramCount > 5 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[3], &subprop)))
+            {
+                if(varlist[3]->vt != VT_INTEGER)
+                {
+                    printf("You must provide an integer value for subproperty.\n");
+                    goto error_local;
+                }
+            }
+            else
+            {
+                printf("You must provide 5 parameters for this property.\n");
+                goto error_local;
+            }
+
+            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[1], &frame)))
+            {
+                if(varlist[1]->vt != VT_INTEGER)
+                {
+                    printf("You must provide an integer value for frame.\n");
+                    goto error_local;
+                }
+            }
+
+            if(SUCCEEDED(ScriptVariant_DecimalValue(varlist[4], &temp_float)))
+            {
+                if (handle->platform)
+                {
+                    switch(subprop)
+                    {
+                        case PLATFORM_X:
+                            handle->platform[frame][PLATFORM_X] = (float)temp_float;
+                            break;
+                        case PLATFORM_Z:
+                            handle->platform[frame][PLATFORM_Z] = (float)temp_float;
+                            break;
+                        case PLATFORM_UPPERLEFT:
+                            handle->platform[frame][PLATFORM_UPPERLEFT] = (float)temp_float;
+                            break;
+                        case PLATFORM_LOWERLEFT:
+                            handle->platform[frame][PLATFORM_LOWERLEFT] = (float)temp_float;
+                            break;
+                        case PLATFORM_UPPERRIGHT:
+                            handle->platform[frame][PLATFORM_UPPERRIGHT] = (float)temp_float;
+                            break;
+                        case PLATFORM_LOWERRIGHT:
+                            handle->platform[frame][PLATFORM_LOWERRIGHT] = (float)temp_float;
+                            break;
+                        case PLATFORM_DEPTH:
+                            handle->platform[frame][PLATFORM_DEPTH] = (float)temp_float;
+                            break;
+                        case PLATFORM_HEIGHT:
+                            handle->platform[frame][PLATFORM_HEIGHT] = (float)temp_float;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            break;
+        }
 
         default:
 
