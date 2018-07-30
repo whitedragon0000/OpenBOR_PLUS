@@ -171,11 +171,13 @@ setaboxindex {int} for attack collision boxes (default: 0)<br/>
 setbboxindex {int} for body collision boxes (default: 0)<br/>
 seteboxindex {int} for entity collision boxes (default: 0)<br/>
 
+by default the index relative to a box is set to 0 of course.<br/>
+
 example:<br/>
 ```
 ANIM IDLE
 bbox 1 2 3 4 5
-set bboxindex 1
+setbboxindex 1
 bbox 5 6 7 8 9
 ```
 
