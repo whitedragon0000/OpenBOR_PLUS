@@ -184,7 +184,7 @@ in this example you set 2 bboxes.
 see this example too:
 
 ```
-ANIM IDLE<br/>
+ANIM IDLE
 bbox 1 2 3 4 5
 setbboxindex 1
 bbox 5 6 7 8 9
