@@ -172,20 +172,24 @@ setbboxindex {int} for body collision boxes (default: 0)<br/>
 seteboxindex {int} for entity collision boxes (default: 0)<br/>
 
 example:<br/>
-ANIM IDLE<br/>
-bbox 1 2 3 4 5<br/>
-set bboxindex 1<br/>
-bbox 5 6 7 8 9<br/>
+```
+ANIM IDLE
+bbox 1 2 3 4 5
+set bboxindex 1
+bbox 5 6 7 8 9
+```
 
 in this example you set 2 bboxes.
 
 see this example too:
 
+```
 ANIM IDLE<br/>
-bbox 1 2 3 4 5<br/>\
-setbboxindex 1<br/>
-bbox 5 6 7 8 9<br/>
-bbox 1 2 3 4 5<br/>
+bbox 1 2 3 4 5
+setbboxindex 1
+bbox 5 6 7 8 9
+bbox 1 2 3 4 5
+```
 
 in this example you set 2 bboxes both: bbox 1 2 3 4 5<br/>
 because bbox 1 2 3 4 5 at index 1 overrides bbox 5 6 7 8 9 at index 1<br/>
