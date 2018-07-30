@@ -161,18 +161,20 @@ localvars:
 "self_ebox_handler": the handler for ebox of self to use with openborscript functions
 "target_ebox_handler": the handler for ebox of target to use with openborscript functions
 
+
+#### ***MULTPLE COLLISION BOX***
 opened multiple collision boxes to openbor:
 you establish the max collision boxes into model.txt file with
 maxcollisions {int} (default: 2)
 then you can change into animation the index of boxes:
-abox_index {int} for attack collision boxes (default: 0)
-bbox_index {int} for body collision boxes (default: 0)
-ebox_index {int} for entity collision boxes (default: 0)
+setaboxindex {int} for attack collision boxes (default: 0)
+setbboxindex {int} for body collision boxes (default: 0)
+seteboxindex {int} for entity collision boxes (default: 0)
 
 example:
 ANIM IDLE
 bbox 1 2 3 4 5
-bbox_index 1
+set bboxindex 1
 bbox 5 6 7 8 9
 
 in this example you set 2 bboxes.
@@ -181,7 +183,7 @@ see this example too:
 
 ANIM IDLE
 bbox 1 2 3 4 5
-bbox_index 1
+setbboxindex 1
 bbox 5 6 7 8 9
 bbox 1 2 3 4 5
 
