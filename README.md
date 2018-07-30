@@ -117,75 +117,75 @@ Home of the OpenBOR community and OpenBOR team. This is the place to go if you w
 Senile Team is not responsible for OpenBOR, and has also dropped all support for the original Beats of Rage. Instead you should stop in to see their latest projects - you’ll no doubt find something interesting!
 
 ## New Features
-added "movex", "movez" to entityproperty: the potential entity directions
-added "collidedentity" to script: it returns the collided entity handler
-opened animation platform properties to script
+* added "movex", "movez" to entityproperty: the potential entity directions
+* added "collidedentity" to script: it returns the collided entity handler
+* opened animation platform properties to script
 
 #### ***ENTITY COLLISION***
-constants:
-ANI_PROP_ENTITY_COLLISION
-ENTITY_COLLISION_PROP_COORDINATES
-ENTITY_COLLISION_PROP_TAG
-ENTITY_COLLISION_PROP_INDEX
+constants:<br/>
+ANI_PROP_ENTITY_COLLISION<br/>
+ENTITY_COLLISION_PROP_COORDINATES<br/>
+ENTITY_COLLISION_PROP_TAG<br/>
+ENTITY_COLLISION_PROP_INDEX<br/>
 
-animation commands:
-ebox {x} {y} {width} {height} {z1} {z2}
-ebox.x {value}
-ebox.y {value}
-ebox.width {value}
-ebox.height {value}
-ebox.z1 {value}
-ebox.z2 {value}
-eboxz {z1} {z2}
+animation commands:<br/>
+ebox {x} {y} {width} {height} {z1} {z2}<br/>
+ebox.x {value}<br/>
+ebox.y {value}<br/>
+ebox.width {value}<br/>
+ebox.height {value}<br/>
+ebox.z1 {value}<br/>
+ebox.z2 {value}<br/>
+eboxz {z1} {z2}<br/>
 
-model commands:
-entitypushing {int}: if 1 entity pushing target on collision
-pushingfactor {float}: pushing factor on collision. Default: 1.0
+model commands:<br/>
+entitypushing {int}: if 1 entity pushing target on collision<br/>
+pushingfactor {float}: pushing factor on collision. Default: 1.0<br/>
 
 openborscript functions:
-get_entity_collision_collection(void handle, int frame);
-get_entity_collision_instance(void handle, int index);
-get_entity_collision_property(void handle, int property);
-set_entity_collision_property(void handle, int property, value);
+get_entity_collision_collection(void handle, int frame);<br/>
+get_entity_collision_instance(void handle, int index);<br/>
+get_entity_collision_property(void handle, int property);<br/>
+set_entity_collision_property(void handle, int property, value);<br/>
 
-openborscript:
-added "entitypushing", "pushingfactor" to entityproperty
-added "collidedentity" to entityproperty
-added "maxcollisions" to openborvariants
+openborscript:<br/>
+added "entitypushing", "pushingfactor" to entityproperty<br/>
+added "collidedentity" to entityproperty<br/>
+added "maxcollisions" to openborvariants<br/>
 
-events:
-onentitycollisionscript
-localvars:
-"self": entity
-"target": entity
-"self_ebox_handler": the handler for ebox of self to use with openborscript functions
-"target_ebox_handler": the handler for ebox of target to use with openborscript functions
+events:<br/>
+onentitycollisionscript<br/>
+localvars:<br/>
+"self": entity<br/>
+"target": entity<br/>
+"self_ebox_handler": the handler for ebox of self to use with openborscript functions<br/>
+"target_ebox_handler": the handler for ebox of target to use with openborscript functions<br/>
 
 
-#### ***MULTPLE COLLISION BOX***
-opened multiple collision boxes to openbor:
-you establish the max collision boxes into model.txt file with
-maxcollisions {int} (default: 2)
-then you can change into animation the index of boxes:
-setaboxindex {int} for attack collision boxes (default: 0)
-setbboxindex {int} for body collision boxes (default: 0)
-seteboxindex {int} for entity collision boxes (default: 0)
+#### ***MULTPLE COLLISION BOXES***
+opened multiple collision boxes to openbor:<br/>
+you establish the max collision boxes into model.txt file with<br/>
+maxcollisions {int} (default: 2)<br/>
+then you can change into animation the index of boxes:<br/>
+setaboxindex {int} for attack collision boxes (default: 0)<br/>
+setbboxindex {int} for body collision boxes (default: 0)<br/>
+seteboxindex {int} for entity collision boxes (default: 0)<br/>
 
-example:
-ANIM IDLE
-bbox 1 2 3 4 5
-set bboxindex 1
-bbox 5 6 7 8 9
+example:<br/>
+ANIM IDLE<br/>
+bbox 1 2 3 4 5<br/>
+set bboxindex 1<br/>
+bbox 5 6 7 8 9<br/>
 
 in this example you set 2 bboxes.
 
 see this example too:
 
-ANIM IDLE
-bbox 1 2 3 4 5
-setbboxindex 1
-bbox 5 6 7 8 9
-bbox 1 2 3 4 5
+ANIM IDLE<br/>
+bbox 1 2 3 4 5<br/>\
+setbboxindex 1<br/>
+bbox 5 6 7 8 9<br/>
+bbox 1 2 3 4 5<br/>
 
-in this example you set 2 bboxes both: bbox 1 2 3 4 5
-because bbox 1 2 3 4 5 at index 1 overrides bbox 5 6 7 8 9 at index 1
+in this example you set 2 bboxes both: bbox 1 2 3 4 5<br/>
+because bbox 1 2 3 4 5 at index 1 overrides bbox 5 6 7 8 9 at index 1<br/>
