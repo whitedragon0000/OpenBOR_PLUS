@@ -122,6 +122,8 @@ Senile Team is not responsible for OpenBOR, and has also dropped all support for
 * opened animation platform properties to script
 
 #### ***ENTITY COLLISION***
+accessible in debug mode too.<br/>
+
 constants:<br/>
 ANI_PROP_ENTITY_COLLISION<br/>
 ENTITY_COLLISION_PROP_COORDINATES<br/>
