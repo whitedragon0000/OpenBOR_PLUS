@@ -201,32 +201,35 @@ because bbox 1 2 3 4 5 at index 1 overrides bbox 5 6 7 8 9 at index 1<br/>
 #### ***BOOMERANG***
 
 model keys:
-- subtype boomerang
-- aimove boomerang
+subtype boomerang
+aimove boomerang
 
 model commands:
-- boomerang {name}
-- boomerangvalues {acceleration} {horizontal_distance}
+boomerang {name}
+boomerangvalues {acceleration} {horizontal_distance}
 
 animation commands:
-- custboomerang {name}
+custboomerang {name}
 
 animations:
-- getboomerang
-- getboomeranginair
-*** use range {min} {max} to get the boomerang by range
+getboomerang
+getboomeranginair
+**use range {min} {max} to get the boomerang by range**
 
 openbor script:
 changed access to boomerang props in openbor script:
 get/change entityproperty "boomerang" "acceleration" {val}
 get/change entityproperty "boomerang" "hdistance" {val}
 
---- EXAMPLES ---
 using subentity and spawnframe example:
-- for player set type npc, for enemies set type enemy
-- subentity boomerang
-- spawnframe 0 5 0 30
+for player set type npc, for enemies set type enemy
+```
+subentity boomerang
+spawnframe 0 5 0 30
+```
 
 using custboomerang example:
-- custboomerang boomerang
-- throwframe 0 30
+```
+custboomerang boomerang
+throwframe 0 30
+```
