@@ -214,8 +214,6 @@ List *createModelCommandList(void)
     LIST_ADD(CMD_MODEL_BLOCKODDS, "blockodds");
     LIST_ADD(CMD_MODEL_BLOCKPAIN, "blockpain");
     LIST_ADD(CMD_MODEL_BOMB, "bomb");
-    LIST_ADD(CMD_MODEL_BOOMERANG, "boomerang");
-    LIST_ADD(CMD_MODEL_BOOMERANGVALUES, "boomerangvalues");
     LIST_ADD(CMD_MODEL_BOUNCE, "bounce");
     LIST_ADD(CMD_MODEL_BOUNCEFACTOR, "bouncefactor");
     LIST_ADD(CMD_MODEL_BRANCH, "branch");
@@ -234,7 +232,6 @@ List *createModelCommandList(void)
     LIST_ADD(CMD_MODEL_CUSTBOMB, "custbomb");
     LIST_ADD(CMD_MODEL_CUSTENTITY, "custentity");
     LIST_ADD(CMD_MODEL_CUSTKNIFE, "custknife");
-    LIST_ADD(CMD_MODEL_CUSTBOOMERANG, "custboomerang");
     LIST_ADD(CMD_MODEL_CUSTPBOMB, "custpbomb");
     LIST_ADD(CMD_MODEL_CUSTPSHOT, "custpshot");
     LIST_ADD(CMD_MODEL_CUSTPSHOTNO, "custpshotno");
