@@ -59,7 +59,7 @@ Known as O'Ilusionista, Douglas is a highly respected administrator of the OpenB
 Malik comes to the team with a good scripting background. He is still learning his way around application development, but shows a lot of promise and a great willingness to learn. As his skills progress, he will no doubt be a an invaluable asset to the team!
 
 #### [crxtrdude](https://github.com/crxtrdude) (2016-2018)
-crxtrdude si è focalizzato sull'android port in particolare sul modulo Activity, Manifest e sul virtual gamepad.
+crxtrdude focused on the android port in particular on the module Activity, Manifest and on the virtual gamepad.
 
 #### [uTunnels](https://github.com/utunnels) (2007-2014)
 Among many other powerful additions, contributed the original scripting engine to OpenBOR, single handedly
