@@ -47,13 +47,16 @@ A long time module author and extremely knowledgeable coder who joined the devel
 ### Former members and contributors
 
 #### [Damon Caskey](https://github.com/DCurrent) (2007-)
-OpenBOR project manager and site owner of the OpenBOR community. Primary
-contributions are core engine and scripting development, code cleanup, and organization. Main focus is keeping OpenBOR future proof and modular by replacing specialized hardcoding and overlap with generalized features that allow for more author creativity.
+OpenBOR project manager and site owner of the OpenBOR community. Primary contributions are core engine and scripting development, code cleanup, and organization. Main focus is keeping OpenBOR future proof and modular by replacing specialized hardcoding and overlap with generalized features that allow for more author creativity.
 
 #### [Plombo](https://github.com/plombo) (2009-)
-A developer who prefers to work on OpenBOR's supporting libraries and
-platform-specific backends.  Known for maintaining the Wii port, writing the
-GPU-accelerated video code for Wii and OpenGL, and a few engine features.
+A developer who prefers to work on OpenBOR's supporting libraries and platform-specific backends.  Known for maintaining the Wii port, writing the GPU-accelerated video code for Wii and OpenGL, and a few engine features.
+
+#### [Douglas Baldan](https://github.com/dbaldan) (2018-)
+Known as O'Ilusionista, Douglas is a highly respected administrator of the OpenBOR community and also a prolific member of the Mugen scene. Douglas is new to coding but brings a plethoera of graphic and game design experience to the team. We look for exciting things from Mr. Baldan soon!
+
+#### [Malik](https://github.com/msmalik681) (2018-)
+Malik comes to the team with a good scripting background. He is still learning his way around application development, but shows a lot of promise and a great willingness to learn. As his skills progress, he will no doubt be a an invaluable asset to the team!
 
 #### uTunnels (2007-2014)
 Among many other powerful additions, contributed the original scripting engine to OpenBOR, single handedly
