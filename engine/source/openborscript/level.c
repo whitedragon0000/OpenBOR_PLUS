@@ -218,8 +218,8 @@ HRESULT openbor_set_spawnentry_property(ScriptVariant **varlist, ScriptVariant *
                 {
                     goto error_local;
                 }
+                handle->health[ltemp] = temp_int;
             }
-            handle->health[ltemp] = temp_int;
             break;
         }
         case SPAWN_ENTRY_PROP_INDEX:
@@ -641,9 +641,14 @@ HRESULT openbor_get_spawnentry_property(ScriptVariant **varlist, ScriptVariant *
                     printf("You must provide an integer value for subproperty.\n");
                     goto error_local;
                 }
+                ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
+                (*pretvar)->lVal = (LONG)handle->health[ltemp];
             }
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->health[ltemp];
+            else
+            {
+                printf("You must provide an integer value for subproperty.\n");
+                goto error_local;
+            }
             break;
         }
         case SPAWN_ENTRY_PROP_INDEX:
@@ -2585,8 +2590,8 @@ HRESULT openbor_set_level_property(ScriptVariant **varlist, ScriptVariant **pret
                     printf("You must provide an integer value for subproperty.\n");
                     goto error_local;
                 }
+                memcpy(&handle->spawnpoints[ltemp], (s_spawn_entry *)varlist[3]->ptrVal, sizeof(s_spawn_entry));
             }
-            memcpy(&handle->spawnpoints[ltemp], (s_spawn_entry *)varlist[3]->ptrVal, sizeof(s_spawn_entry));
             break;
         }
         case LEVEL_PROP_SPAWN_COUNT:
