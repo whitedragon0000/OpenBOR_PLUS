@@ -11,10 +11,10 @@
 #include "types.h"
 
 //with remap, work only under 8bit pixel format
-void putscreenx8p32(s_screen *dest, s_screen *src, int x, int y, int key, u32 *remap, u32(*blendfp)(u32, u32))
+void putscreenx8p32(s_screen *dest, s_screen *src, int x, int y, int key, unsigned *remap, unsigned(*blendfp)(unsigned, unsigned))
 {
     unsigned char *sp = src->data;
-    u32 *dp = (u32 *)dest->data;
+    unsigned *dp = (unsigned *)dest->data;
     int i;
     int sw = src->width;
     int sh = src->height;
@@ -82,7 +82,7 @@ void putscreenx8p32(s_screen *dest, s_screen *src, int x, int y, int key, u32 *r
 
     if(!remap)
     {
-        remap = (u32 *)src->palette;
+        remap = (unsigned *)src->palette;
     }
 
     if(!remap)
@@ -172,10 +172,10 @@ void putscreenx8p32(s_screen *dest, s_screen *src, int x, int y, int key, u32 *r
 }
 
 //32 to 32
-void blendscreen32(s_screen *dest, s_screen *src, int x, int y, int key, u32(*blendfp)(u32, u32))
+void blendscreen32(s_screen *dest, s_screen *src, int x, int y, int key, unsigned(*blendfp)(unsigned, unsigned))
 {
-    u32 *sp = (u32 *)src->data;
-    u32 *dp = (u32 *)dest->data;
+    unsigned *sp = (unsigned *)src->data;
+    unsigned *dp = (unsigned *)dest->data;
     int i;
     int sw = src->width;
     int sh = src->height;
@@ -323,9 +323,9 @@ void scalescreen32(s_screen *dest, s_screen *src)
     int sw, sh;
     int dw, dh;
     int dx, dy;
-    u32 *sp;
-    u32 *dp;
-    u32 *lineptr;
+    unsigned *sp;
+    unsigned *dp;
+    unsigned *lineptr;
     unsigned int xstep, ystep, xpos, ypos;
     int pixelformat = src->pixelformat;
 
@@ -339,8 +339,8 @@ void scalescreen32(s_screen *dest, s_screen *src)
     {
         return;
     }
-    sp = (u32 *)src->data;
-    dp = (u32 *)dest->data;
+    sp = (unsigned *)src->data;
+    dp = (unsigned *)dest->data;
 
     sw = src->width;
     sh = src->height;

@@ -119,13 +119,11 @@ const s_hitbox empty_collision_coords = {   .x      = 0,
                                             .z2     = 0};
 
 const s_collision_body empty_body =   {     .coords     = NULL,
-                                            .index      = 0,
                                             .defense    = NULL,
                                             .tag        = 0,
                                             .index      = 0};
 
 const s_collision_entity empty_entity_collision =   {   .coords     = NULL,
-                                                        .index      = 0,
                                                         .tag        = 0,
                                                         .index      = 0};
 

@@ -172,10 +172,10 @@ void putscreenx8p16(s_screen *dest, s_screen *src, int x, int y, int key, unsign
 }
 
 
-void blendscreen16(s_screen *dest, s_screen *src, int x, int y, int key, u16(*blendfp)(u16, u16))
+void blendscreen16(s_screen *dest, s_screen *src, int x, int y, int key, unsigned short(*blendfp)(unsigned short, unsigned short))
 {
-    u16 *sp = (u16 *)src->data;
-    u16 *dp = (u16 *)dest->data;
+    unsigned short *sp = (unsigned short *)src->data;
+    unsigned short *dp = (unsigned short *)dest->data;
     int i;
     int sw = src->width;
     int sh = src->height;
@@ -322,9 +322,9 @@ void scalescreen16(s_screen *dest, s_screen *src)
     int sw, sh;
     int dw, dh;
     int dx, dy;
-    u16 *sp;
-    u16 *dp;
-    u16 *lineptr;
+    unsigned short *sp;
+    unsigned short *dp;
+    unsigned short *lineptr;
     unsigned int xstep, ystep, xpos, ypos;
     int pixelformat = src->pixelformat;
 
@@ -338,8 +338,8 @@ void scalescreen16(s_screen *dest, s_screen *src)
     {
         return;
     }
-    sp = (u16 *)src->data;
-    dp = (u16 *)dest->data;
+    sp = (unsigned short *)src->data;
+    dp = (unsigned short *)dest->data;
 
     sw = src->width;
     sh = src->height;
