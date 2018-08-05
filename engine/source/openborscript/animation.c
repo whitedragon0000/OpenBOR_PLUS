@@ -144,7 +144,7 @@ HRESULT openbor_get_animation_property(ScriptVariant **varlist, ScriptVariant **
 
         case ANI_PROP_PLATFORM:
         {
-            int subprop, frame;
+            LONG subprop, frame;
             if(paramCount > 1 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[1], &frame)))
             {
                 if(varlist[1]->vt != VT_INTEGER)
@@ -294,7 +294,7 @@ HRESULT openbor_set_animation_property(ScriptVariant **varlist, ScriptVariant **
 
         case ANI_PROP_PLATFORM:
         {
-            int subprop, frame;
+            LONG subprop, frame;
             if(paramCount > 5 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[3], &subprop)))
             {
                 if(varlist[3]->vt != VT_INTEGER)

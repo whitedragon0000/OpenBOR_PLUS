@@ -42,7 +42,9 @@
 #endif
 
 #if _POSIX_SOURCE || SYMBIAN
+#ifndef stricmp
 #define	stricmp	strcasecmp
+#endif
 #endif
 
 #ifndef DC

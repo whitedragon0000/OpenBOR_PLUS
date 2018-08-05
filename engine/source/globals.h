@@ -53,6 +53,12 @@
 #include <gctypes.h>
 #include <ogc/conf.h>
 #include "wiiport.h"
+#ifndef stricmp
+    #define stricmp safe_stricmp
+#endif
+#ifndef strnicmp
+    #define strnicmp safe_strnicmp
+#endif
 #endif
 
 #ifdef VITA

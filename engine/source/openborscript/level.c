@@ -206,7 +206,7 @@ HRESULT openbor_set_spawnentry_property(ScriptVariant **varlist, ScriptVariant *
 
         case SPAWN_ENTRY_PROP_HEALTH:
         {
-            int ltemp;
+            LONG ltemp;
             if(paramCount > 3 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[2], &ltemp)))
             {
                 if(varlist[2]->vt != VT_INTEGER)
@@ -633,7 +633,7 @@ HRESULT openbor_get_spawnentry_property(ScriptVariant **varlist, ScriptVariant *
 
         case SPAWN_ENTRY_PROP_HEALTH:
         {
-            int ltemp;
+            LONG ltemp;
             if(paramCount > 2 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[2], &ltemp)))
             {
                 if(varlist[2]->vt != VT_INTEGER)
@@ -1839,7 +1839,7 @@ HRESULT openbor_get_level_property(ScriptVariant **varlist, ScriptVariant **pret
 
         case LEVEL_PROP_SPAWN_ENTRY:
         {
-            int ltemp;
+            LONG ltemp;
             if(paramCount > 2 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[2], &ltemp)))
             {
                 if(varlist[2]->vt != VT_INTEGER)
@@ -2573,7 +2573,7 @@ HRESULT openbor_set_level_property(ScriptVariant **varlist, ScriptVariant **pret
 
         case LEVEL_PROP_SPAWN_ENTRY:
         {
-            int ltemp;
+            LONG ltemp;
             if(varlist[3]->vt != VT_PTR && varlist[3]->vt != VT_EMPTY)
             {
                 goto error_local;
