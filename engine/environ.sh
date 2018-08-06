@@ -288,13 +288,13 @@ case $1 in
    elif test -e "c:/devkitpro"; then
      export DEVKITPRO=c:/devkitpro
      export DEVKITPPC=$DEVKITPRO/devkitPPC
-     export PATH=$PATH:$DEVKITPPC/bin
+     export PATH=$PATH:$DEVKITPPC/bin:$DEVKITPRO/tools/bin
    elif [ `echo $HOST_PLATFORM | grep -E "windows|CYGWIN"` ]; then
      if [ ! -d "../tools/devkitpro/devkitPPC" ]; then
         echo "-------------------------------------------------------"
         echo "         WII SDK - Not Found, Installing SDK!"
         echo "-------------------------------------------------------"
-        ../tools/7-Zip/7za.exe x -y ../tools/devkitpro/devkitpro.7z -o../tools/devkitpro/
+        ../tools/7-Zip/7za.exe x -y ../tools/devkitpro/devkitpro.7z.001 -o../tools/devkitpro/
         echo
         echo "-------------------------------------------------------"
         echo "         WII SDK - Installation Has Completed!"
@@ -303,7 +303,7 @@ case $1 in
      HOST_PLATFORM="SVN";
      export DEVKITPRO=../tools/devkitpro
      export DEVKITPPC=$DEVKITPRO/devkitPPC
-     export PATH=$TOOLS:$DEVKITPPC/bin
+     export PATH=$TOOLS:$DEVKITPPC/bin:$DEVKITPRO/tools/bin
    fi
    if test $DEVKITPPC; then
      echo "-------------------------------------------------------"

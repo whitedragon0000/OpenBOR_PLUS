@@ -72,7 +72,7 @@ void reset()
 	hwbutton = WII_RESET;
 }
 
-void wiimote_poweroff(int playernum)
+void wiimote_poweroff(long int playernum)
 {
 	hwbutton = WII_SHUTDOWN;
 }
