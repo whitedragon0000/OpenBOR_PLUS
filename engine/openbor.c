@@ -5537,19 +5537,18 @@ s_anim *alloc_anim()
 // property data if present, and return pointer.
 s_collision_attack *collision_alloc_attack_instance(s_collision_attack *properties)
 {
-    s_collision_attack  *result;
+    s_collision_attack  *result = NULL;
     size_t              alloc_size;
-
-    // Get amount of memory we'll need.
-    alloc_size = sizeof(*result);
-
-    // Allocate memory and get pointer.
-    result = malloc(alloc_size);
 
     // If previous data is provided,
     // copy into new allocation.
     if(properties)
     {
+        // Get amount of memory we'll need.
+        alloc_size = sizeof(s_collision_attack);
+
+        // Allocate memory and get pointer.
+        result = malloc(alloc_size);
         memcpy(result, properties, alloc_size);
     }
 
@@ -5567,7 +5566,7 @@ s_collision_attack **collision_alloc_attack_list()
     size_t             alloc_size;
 
     // Get amount of memory we'll need.
-    alloc_size = sizeof(*result);
+    alloc_size = max_collisions * sizeof(s_collision_attack);
 
     // Allocate memory and get pointer.
     result = malloc(alloc_size);
@@ -5586,19 +5585,19 @@ s_collision_attack **collision_alloc_attack_list()
 // property data if present, and return pointer.
 s_collision_body *collision_alloc_body_instance(s_collision_body *properties)
 {
-    s_collision_body    *result;
+    s_collision_body    *result = NULL;
     size_t              alloc_size;
-
-    // Get amount of memory we'll need.
-    alloc_size = sizeof(*result);
-
-    // Allocate memory and get pointer.
-    result = malloc(alloc_size);
 
     // If previous data is provided,
     // copy into new allocation.
     if(properties)
     {
+        // Get amount of memory we'll need.
+        alloc_size = sizeof(s_collision_body);
+
+        // Allocate memory and get pointer.
+        result = malloc(alloc_size);
+        result->coords = NULL;
         memcpy(result, properties, alloc_size);
     }
 
@@ -5616,7 +5615,7 @@ s_collision_body **collision_alloc_body_list()
     size_t             alloc_size;
 
     // Get amount of memory we'll need.
-    alloc_size = sizeof(*result);
+    alloc_size = max_collisions * sizeof(s_collision_body);
 
     // Allocate memory and get pointer.
     result = malloc(alloc_size);
@@ -5632,19 +5631,19 @@ s_collision_body **collision_alloc_body_list()
 // property data if present, and return pointer.
 s_collision_entity *collision_alloc_entity_instance(s_collision_entity *properties)
 {
-    s_collision_entity    *result;
+    s_collision_entity    *result = NULL;
     size_t              alloc_size;
-
-    // Get amount of memory we'll need.
-    alloc_size = sizeof(*result);
-
-    // Allocate memory and get pointer.
-    result = malloc(alloc_size);
 
     // If previous data is provided,
     // copy into new allocation.
     if(properties)
     {
+        // Get amount of memory we'll need.
+        alloc_size = sizeof(s_collision_entity);
+
+        // Allocate memory and get pointer.
+        result = malloc(alloc_size);
+        result->coords = NULL;
         memcpy(result, properties, alloc_size);
     }
 
@@ -5659,7 +5658,7 @@ s_collision_entity **collision_alloc_entity_list()
     size_t             alloc_size;
 
     // Get amount of memory we'll need.
-    alloc_size = sizeof(*result);
+    alloc_size = max_collisions * sizeof(s_collision_entity);
 
     // Allocate memory and get pointer.
     result = malloc(alloc_size);
@@ -5678,19 +5677,18 @@ s_collision_entity **collision_alloc_entity_list()
 // data if present, and return pointer.
 s_hitbox *collision_alloc_coords(s_hitbox *coords)
 {
-    s_hitbox    *result;
+    s_hitbox    *result = NULL;
     size_t      alloc_size;
-
-    // Get amount of memory we'll need.
-    alloc_size = sizeof(*result);
-
-    // Allocate memory and get pointer.
-    result = malloc(alloc_size);
 
     // If previous data is provided,
     // copy into new allocation.
     if(coords)
     {
+        // Get amount of memory we'll need.
+        alloc_size = sizeof(s_hitbox);
+
+        // Allocate memory and get pointer.
+        result = malloc(alloc_size);
         memcpy(result, coords, alloc_size);
     }
 
@@ -37708,7 +37706,6 @@ void keyboard_setup(int player)
             #else
             if(bothnewkeys & (FLAG_ANYBUTTON))
             #endif
-            if(bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
             {
                 sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
 
