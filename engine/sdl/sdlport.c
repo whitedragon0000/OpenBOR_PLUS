@@ -59,11 +59,9 @@ void borExit(int reset)
 	gp2x_end();
 	chdir("/usr/gp2x");
 	execl("/usr/gp2x/gp2xmenu", "/usr/gp2x/gp2xmenu", NULL);
-/*
 #elif SDL
 	//SDL_Delay(1000);
-	//SDL_Quit(); // this line call the SDL_QUIT event.  this instead of atexit(SDL_Quit); It's best practice
-*/
+	SDL_Quit(); // Call this instead of atexit(SDL_Quit); It's best practice!
 #endif
 
     exit(reset);
