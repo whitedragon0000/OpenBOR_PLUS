@@ -473,7 +473,9 @@ void blit()
     if(stretch)
     {
         //SDL_RenderSetLogicalSize(renderer, 0, 0);
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        //SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_Rect d_rect = {0, 0, nativeWidth, nativeHeight};
+        SDL_RenderCopy(renderer, texture, NULL, &d_rect);
     }
     else
     {

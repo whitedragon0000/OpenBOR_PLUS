@@ -37708,7 +37708,6 @@ void keyboard_setup(int player)
             #else
             if(bothnewkeys & (FLAG_ANYBUTTON))
             #endif
-            if(bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
             {
                 sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
 
