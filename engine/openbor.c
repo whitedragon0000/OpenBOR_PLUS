@@ -2446,7 +2446,7 @@ void clearsettings()
     savedata.uselog = 1;
     savedata.debuginfo = 0;
     savedata.fullscreen = 0;
-    savedata.stretch = 0;
+    savedata.stretch = 1;
 
     savedata.swfilter = 0;
 
@@ -20363,6 +20363,13 @@ void check_gravity(entity *e)
                     {
                         if (savedata.joyrumble[i]) control_rumble(i, 1, 75 * (int)self->velocity.y / 2);
                     }
+                }
+                else if((!self->animation->move[self->animpos]->base || self->animation->move[self->animpos]->base < 0) &&
+                        (!self->animation->move[self->animpos]->axis.y || self->animation->move[self->animpos]->axis.y <= 0))
+                {
+                    self->velocity.x = 0;
+                    self->velocity.z = 0;
+                    self->velocity.y = 0;
                 }
                 else
                 {
