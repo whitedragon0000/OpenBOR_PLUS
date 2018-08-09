@@ -265,6 +265,52 @@ static int findPaks(void)
 	return i;
 }
 
+static void draw_vscrollbar() {
+    int offset_x = 30    - 3;
+    int offset_y = 33    + 4;
+    int box_width = 225;
+    int box_height = 194;
+    int min_vscrollbar_height = 2;
+    int vbar_height = box_height;
+    int vbar_width = 4;
+    float vbar_ratio;
+    int vspace = 0;
+    int vbar_y = 0;
+    Image *box = createImage(box_width, box_height);
+    Image *vbar;
+
+    if (dListTotal <= MAX_PAGE_MODS_LENGTH) return;
+
+    // set v scroll bar height
+    vbar_ratio = ((MAX_PAGE_MODS_LENGTH * 100.0f) / dListTotal) / 100.0f;
+    vbar_height = box_height * vbar_ratio;
+    if (vbar_height < min_vscrollbar_height) vbar_height = min_vscrollbar_height;
+    vbar = createImage(vbar_width, vbar_height);
+
+    // set v scroll bar position
+    vspace = box_height - vbar_height;
+    vbar_y = (int)(((dListScrollPosition) * vspace) / (dListTotal - MAX_PAGE_MODS_LENGTH));
+
+    // draw v scroll bar
+	if(box != NULL)
+	{
+		fillImageRect(box, LIGHT_GRAY, 0, 0, vbar_width, box_height);
+		copyImageToImage(0, 0, vbar_width, box_height, box, (offset_x + box_width - vbar_width), offset_y, text);
+		freeImage(box);
+		box = NULL;
+	}
+	if(vbar != NULL)
+	{
+		fillImageRect(vbar, GRAY, 0, 0, vbar_width, vbar_height);
+		copyImageToImage(0, 0, vbar_width, vbar_height, vbar, (offset_x + box_width - vbar_width), (offset_y + vbar_y), text);
+		freeImage(vbar);
+		vbar = NULL;
+	}
+    //putbox( (offset_x + box_width - vbar_width), offset_y, vbar_width, box_height, LIGHT_GRAY, vscreen, NULL);
+    //putbox( (offset_x + box_width - vbar_width), (offset_y + vbar_y), vbar_width, vbar_height, GRAY, vscreen, NULL);
+    //printText(10,220, BLACK, 0, 0, "%d/%d space: %d, vbar_y: %d vbar_height: %d", (dListCurrentPosition + dListScrollPosition), dListTotal, vspace, vbar_y, vbar_height);
+}
+
 void drawMenu()
 {
 	char listing[45] = {""};
@@ -295,7 +341,7 @@ void drawMenu()
 					copyImageToImage(286, 32, 160, 120, pMenu, 286, 32, text);
 			}
 			printText(text, 30 + shift, 33 + (11 * list), colors, 0, 0, "%s", listing);
-			//draw_vscrollbar();
+			draw_vscrollbar();
 		}
 	}
 	printText(text, 185,  11, WHITE, 0, 0, "OpenBOR %s", VERSION);
@@ -348,7 +394,7 @@ void drawBGMPlayer()
 				strncpy(listing, filelist[list+dListScrollPosition].filename, 44);
 			if(list==dListCurrentPosition) { shift = 2; colors = RED; }
 			printText(text, 30 + shift, 33 + (11 * list), colors, 0, 0, "%s", listing);
-			//draw_vscrollbar();
+			draw_vscrollbar();
 		}
 	}
 	printText(text, 185,  11, WHITE, 0, 0, "OpenBOR %s", VERSION);
