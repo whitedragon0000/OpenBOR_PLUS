@@ -182,13 +182,13 @@ void refreshInput()
 		if(wupc->button & WPAD_CLASSIC_BUTTON_FULL_L)     btns |= CC_L;
 		if(wupc->button & WPAD_CLASSIC_BUTTON_ZL)         btns |= CC_ZL;
 		if(wupc->button & WPAD_CLASSIC_BUTTON_ZR)         btns |= CC_ZR;
-		
-		//analog stick  
+
+		//analog stick
 		if(wupc->yAxisL > 200)							  btns |= DIR_UP;
 		if(wupc->yAxisL < -200)							  btns |= DIR_DOWN;
 		if(wupc->xAxisL > 200)							  btns |= DIR_RIGHT;
 		if(wupc->xAxisL < -200)							  btns |= DIR_LEFT;
-			
+
 	}
 	else if(wpad->exp.type == WPAD_EXP_NUNCHUK) // Wiimote + Nunchuk
 	{
@@ -339,6 +339,7 @@ static int findPaks(void)
 	dp = opendir(paksDir);
 	if(dp != NULL)
    	{
+   	    filelist = NULL;
 		while((ds = readdir(dp)) != NULL)
 		{
 			if(packfile_supported(ds->d_name))
@@ -347,12 +348,14 @@ static int findPaks(void)
 				if(filelist == NULL) filelist = malloc(sizeof(fileliststruct));
 				else
 				{
-					copy = malloc((i + 1) * sizeof(fileliststruct));
-					memcpy(copy, filelist, (i + 1) * sizeof(fileliststruct));
+				    filelist = (fileliststruct *)realloc(filelist, (i+1) * sizeof(struct fileliststruct));
+				    /*fileliststruct *copy = NULL;
+					copy = malloc((i + 1) * sizeof(struct fileliststruct));
+					memcpy(copy, filelist, (i + 1) * sizeof(struct fileliststruct));
 					free(filelist);
-					filelist = malloc((i + 1) * sizeof(fileliststruct));
-					memcpy(filelist, copy, (i + 1) * sizeof(fileliststruct));
-					free(copy); copy = NULL;
+					filelist = malloc((i + 1) * sizeof(struct fileliststruct));
+					memcpy(filelist, copy, (i + 1) * sizeof(struct fileliststruct));
+					free(copy); copy = NULL;*/
 				}
 				memset(&filelist[i], 0, sizeof(fileliststruct));
 				strcpy(filelist[i].filename, ds->d_name);
@@ -571,7 +574,7 @@ void drawMenu()
 	if(dListTotal < 1) printText((isWide ? 30 : 8), (isWide ? 33 : 24), RED, 0, 0, "No Mods In Paks Folder!");
 	for(list=0; list<dListTotal; list++)
 	{
-		if(list < MAX_MODS_NUM)
+		if(list < MAX_PAGE_MODS_LENGTH)
 		{
 			shift = 0;
 			colors = GRAY;

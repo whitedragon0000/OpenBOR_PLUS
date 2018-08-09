@@ -179,28 +179,34 @@ static int findPaks(void)
     SceIoDirent ds;
 
     dp = sceIoDopen(paksDir);
-
-    while (sceIoDread(dp, &ds) > 0)
+    if (dp != NULL)
     {
-        if (packfile_supported(ds.d_name))
+        filelist = NULL;
+        while (sceIoDread(dp, &ds) > 0)
         {
-            fileliststruct *copy = NULL;
-            if (filelist == NULL) filelist = malloc(sizeof(fileliststruct));
-            else
+            if (packfile_supported(ds.d_name))
             {
-                copy = malloc((i + 1) * sizeof(fileliststruct));
-                memcpy(copy, filelist, (i + 1) * sizeof(fileliststruct));
-                free(filelist);
-                filelist = malloc((i + 1) * sizeof(fileliststruct));
-                memcpy(filelist, copy, (i + 1) * sizeof(fileliststruct));
-                free(copy); copy = NULL;
+                fileliststruct *copy = NULL;
+                if (filelist == NULL) filelist = malloc(sizeof(fileliststruct));
+                else
+                {
+                    filelist = (fileliststruct *)realloc(filelist, (i+1) * sizeof(struct fileliststruct));
+                    /*fileliststruct *copy = NULL;
+                    copy = malloc((i + 1) * sizeof(struct fileliststruct));
+                    memcpy(copy, filelist, (i + 1) * sizeof(struct fileliststruct));
+                    free(filelist);
+                    filelist = malloc((i + 1) * sizeof(struct fileliststruct));
+                    memcpy(filelist, copy, (i + 1) * sizeof(struct fileliststruct));
+                    free(copy); copy = NULL;*/
+                }
+                memset(&filelist[i], 0, sizeof(fileliststruct));
+                strncpy(filelist[i].filename, ds.d_name, strlen(ds.d_name));
+                i++;
             }
-            memset(&filelist[i], 0, sizeof(fileliststruct));
-            strncpy(filelist[i].filename, ds.d_name, strlen(ds.d_name));
-            i++;
         }
+        sceIoDclose(dp);
     }
-    sceIoDclose(dp);
+
     return i;
 }
 
@@ -363,7 +369,7 @@ static void drawMenu()
     if (dListTotal < 1) printText(30, 33, RED, 0, 0, "No Games In Paks Folder!");
     for (list = 0; list < dListTotal; list++)
     {
-        if(list<MAX_MODS_NUM)
+        if(list<MAX_PAGE_MODS_LENGTH)
         {
             shift = 0;
             colors = GRAY;
