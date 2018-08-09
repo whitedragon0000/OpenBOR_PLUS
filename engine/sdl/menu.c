@@ -300,7 +300,7 @@ static void PlayBGM()
 static int ControlMenu()
 {
 	int status = -1;
-	int dListMaxDisplay = 17;
+	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
 	bothnewkeys = 0;
 	inputrefresh(0);
 	switch(bothnewkeys)
@@ -315,6 +315,16 @@ static int ControlMenu()
 			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
 			break;
 
+        case FLAG_MOVELEFT:
+			dListScrollPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListScrollPosition < 0)
+			{
+				dListScrollPosition = 0;
+				dListCurrentPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			}
+			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
+			break;
+
 		case FLAG_MOVEDOWN:
 			dListCurrentPosition++;
 			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
@@ -325,10 +335,16 @@ static int ControlMenu()
 			}
 			break;
 
-		case FLAG_MOVELEFT:
-			break;
-
 		case FLAG_MOVERIGHT:
+			dListCurrentPosition += MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
+			if(dListCurrentPosition > dListMaxDisplay)
+	        {
+		        //if((dListCurrentPosition + dListScrollPosition) < dListTotal)
+                    dListScrollPosition += MAX_PAGE_MODS_FAST_FORWARD;
+		        if((dListCurrentPosition + dListScrollPosition) > dListTotal - 1) dListScrollPosition = dListTotal - MAX_PAGE_MODS_LENGTH;
+			    dListCurrentPosition = dListMaxDisplay;
+			}
 			break;
 
 		case FLAG_START:
@@ -364,7 +380,7 @@ static int ControlMenu()
 static int ControlBGM()
 {
 	int status = -2;
-	int dListMaxDisplay = 17;
+	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
 	bothnewkeys = 0;
 	inputrefresh(0);
 	switch(bothnewkeys)
@@ -503,6 +519,35 @@ static void blit_video_menu(s_screen* vscreen)
     video_stretch(savedata.stretch); // reset to saved value
 }
 
+static void draw_vscrollbar() {
+    int offset_x = (isWide ? 30 : 7)    - 3;
+    int offset_y = (isWide ? 33 : 22)   + 4;
+    int box_width = 144;
+    int box_height = 194;
+    int min_vscrollbar_height = 2;
+    int vbar_height = box_height;
+    int vbar_width = 4;
+    float vbar_ratio;
+    int vspace = 0;
+    int vbar_y = 0;
+
+    if (dListTotal <= MAX_PAGE_MODS_LENGTH) return;
+
+    // set v scroll bar height
+    vbar_ratio = ((MAX_PAGE_MODS_LENGTH * 100.0f) / dListTotal) / 100.0f;
+    vbar_height = box_height * vbar_ratio;
+    if (vbar_height < min_vscrollbar_height) vbar_height = min_vscrollbar_height;
+
+    // set v scroll bar position
+    vspace = box_height - vbar_height;
+    vbar_y = (int)(((dListScrollPosition) * vspace) / (dListTotal - MAX_PAGE_MODS_LENGTH));
+
+    // draw v scroll bar
+    putbox( (offset_x + box_width - vbar_width), offset_y, vbar_width, box_height, LIGHT_GRAY, vscreen, NULL);
+    putbox( (offset_x + box_width - vbar_width), (offset_y + vbar_y), vbar_width, vbar_height, GRAY, vscreen, NULL);
+    //printText(10,220, BLACK, 0, 0, "%d/%d space: %d, vbar_y: %d vbar_height: %d", (dListCurrentPosition + dListScrollPosition), dListTotal, vspace, vbar_y, vbar_height);
+}
+
 static void drawMenu()
 {
 	char listing[45] = {""};
@@ -532,6 +577,7 @@ static void drawMenu()
 				Image = getPreview(filelist[list+dListScrollPosition].filename);
 			}
 			printText((isWide ? 30 : 7) + shift, (isWide ? 33 : 22)+(11*list) , colors, 0, 0, "%s", listing);
+			draw_vscrollbar();
 		}
 	}
 
@@ -580,9 +626,9 @@ static void drawBGMPlayer()
 	putscreen(vscreen,bgscreen,0,0,NULL);
 	putbox((isWide ? 286 : 155),(isWide ? 32 : 21),160,120,LIGHT_GRAY,vscreen,NULL);
 
-	for(list=0; list<dListTotal; list++)
+	for(list = 0; list < dListTotal; list++)
 	{
-		if(list<MAX_PAGE_MODS_LENGTH)
+		if(list < MAX_PAGE_MODS_LENGTH)
 		{
 		    int len = strlen(filelist[list+dListScrollPosition].filename)-4;
 			shift = 0;
@@ -594,6 +640,7 @@ static void drawBGMPlayer()
 				safe_strncpy(listing, filelist[list+dListScrollPosition].filename, (isWide ? 44 : 28));
 			if(list==dListCurrentPosition) { shift = 2; colors = RED; }
 			printText((isWide ? 30 : 7) + shift, (isWide ? 33 : 22)+(11*list) , colors, 0, 0, "%s", listing);
+			draw_vscrollbar();
 		}
 	}
 

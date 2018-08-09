@@ -344,7 +344,6 @@ static int findPaks(void)
 		{
 			if(packfile_supported(ds->d_name))
 			{
-				fileliststruct *copy = NULL;
 				if(filelist == NULL) filelist = malloc(sizeof(fileliststruct));
 				else
 				{
@@ -497,9 +496,25 @@ int ControlMenu()
 			break;
 
 		case DIR_LEFT:
+			dListScrollPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListScrollPosition < 0)
+			{
+				dListScrollPosition = 0;
+				dListCurrentPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			}
+			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
 			break;
 
 		case DIR_RIGHT:
+			dListCurrentPosition += MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
+			if(dListCurrentPosition > dListMaxDisplay)
+	        {
+		        //if((dListCurrentPosition + dListScrollPosition) < dListTotal)
+                    dListScrollPosition += MAX_PAGE_MODS_FAST_FORWARD;
+		        if((dListCurrentPosition + dListScrollPosition) > dListTotal - 1) dListScrollPosition = dListTotal - MAX_PAGE_MODS_LENGTH;
+			    dListCurrentPosition = dListMaxDisplay;
+			}
 			break;
 
 		case WIIMOTE_PLUS:
@@ -596,6 +611,7 @@ void drawMenu()
 				//else printText((isWide ? 288 : 157), (isWide ? 141 : 130), RED, 0, 0, "No Preview Available!");
 			}
 			printText((isWide ? 30 : 7) + shift, (isWide ? 33 : 22)+(11*list) , colors, 0, 0, "%s", listing);
+			//draw_vscrollbar();
 		}
 	}
 

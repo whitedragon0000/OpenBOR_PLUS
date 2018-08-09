@@ -186,7 +186,6 @@ static int findPaks(void)
         {
             if (packfile_supported(ds.d_name))
             {
-                fileliststruct *copy = NULL;
                 if (filelist == NULL) filelist = malloc(sizeof(fileliststruct));
                 else
                 {
@@ -318,10 +317,26 @@ static int ControlMenu()
             break;
 
         case SCE_CTRL_LEFT:
-            break;
+			dListScrollPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListScrollPosition < 0)
+			{
+				dListScrollPosition = 0;
+				dListCurrentPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			}
+			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
+			break;
 
         case SCE_CTRL_RIGHT:
-            break;
+			dListCurrentPosition += MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
+			if(dListCurrentPosition > dListMaxDisplay)
+	        {
+		        //if((dListCurrentPosition + dListScrollPosition) < dListTotal)
+                    dListScrollPosition += MAX_PAGE_MODS_FAST_FORWARD;
+		        if((dListCurrentPosition + dListScrollPosition) > dListTotal - 1) dListScrollPosition = dListTotal - MAX_PAGE_MODS_LENGTH;
+			    dListCurrentPosition = dListMaxDisplay;
+			}
+			break;
 
         case SCE_CTRL_CROSS:
             // Start Engine!
@@ -387,6 +402,7 @@ static void drawMenu()
                 else printText(288, 141, RED, 0, 0, "No Preview Available!");
             }
             printText(30 + shift, 33+(11*list), colors, 0, 0, "%s", listing);
+            //draw_vscrollbar();
         }
     }
 

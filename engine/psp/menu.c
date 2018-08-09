@@ -243,7 +243,6 @@ static int findPaks(void)
 		{
 			if(packfile_supported(ds->d_name))
 			{
-				fileliststruct *copy = NULL;
 				if(filelist == NULL) filelist = malloc(sizeof(fileliststruct));
 				else
 				{
@@ -296,6 +295,7 @@ void drawMenu()
 					copyImageToImage(286, 32, 160, 120, pMenu, 286, 32, text);
 			}
 			printText(text, 30 + shift, 33 + (11 * list), colors, 0, 0, "%s", listing);
+			//draw_vscrollbar();
 		}
 	}
 	printText(text, 185,  11, WHITE, 0, 0, "OpenBOR %s", VERSION);
@@ -348,6 +348,7 @@ void drawBGMPlayer()
 				strncpy(listing, filelist[list+dListScrollPosition].filename, 44);
 			if(list==dListCurrentPosition) { shift = 2; colors = RED; }
 			printText(text, 30 + shift, 33 + (11 * list), colors, 0, 0, "%s", listing);
+			//draw_vscrollbar();
 		}
 	}
 	printText(text, 185,  11, WHITE, 0, 0, "OpenBOR %s", VERSION);
@@ -505,6 +506,16 @@ int ControlMenu()
 			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
 			break;
 
+		case PSP_DPAD_LEFT:
+			dListScrollPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListScrollPosition < 0)
+			{
+				dListScrollPosition = 0;
+				dListCurrentPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			}
+			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
+			break;
+
 		case PSP_DPAD_DOWN:
 			dListCurrentPosition++;
 			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
@@ -512,6 +523,18 @@ int ControlMenu()
 			{
 				if((dListCurrentPosition+dListScrollPosition) < dListTotal) dListScrollPosition++;
 				dListCurrentPosition = dListMaxDisplay;
+			}
+			break;
+
+		case PSP_DPAD_RIGHT:
+			dListCurrentPosition += MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
+			if(dListCurrentPosition > dListMaxDisplay)
+	        {
+		        //if((dListCurrentPosition + dListScrollPosition) < dListTotal)
+                    dListScrollPosition += MAX_PAGE_MODS_FAST_FORWARD;
+		        if((dListCurrentPosition + dListScrollPosition) > dListTotal - 1) dListScrollPosition = dListTotal - MAX_PAGE_MODS_LENGTH;
+			    dListCurrentPosition = dListMaxDisplay;
 			}
 			break;
 
