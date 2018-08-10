@@ -385,9 +385,20 @@ void drawScreens(s_screen *Image, int x, int y)
 	video_copy_screen(Screen);
 }
 
-void printBox(int x, int y, int width, int height, unsigned int colour)
+void printBox(int x, int y, int width, int height, unsigned int colour, int alpha)
 {
     unsigned *cp;
+    unsigned(*blendfp)(unsigned, unsigned);
+
+    #define __putpixel32(p) \
+                if(blendfp )\
+                {\
+                    *(p) = blendfp(colour, *(p));\
+                }\
+                else\
+                {\
+                    *(p) = colour;\
+                }
 
     if(width <= 0)
     {
@@ -438,15 +449,19 @@ void printBox(int x, int y, int width, int height, unsigned int colour)
     cp = ((unsigned *)Scaler->data) + (y * Scaler->width + x);
     colour &= 0x00FFFFFF;
 
+    blendfp = getblendfunction32(alpha);
+
     while(--height >= 0)
     {
         for(x = 0; x < width; x++)
         {
-            *cp = colour;
+            __putpixel32(cp);
             cp++;
         }
         cp += (Scaler->width - width);
     }
+
+    #undef __putpixel32
 }
 
 void printText(int x, int y, int col, int backcol, int fill, char *format, ...)
@@ -640,6 +655,35 @@ void termMenu()
 	control_exit();
 }
 
+void draw_vscrollbar() {
+    int offset_x = (isWide ? 30 : 7)    - 3;
+    int offset_y = (isWide ? 33 : 22)   + 4;
+    int box_width = 144;
+    int box_height = 194;
+    int min_vscrollbar_height = 2;
+    int vbar_height = box_height;
+    int vbar_width = 4;
+    float vbar_ratio;
+    int vspace = 0;
+    int vbar_y = 0;
+
+    if (dListTotal <= MAX_PAGE_MODS_LENGTH) return;
+
+    // set v scroll bar height
+    vbar_ratio = ((MAX_PAGE_MODS_LENGTH * 100.0f) / dListTotal) / 100.0f;
+    vbar_height = box_height * vbar_ratio;
+    if (vbar_height < min_vscrollbar_height) vbar_height = min_vscrollbar_height;
+
+    // set v scroll bar position
+    vspace = box_height - vbar_height;
+    vbar_y = (int)(((dListScrollPosition) * vspace) / (dListTotal - MAX_PAGE_MODS_LENGTH));
+
+    // draw v scroll bar
+    printBox( (offset_x + box_width - vbar_width), offset_y, vbar_width, box_height, LIGHT_GRAY, 0);
+    printBox( (offset_x + box_width - vbar_width), (offset_y + vbar_y), vbar_width, vbar_height, GRAY, 0);
+    //printText(10,220, BLACK, 0, 0, "%d/%d space: %d, vbar_y: %d vbar_height: %d", (dListCurrentPosition + dListScrollPosition), dListTotal, vspace, vbar_y, vbar_height);
+}
+
 void drawMenu()
 {
 	s_screen *Image = NULL;
@@ -675,7 +719,7 @@ void drawMenu()
 				//else printText((isWide ? 288 : 157), (isWide ? 141 : 130), RED, 0, 0, "No Preview Available!");
 			}
 			printText((isWide ? 30 : 7) + shift, (isWide ? 33 : 22)+(11*list) , colors, 0, 0, "%s", listing);
-			//draw_vscrollbar();
+			draw_vscrollbar();
 		}
 	}
 
