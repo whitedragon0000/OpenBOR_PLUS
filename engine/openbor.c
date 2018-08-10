@@ -2447,7 +2447,7 @@ void clearsettings()
     savedata.uselog = 1;
     savedata.debuginfo = 0;
     savedata.fullscreen = 0;
-    savedata.stretch = 0;
+    savedata.stretch = 1;
 
     savedata.swfilter = 0;
 

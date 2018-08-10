@@ -385,6 +385,70 @@ void drawScreens(s_screen *Image, int x, int y)
 	video_copy_screen(Screen);
 }
 
+void printBox(int x, int y, int width, int height, unsigned int colour)
+{
+    unsigned *cp;
+
+    if(width <= 0)
+    {
+        return;
+    }
+    if(height <= 0)
+    {
+        return;
+    }
+    if(Scaler == NULL)
+    {
+        return;
+    }
+
+    if(x < 0)
+    {
+        if((width += x) <= 0)
+        {
+            return;
+        }
+        x = 0;
+    }
+    else if(x >= Scaler->width)
+    {
+        return;
+    }
+    if(y < 0)
+    {
+        if((height += y) <= 0)
+        {
+            return;
+        }
+        y = 0;
+    }
+    else if(y >= Scaler->height)
+    {
+        return;
+    }
+    if(x + width > Scaler->width)
+    {
+        width = Scaler->width - x;
+    }
+    if(y + height > Scaler->height)
+    {
+        height = Scaler->height - y;
+    }
+
+    cp = ((unsigned *)Scaler->data) + (y * Scaler->width + x);
+    colour &= 0x00FFFFFF;
+
+    while(--height >= 0)
+    {
+        for(x = 0; x < width; x++)
+        {
+            *cp = colour;
+            cp++;
+        }
+        cp += (Scaler->width - width);
+    }
+}
+
 void printText(int x, int y, int col, int backcol, int fill, char *format, ...)
 {
 	int x1, y1, i;
