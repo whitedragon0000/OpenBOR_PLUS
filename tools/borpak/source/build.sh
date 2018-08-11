@@ -49,5 +49,5 @@ CC=${PREFIX}gcc
 RM="rm -rf"
 SOURCE="$SOURCE borpak.c stristr.c"
 
-$RM $TARGET$EXTENSION *.o
+#$RM $TARGET$EXTENSION *.o
 $CC $CFLAGS -o $TARGET$EXTENSION $SOURCE

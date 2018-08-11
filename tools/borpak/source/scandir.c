@@ -32,7 +32,7 @@
 
 int scandir(const char *dir, struct dirent ***namelist,
 						int (*select)(const struct dirent *),
-						int (*compar)(const struct dirent **, const struct dirent **))
+						int (*compar)(const void *, const void *))
 {
 	DIR *d;
 	struct dirent *entry;
@@ -61,11 +61,13 @@ int scandir(const char *dir, struct dirent ***namelist,
 	if (i == 0) return(-1);
 	if (compar != NULL)
 		qsort((void *)(*namelist), (size_t)i, sizeof(struct dirent *), compar);
-		
+
 	return(i);
 }
 
-int alphasort(const struct dirent **a, const struct dirent **b)
+int alphasort(const void *a, const void *b)
 {
-	return(strcmp((*a)->d_name, (*b)->d_name));
+    char *t1 = ((*(struct dirent**)a))->d_name;
+    char *t2 = ((*(struct dirent**)b))->d_name;
+	return(strcmp(t1, t2));
 }
