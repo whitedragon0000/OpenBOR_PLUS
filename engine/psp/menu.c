@@ -121,7 +121,7 @@ Image *getPreview(char *filename)
 
 	// Apply Pallete for preview then blit
 	sp = scaledown->data;
-   	dp = (void*)preview->data;
+   	dp = (void*)preview->data + (4 * 256); // 4 bytes (RGBA) * 256 palette colors
 	for(y=0; y<height; y++)
 	{
    		for(x=0; x<width; x++) dp[x] = palette[((int)(sp[x])) & 0xFF];
@@ -910,7 +910,7 @@ void menu(char *path)
 	{
 		sortList();
 		getAllLogs();
-		//getAllPreviews();
+		getAllPreviews();
 		packfile_music_read(filelist, dListTotal);
 		sound_init(12);
 		sound_start_playback(savedata.soundbits, savedata.soundrate);

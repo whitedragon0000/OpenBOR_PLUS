@@ -45,12 +45,17 @@ void vga_vwait(void)
 // Set VGA-type palette
 void vga_setpalette(unsigned char* pal)
 {
-	int i;
-	for(i=0;i<256;i++)
+	int i, pos = 0;
+   	for (i = 0; i < 256; i++)
+    {
+        palette[i] = ((pal[pos]) | ((pal[pos+1]) << 8) | ((pal[pos+2]) << 16));
+        pos += 4;
+    }
+	/*for(i=0;i<256;i++)
 	{
 		palette[i] = ((pal[0]) | ((pal[1]) << 8) | ((pal[2]) << 16));
-		pal+=3;
-	}
+		pal += 3;
+	}*/
 }
 
 void video_clearscreen()
