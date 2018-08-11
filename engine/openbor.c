@@ -745,7 +745,7 @@ int                 ent_count			= 0;					// log count of entites
 int                 ent_max				= 0;
 
 s_player            player[MAX_PLAYERS];
-u64                 bothkeys, bothnewkeys;
+u64                 bothkeys = 0, bothnewkeys = 0;
 
 s_playercontrols    playercontrols1;
 s_playercontrols    playercontrols2;
@@ -2447,16 +2447,11 @@ void clearsettings()
     savedata.uselog = 1;
     savedata.debuginfo = 0;
     savedata.fullscreen = 0;
-<<<<<<< HEAD
-    savedata.stretch = 0;
-=======
-	
 	#if WII
     savedata.stretch = 1;
 	#else
     savedata.stretch = 0;
 	#endif
->>>>>>> official
 
     savedata.swfilter = 0;
 
@@ -34170,7 +34165,6 @@ void inputrefresh(int playrecmode)
         bothkeys |= player[p].keys;
         bothnewkeys |= player[p].newkeys;
     }
-
 }
 
 void execute_keyscripts()

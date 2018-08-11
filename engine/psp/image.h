@@ -19,9 +19,7 @@ typedef struct
 	int imageWidth;
 	int imageHeight;
 	Color* data;
-}
-Image;
-Image *text;
+} Image;
 
 Image* loadImage(const char* filename);
 void saveImage(const char* filename);

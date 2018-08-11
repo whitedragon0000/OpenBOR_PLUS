@@ -51,6 +51,10 @@ extern int videoMode;
 #define LOG_SCREEN_TOP 2
 #define LOG_SCREEN_END (isWide ? 26 : 23)
 
+#define FIRST_KEYPRESS      1
+#define IMPULSE_TIME        0.12
+#define FIRST_IMPULSE_TIME  1.2
+
 #define DIR_UP			0x00000001
 #define DIR_RIGHT		0x00000002
 #define DIR_DOWN		0x00000004
@@ -99,9 +103,9 @@ int which_logfile = OPENBOR_LOG;
 int buttonsHeld = 0;
 int buttonsPressed = 0;
 FILE *bgmFile = NULL;
-extern unsigned long bothkeys, bothnewkeys;
 fileliststruct *filelist;
 s_videomodes videomodes;
+extern u64 bothkeys, bothnewkeys;
 
 typedef struct{
 	stringptr *buf;
@@ -121,14 +125,13 @@ typedef struct{
 
 typedef int (*ControlInput)();
 
-int ControlMenu();
-int ControlBGM();
+static int ControlMenu();
 void PlayBGM();
 void StopBGM();
 void fillRect(s_screen* dest, Rect* rect, u32 color);
 static ControlInput pControl;
 
-int Control()
+static int Control()
 {
 	return pControl();
 }
@@ -182,13 +185,13 @@ void refreshInput()
 		if(wupc->button & WPAD_CLASSIC_BUTTON_FULL_L)     btns |= CC_L;
 		if(wupc->button & WPAD_CLASSIC_BUTTON_ZL)         btns |= CC_ZL;
 		if(wupc->button & WPAD_CLASSIC_BUTTON_ZR)         btns |= CC_ZR;
-		
-		//analog stick  
+
+		//analog stick
 		if(wupc->yAxisL > 200)							  btns |= DIR_UP;
 		if(wupc->yAxisL < -200)							  btns |= DIR_DOWN;
 		if(wupc->xAxisL > 200)							  btns |= DIR_RIGHT;
 		if(wupc->xAxisL < -200)							  btns |= DIR_LEFT;
-			
+
 	}
 	else if(wpad->exp.type == WPAD_EXP_NUNCHUK) // Wiimote + Nunchuk
 	{
@@ -339,19 +342,23 @@ static int findPaks(void)
 	dp = opendir(paksDir);
 	if(dp != NULL)
    	{
+   	    filelist = NULL;
 		while((ds = readdir(dp)) != NULL)
 		{
 			if(packfile_supported(ds->d_name))
 			{
-				fileliststruct *copy = NULL;
 				if(filelist == NULL) filelist = malloc(sizeof(fileliststruct));
 				else
-					copy = malloc(i * sizeof(fileliststruct));
-					memcpy(copy, filelist, i * sizeof(fileliststruct));
+				{
+				    filelist = (fileliststruct *)realloc(filelist, (i+1) * sizeof(struct fileliststruct));
+				    /*fileliststruct *copy = NULL;
+					copy = malloc((i + 1) * sizeof(struct fileliststruct));
+					memcpy(copy, filelist, (i + 1) * sizeof(struct fileliststruct));
 					free(filelist);
-					filelist = malloc((i + 1) * sizeof(fileliststruct));
-					memcpy(filelist, copy, i * sizeof(fileliststruct));
-					free(copy); copy = NULL;
+					filelist = malloc((i + 1) * sizeof(struct fileliststruct));
+					memcpy(filelist, copy, (i + 1) * sizeof(struct fileliststruct));
+					free(copy); copy = NULL;*/
+				}
 				memset(&filelist[i], 0, sizeof(fileliststruct));
 				strcpy(filelist[i].filename, ds->d_name);
 				i++;
@@ -379,6 +386,85 @@ void drawScreens(s_screen *Image, int x, int y)
 	if(Image) copyscreen_o(Scaler, Image, x, y);
 	writeToScreen(Scaler);
 	video_copy_screen(Screen);
+}
+
+void printBox(int x, int y, int width, int height, unsigned int colour, int alpha)
+{
+    unsigned *cp;
+    unsigned(*blendfp)(unsigned, unsigned);
+
+    #define __putpixel32(p) \
+                if(blendfp )\
+                {\
+                    *(p) = blendfp(colour, *(p));\
+                }\
+                else\
+                {\
+                    *(p) = colour;\
+                }
+
+    if(width <= 0)
+    {
+        return;
+    }
+    if(height <= 0)
+    {
+        return;
+    }
+    if(Scaler == NULL)
+    {
+        return;
+    }
+
+    if(x < 0)
+    {
+        if((width += x) <= 0)
+        {
+            return;
+        }
+        x = 0;
+    }
+    else if(x >= Scaler->width)
+    {
+        return;
+    }
+    if(y < 0)
+    {
+        if((height += y) <= 0)
+        {
+            return;
+        }
+        y = 0;
+    }
+    else if(y >= Scaler->height)
+    {
+        return;
+    }
+    if(x + width > Scaler->width)
+    {
+        width = Scaler->width - x;
+    }
+    if(y + height > Scaler->height)
+    {
+        height = Scaler->height - y;
+    }
+
+    cp = ((unsigned *)Scaler->data) + (y * Scaler->width + x);
+    colour &= 0x00FFFFFF;
+
+    blendfp = getblendfunction32(alpha);
+
+    while(--height >= 0)
+    {
+        for(x = 0; x < width; x++)
+        {
+            __putpixel32(cp);
+            cp++;
+        }
+        cp += (Scaler->width - width);
+    }
+
+    #undef __putpixel32
 }
 
 void printText(int x, int y, int col, int backcol, int fill, char *format, ...)
@@ -462,13 +548,65 @@ s_screen *getPreview(char *filename)
 	return scale;
 }
 
-int ControlMenu()
+/* PARAMS:
+ * key: pressed key flag
+ * time_range: time between 2 key impulses
+ * start_press_flag: 1 == press the first time too, 0 == no first time key press
+ * start_time_eta: wait time after the first key press (time between 1st and 2nd impulse)
+ */
+static int hold_key_impulse(int key, float time_range, int start_press_flag, float start_time_eta) {
+    static int hold_time[64];
+    static int first_keypress[64];
+    static int second_keypress[64];
+    int key_index = 0, tmp_key = key;
+
+    while (tmp_key >>= 1) key_index++;;
+
+    if ( buttonsHeld & key ) {
+        unsigned time = timer_gettick();
+
+        time_range *= GAME_SPEED;
+        start_time_eta *= GAME_SPEED;
+        if ( !hold_time[key_index] ) {
+            hold_time[key_index] = time;
+
+            if ( start_press_flag > 0 && !first_keypress[key_index] ) {
+                first_keypress[key_index] = 1;
+                return key;
+            }
+        } else if ( time - hold_time[key_index] >= time_range ) {
+            if ( start_time_eta > 0 && !second_keypress[key_index] ) {
+                if ( time - hold_time[key_index] < start_time_eta ) return 0;
+            }
+
+            // simulate hold press
+            if ( !second_keypress[key_index] ) second_keypress[key_index] = 1;
+            hold_time[key_index] = 0;
+            return key;
+        }
+    } else {
+        hold_time[key_index] = 0;
+        first_keypress[key_index] = 0;
+        second_keypress[key_index] = 0;
+    }
+
+    return 0;
+}
+
+static int ControlMenu()
 {
 	int status = -1;
-	int dListMaxDisplay = 17;
+	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
+
 	//bothnewkeys = 0;
 	//inputrefresh(0);
 	refreshInput();
+
+	buttonsPressed |= hold_key_impulse(DIR_DOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);;
+	buttonsPressed |= hold_key_impulse(DIR_LEFT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	buttonsPressed |= hold_key_impulse(DIR_UP, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	buttonsPressed |= hold_key_impulse(DIR_RIGHT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+
 	switch(buttonsPressed)
 	{
 		case DIR_UP:
@@ -492,9 +630,25 @@ int ControlMenu()
 			break;
 
 		case DIR_LEFT:
+			dListScrollPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListScrollPosition < 0)
+			{
+				dListScrollPosition = 0;
+				dListCurrentPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			}
+			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
 			break;
 
 		case DIR_RIGHT:
+			dListCurrentPosition += MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
+			if(dListCurrentPosition > dListMaxDisplay)
+	        {
+		        //if((dListCurrentPosition + dListScrollPosition) < dListTotal)
+                    dListScrollPosition += MAX_PAGE_MODS_FAST_FORWARD;
+		        if((dListCurrentPosition + dListScrollPosition) > dListTotal - 1) dListScrollPosition = dListTotal - MAX_PAGE_MODS_LENGTH;
+			    dListCurrentPosition = dListMaxDisplay;
+			}
 			break;
 
 		case WIIMOTE_PLUS:
@@ -556,6 +710,35 @@ void termMenu()
 	control_exit();
 }
 
+void draw_vscrollbar() {
+    int offset_x = (isWide ? 30 : 7)    - 3;
+    int offset_y = (isWide ? 33 : 22)   + 4;
+    int box_width = 144;
+    int box_height = 194;
+    int min_vscrollbar_height = 2;
+    int vbar_height = box_height;
+    int vbar_width = 4;
+    float vbar_ratio;
+    int vspace = 0;
+    int vbar_y = 0;
+
+    if (dListTotal <= MAX_PAGE_MODS_LENGTH) return;
+
+    // set v scroll bar height
+    vbar_ratio = ((MAX_PAGE_MODS_LENGTH * 100.0f) / dListTotal) / 100.0f;
+    vbar_height = box_height * vbar_ratio;
+    if (vbar_height < min_vscrollbar_height) vbar_height = min_vscrollbar_height;
+
+    // set v scroll bar position
+    vspace = box_height - vbar_height;
+    vbar_y = (int)(((dListScrollPosition) * vspace) / (dListTotal - MAX_PAGE_MODS_LENGTH));
+
+    // draw v scroll bar
+    printBox( (offset_x + box_width - vbar_width), offset_y, vbar_width, box_height, LIGHT_GRAY, 0);
+    printBox( (offset_x + box_width - vbar_width), (offset_y + vbar_y), vbar_width, vbar_height, GRAY, 0);
+    //printText(10,220, BLACK, 0, 0, "%d/%d space: %d, vbar_y: %d vbar_height: %d", (dListCurrentPosition + dListScrollPosition), dListTotal, vspace, vbar_y, vbar_height);
+}
+
 void drawMenu()
 {
 	s_screen *Image = NULL;
@@ -569,7 +752,7 @@ void drawMenu()
 	if(dListTotal < 1) printText((isWide ? 30 : 8), (isWide ? 33 : 24), RED, 0, 0, "No Mods In Paks Folder!");
 	for(list=0; list<dListTotal; list++)
 	{
-		if(list < MAX_MODS_NUM)
+		if(list < MAX_PAGE_MODS_LENGTH)
 		{
 			shift = 0;
 			colors = GRAY;
@@ -591,6 +774,7 @@ void drawMenu()
 				//else printText((isWide ? 288 : 157), (isWide ? 141 : 130), RED, 0, 0, "No Preview Available!");
 			}
 			printText((isWide ? 30 : 7) + shift, (isWide ? 33 : 22)+(11*list) , colors, 0, 0, "%s", listing);
+			draw_vscrollbar();
 		}
 	}
 
@@ -607,18 +791,19 @@ void drawMenu()
 	printText((isWide ? 324 : 192),(isWide ? 191 : 176), DARK_RED, 0, 0, "SecurePAK Edition");
 #endif
 
-	drawScreens(Image, clipX, clipY);
-
 	if(Image)
 	{
+	    drawScreens(Image, clipX, clipY);
 		freescreen(&Image);
 		Image = NULL;
 	}
+	drawScreens(NULL, 0, 0);
 }
 
 void drawLogs()
 {
 	int i=which_logfile, j, k, l, done=0;
+	bothkeys = bothnewkeys = 0;
 	s_screen *Viewer = NULL;
 
 	bothkeys = bothnewkeys = 0;

@@ -28,7 +28,9 @@
 #define		MAX_FILENAME_LEN	256
 #define		MAX_LABEL_LEN       128
 
-#define MAX_MODS_NUM 100
+#define		MAX_PAGE_MODS_LENGTH            18
+#define		MAX_PAGE_MODS_FAST_FORWARD      10
+#define     MAX_MODS_NUM                    100
 
 #ifdef PSP
 #include <stdarg.h>

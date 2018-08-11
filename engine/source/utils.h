@@ -63,7 +63,6 @@ int safe_stricmp(const char *s1, const char *s2);
 int safe_strnicmp(const char *s1, const char *s2, size_t n);
 void get_time_string(char buffer[], unsigned buffer_size, time_t timestamp, char* pattern); // pattern ex. "%Y-%m-%d %H:%M:%S"
 void get_now_string(char buffer[], unsigned buffer_size, char* pattern);
-
 void Array_Check_Size( const char *f_caller, char **array, int new_size, int *curr_size_allocated, int grow_step );
 
 #endif

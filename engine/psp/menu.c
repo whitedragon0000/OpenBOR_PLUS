@@ -18,10 +18,15 @@
 #include "openbor.h"
 #include "packfile.h"
 #include "graphics.h"
+#include "control.h"
 #include "kernel/kernel.h"
 
 #define LOG_SCREEN_TOP 3
 #define LOG_SCREEN_END 24
+
+#define FIRST_KEYPRESS      1
+#define IMPULSE_TIME        0.3
+#define FIRST_IMPULSE_TIME  1.6
 
 char wMode[MAX_LABEL_LEN] = {""};
 char wStatus[MAX_LABEL_LEN] = {"WiFi Disabled"};
@@ -35,6 +40,9 @@ FILE *bgmFile = NULL;
 u32	lastPad = 0;
 u32 bgmPlay = 0, bgmLoop = 0, bgmCycle = 0, bgmCurrent = 0, bgmStatus = 0;
 fileliststruct *filelist;
+static Image *text;
+extern u64 bothkeys, bothnewkeys;
+u32 menukeys;
 
 typedef struct{
 	stringptr *buf;
@@ -46,21 +54,23 @@ typedef struct{
 s_logfile logfile[2];
 
 typedef int (*ControlInput)();
-int ControlMenu();
-int ControlBGM();
-int ControlLOG();
+static int ControlMenu();
+static int ControlBGM();
+static int ControlLOG();
 void PlayBGM();
 void StopBGM();
 static ControlInput pControl;
 
-int Control()
+static int Control()
 {
 	return pControl();
 }
 
 u32 getInput(int delay, int update)
 {
+    menukeys = 0;
 	u32 pad = getPad(0);
+	menukeys |= pad;
 	if(pad == lastPad && delay) return 0;
 	if(update) return lastPad = pad;
 	else return pad;
@@ -111,7 +121,7 @@ Image *getPreview(char *filename)
 
 	// Apply Pallete for preview then blit
 	sp = scaledown->data;
-   	dp = (void*)preview->data;
+   	dp = (void*)preview->data + (4 * 256); // 4 bytes (RGBA) * 256 palette colors
 	for(y=0; y<height; y++)
 	{
    		for(x=0; x<width; x++) dp[x] = palette[((int)(sp[x])) & 0xFF];
@@ -238,20 +248,22 @@ static int findPaks(void)
 	dp = opendir(dListPath);
 	if(dp != NULL)
    	{
+   	    filelist = NULL;
 		while((ds = readdir(dp)) != NULL)
 		{
 			if(packfile_supported(ds->d_name))
 			{
-				fileliststruct *copy = NULL;
 				if(filelist == NULL) filelist = malloc(sizeof(fileliststruct));
 				else
 				{
-					copy = malloc(i * sizeof(fileliststruct));
-					memcpy(copy, filelist, i * sizeof(fileliststruct));
+				    filelist = (fileliststruct *)realloc(filelist, (i+1) * sizeof(struct fileliststruct));
+				    /*fileliststruct *copy = NULL;
+					copy = malloc((i + 1) * sizeof(struct fileliststruct));
+					memcpy(copy, filelist, (i + 1) * sizeof(struct fileliststruct));
 					free(filelist);
-					filelist = malloc((i + 1) * sizeof(fileliststruct));
-					memcpy(filelist, copy, i * sizeof(fileliststruct));
-					free(copy); copy = NULL;
+					filelist = malloc((i + 1) * sizeof(struct fileliststruct));
+					memcpy(filelist, copy, (i + 1) * sizeof(struct fileliststruct));
+					free(copy); copy = NULL;*/
 				}
 				memset(&filelist[i], 0, sizeof(fileliststruct));
 				strcpy(filelist[i].filename, ds->d_name);
@@ -261,6 +273,52 @@ static int findPaks(void)
 		closedir(dp);
    	}
 	return i;
+}
+
+static void draw_vscrollbar() {
+    int offset_x = 30    - 3;
+    int offset_y = 33    + 4;
+    int box_width = 225;
+    int box_height = 194;
+    int min_vscrollbar_height = 2;
+    int vbar_height = box_height;
+    int vbar_width = 4;
+    float vbar_ratio;
+    int vspace = 0;
+    int vbar_y = 0;
+    Image *box = createImage(box_width, box_height);
+    Image *vbar;
+
+    if (dListTotal <= MAX_PAGE_MODS_LENGTH) return;
+
+    // set v scroll bar height
+    vbar_ratio = ((MAX_PAGE_MODS_LENGTH * 100.0f) / dListTotal) / 100.0f;
+    vbar_height = box_height * vbar_ratio;
+    if (vbar_height < min_vscrollbar_height) vbar_height = min_vscrollbar_height;
+    vbar = createImage(vbar_width, vbar_height);
+
+    // set v scroll bar position
+    vspace = box_height - vbar_height;
+    vbar_y = (int)(((dListScrollPosition) * vspace) / (dListTotal - MAX_PAGE_MODS_LENGTH));
+
+    // draw v scroll bar
+	if(box != NULL)
+	{
+		fillImageRect(box, LIGHT_GRAY, 0, 0, vbar_width, box_height);
+		copyImageToImage(0, 0, vbar_width, box_height, box, (offset_x + box_width - vbar_width), offset_y, text);
+		freeImage(box);
+		box = NULL;
+	}
+	if(vbar != NULL)
+	{
+		fillImageRect(vbar, GRAY, 0, 0, vbar_width, vbar_height);
+		copyImageToImage(0, 0, vbar_width, vbar_height, vbar, (offset_x + box_width - vbar_width), (offset_y + vbar_y), text);
+		freeImage(vbar);
+		vbar = NULL;
+	}
+    //putbox( (offset_x + box_width - vbar_width), offset_y, vbar_width, box_height, LIGHT_GRAY, vscreen, NULL);
+    //putbox( (offset_x + box_width - vbar_width), (offset_y + vbar_y), vbar_width, vbar_height, GRAY, vscreen, NULL);
+    //printText(10,220, BLACK, 0, 0, "%d/%d space: %d, vbar_y: %d vbar_height: %d", (dListCurrentPosition + dListScrollPosition), dListTotal, vspace, vbar_y, vbar_height);
 }
 
 void drawMenu()
@@ -274,7 +332,7 @@ void drawMenu()
 	if(dListTotal < 1) printText(text, 30, 33, RED, 0, 0, "No Mods In Paks Folder!");
 	for(list=0; list<dListTotal; list++)
 	{
-		if(list < MAX_MODS_NUM)
+		if(list < MAX_PAGE_MODS_LENGTH)
 		{
 			shift = 0;
 			colors = BLACK;
@@ -293,6 +351,7 @@ void drawMenu()
 					copyImageToImage(286, 32, 160, 120, pMenu, 286, 32, text);
 			}
 			printText(text, 30 + shift, 33 + (11 * list), colors, 0, 0, "%s", listing);
+			draw_vscrollbar();
 		}
 	}
 	printText(text, 185,  11, WHITE, 0, 0, "OpenBOR %s", VERSION);
@@ -334,7 +393,7 @@ void drawBGMPlayer()
 	}
 	for(list=0; list<dListTotal; list++)
 	{
-		if(list<MAX_MODS_NUM)
+		if(list<MAX_PAGE_MODS_LENGTH)
 		{
 			shift = 0;
 			colors = BLACK;
@@ -345,6 +404,7 @@ void drawBGMPlayer()
 				strncpy(listing, filelist[list+dListScrollPosition].filename, 44);
 			if(list==dListCurrentPosition) { shift = 2; colors = RED; }
 			printText(text, 30 + shift, 33 + (11 * list), colors, 0, 0, "%s", listing);
+			draw_vscrollbar();
 		}
 	}
 	printText(text, 185,  11, WHITE, 0, 0, "OpenBOR %s", VERSION);
@@ -391,6 +451,7 @@ void drawBGMPlayer()
 void drawLogs()
 {
 	int i=which_logfile, j, k, l;
+	bothkeys = bothnewkeys = 0;
 	Image *box = createImage(PSP_LCD_WIDTH, 224);
 	copyImageToImage(0, 0, PSP_LCD_WIDTH, PSP_LCD_HEIGHT, pMenu, 0, 0, text);
 	drawImageBox(box, DARK_GRAY, BLACK, 2);
@@ -486,11 +547,68 @@ int ControlBox()
 	return done;
 }
 
-int ControlMenu()
+/* PARAMS:
+ * key: pressed key flag
+ * time_range: time between 2 key impulses
+ * start_press_flag: 1 == press the first time too, 0 == no first time key press
+ * start_time_eta: wait time after the first key press (time between 1st and 2nd impulse)
+ */
+static int hold_key_impulse(int key, float time_range, int start_press_flag, float start_time_eta) {
+    static int hold_time[64];
+    static int first_keypress[64];
+    static int second_keypress[64];
+    int key_index = 0, tmp_key = key;
+
+    while (tmp_key >>= 1) key_index++;;
+
+    if ( menukeys & key ) {
+        unsigned time = timer_gettick() / (GAME_SPEED * 4);
+
+        time_range *= GAME_SPEED;
+        start_time_eta *= GAME_SPEED;
+        if ( !hold_time[key_index] ) {
+            hold_time[key_index] = time;
+
+            if ( start_press_flag > 0 && !first_keypress[key_index] ) {
+                first_keypress[key_index] = 1;
+                return key;
+            }
+        } else if ( time - hold_time[key_index] >= time_range ) {
+            if ( start_time_eta > 0 && !second_keypress[key_index] ) {
+                if ( time - hold_time[key_index] < start_time_eta ) return 0;
+            }
+
+            // simulate hold press
+            if ( !second_keypress[key_index] ) second_keypress[key_index] = 1;
+            hold_time[key_index] = 0;
+            return key;
+        }
+    } else {
+        hold_time[key_index] = 0;
+        first_keypress[key_index] = 0;
+        second_keypress[key_index] = 0;
+    }
+
+    return 0;
+}
+
+static int ControlMenu()
 {
 	int status = -1;
-	int dListMaxDisplay = 17;
-	switch(getInput(1, 1))
+	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
+	u32 inputs = 0;
+
+    //bothnewkeys = 0;
+	//inputrefresh(0);
+	inputs = getInput(1, 1);
+
+	inputs |= hold_key_impulse(PSP_DPAD_DOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);;
+	inputs |= hold_key_impulse(PSP_DPAD_LEFT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	inputs |= hold_key_impulse(PSP_DPAD_UP, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	inputs |= hold_key_impulse(PSP_DPAD_RIGHT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+    //printText(text, 30, 200, BLACK, 0, 0, "KEYS: %"PRId32" timer: %u\n", menukeys, timer_gettick());
+
+	switch(inputs)
 	{
 		case PSP_DPAD_UP:
 			dListScrollPosition--;
@@ -502,6 +620,16 @@ int ControlMenu()
 			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
 			break;
 
+		case PSP_DPAD_LEFT:
+			dListScrollPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListScrollPosition < 0)
+			{
+				dListScrollPosition = 0;
+				dListCurrentPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			}
+			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
+			break;
+
 		case PSP_DPAD_DOWN:
 			dListCurrentPosition++;
 			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
@@ -509,6 +637,18 @@ int ControlMenu()
 			{
 				if((dListCurrentPosition+dListScrollPosition) < dListTotal) dListScrollPosition++;
 				dListCurrentPosition = dListMaxDisplay;
+			}
+			break;
+
+		case PSP_DPAD_RIGHT:
+			dListCurrentPosition += MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
+			if(dListCurrentPosition > dListMaxDisplay)
+	        {
+		        //if((dListCurrentPosition + dListScrollPosition) < dListTotal)
+                    dListScrollPosition += MAX_PAGE_MODS_FAST_FORWARD;
+		        if((dListCurrentPosition + dListScrollPosition) > dListTotal - 1) dListScrollPosition = dListTotal - MAX_PAGE_MODS_LENGTH;
+			    dListCurrentPosition = dListMaxDisplay;
 			}
 			break;
 
@@ -561,11 +701,20 @@ int ControlMenu()
 	return status;
 }
 
-int ControlBGM()
+static int ControlBGM()
 {
 	int status = -3;
-	int dListMaxDisplay = 17;
-	switch(getInput(1, 1))
+	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
+	u32 inputs = 0;
+
+    //bothnewkeys = 0;
+	//inputrefresh(0);
+	inputs = getInput(1, 1);
+
+	inputs |= hold_key_impulse(FLAG_MOVEDOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	inputs |= hold_key_impulse(FLAG_MOVEUP, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+
+	switch(inputs)
 	{
 		case PSP_DPAD_UP:
 			dListScrollPosition--;
@@ -761,7 +910,7 @@ void menu(char *path)
 	{
 		sortList();
 		getAllLogs();
-		//getAllPreviews();
+		getAllPreviews();
 		packfile_music_read(filelist, dListTotal);
 		sound_init(12);
 		sound_start_playback(savedata.soundbits, savedata.soundrate);

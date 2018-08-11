@@ -36,7 +36,7 @@ static GXTlutObj tlut;
 static unsigned short palette[256] ATTRIBUTE_ALIGN(32);
 
 static int inited = 0;
-static int stretch = 0;
+static int stretch = 1;
 
 static int brightness = 0;
 static int brightness_update = 0;

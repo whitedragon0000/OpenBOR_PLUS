@@ -57,6 +57,10 @@ static s_screen* logscreen;
 #define LOG_SCREEN_TOP 2
 #define LOG_SCREEN_END (isWide ? 26 : 23)
 
+#define FIRST_KEYPRESS      1
+#define IMPULSE_TIME        0.12
+#define FIRST_IMPULSE_TIME  1.2
+
 static int bpp = 32;
 static int isWide = 0;
 static int isFull = 0;
@@ -67,7 +71,7 @@ static int which_logfile = OPENBOR_LOG;
 static FILE *bgmFile = NULL;
 static unsigned int bgmPlay = 0, bgmLoop = 0, bgmCycle = 0, bgmCurrent = 0, bgmStatus = 0;
 static fileliststruct *filelist;
-extern u32 bothkeys, bothnewkeys;
+extern u64 bothkeys, bothnewkeys;
 extern const s_drawmethod plainmethod;
 
 typedef struct{
@@ -175,24 +179,27 @@ static int findPaks(void)
 	DIR* dp = NULL;
 	struct dirent* ds;
 	dp = opendir(paksDir);
+
 	if(dp != NULL)
    	{
+   	    filelist = NULL;
 		while((ds = readdir(dp)) != NULL)
 		{
 			if(packfile_supported(ds->d_name))
 			{
-				fileliststruct *copy = NULL;
-				if(filelist == NULL) filelist = malloc(sizeof(fileliststruct));
+				if(filelist == NULL) filelist = malloc(sizeof(struct fileliststruct));
 				else
 				{
-					copy = malloc(i * sizeof(fileliststruct));
-					memcpy(copy, filelist, i * sizeof(fileliststruct));
+				    filelist = (fileliststruct *)realloc(filelist, (i+1) * sizeof(struct fileliststruct));
+				    /*fileliststruct *copy = NULL;
+					copy = malloc((i + 1) * sizeof(struct fileliststruct));
+					memcpy(copy, filelist, (i + 1) * sizeof(struct fileliststruct));
 					free(filelist);
-					filelist = malloc((i + 1) * sizeof(fileliststruct));
-					memcpy(filelist, copy, i * sizeof(fileliststruct));
-					free(copy); copy = NULL;
+					filelist = malloc((i + 1) * sizeof(struct fileliststruct));
+					memcpy(filelist, copy, (i + 1) * sizeof(struct fileliststruct));
+					free(copy); copy = NULL;*/
 				}
-				memset(&filelist[i], 0, sizeof(fileliststruct));
+				memset(&filelist[i], 0, sizeof(struct fileliststruct));
 				strcpy(filelist[i].filename, ds->d_name);
 				i++;
 			}
@@ -294,12 +301,64 @@ static void PlayBGM()
 	bgmPlay = packfile_music_play(filelist, bgmFile, bgmLoop, dListCurrentPosition, dListScrollPosition);
 }
 
+/* PARAMS:
+ * key: pressed key flag
+ * time_range: time between 2 key impulses
+ * start_press_flag: 1 == press the first time too, 0 == no first time key press
+ * start_time_eta: wait time after the first key press (time between 1st and 2nd impulse)
+ */
+static int hold_key_impulse(int key, float time_range, int start_press_flag, float start_time_eta) {
+    static int hold_time[64];
+    static int first_keypress[64];
+    static int second_keypress[64];
+    int key_index = 0, tmp_key = key;
+
+    while (tmp_key >>= 1) key_index++;;
+
+    if ( bothkeys & key ) {
+        u32 time = timer_gettick();
+
+        time_range *= GAME_SPEED;
+        start_time_eta *= GAME_SPEED;
+        if ( !hold_time[key_index] ) {
+            hold_time[key_index] = time;
+
+            if ( start_press_flag > 0 && !first_keypress[key_index] ) {
+                first_keypress[key_index] = 1;
+                return key;
+            }
+        } else if ( time - hold_time[key_index] >= time_range ) {
+            if ( start_time_eta > 0 && !second_keypress[key_index] ) {
+                if ( time - hold_time[key_index] < start_time_eta ) return 0;
+            }
+
+            // simulate hold press
+            if ( !second_keypress[key_index] ) second_keypress[key_index] = 1;
+            hold_time[key_index] = 0;
+            return key;
+        }
+    } else {
+        hold_time[key_index] = 0;
+        first_keypress[key_index] = 0;
+        second_keypress[key_index] = 0;
+    }
+
+    return 0;
+}
+
 static int ControlMenu()
 {
 	int status = -1;
-	int dListMaxDisplay = 17;
+	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
+
 	bothnewkeys = 0;
 	inputrefresh(0);
+
+	bothnewkeys |= hold_key_impulse(FLAG_MOVEDOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	bothnewkeys |= hold_key_impulse(FLAG_MOVELEFT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	bothnewkeys |= hold_key_impulse(FLAG_MOVEUP, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	bothnewkeys |= hold_key_impulse(FLAG_MOVERIGHT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+
 	switch(bothnewkeys)
 	{
 		case FLAG_MOVEUP:
@@ -308,6 +367,16 @@ static int ControlMenu()
 			{
 				dListScrollPosition = 0;
 				dListCurrentPosition--;
+			}
+			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
+			break;
+
+        case FLAG_MOVELEFT:
+			dListScrollPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListScrollPosition < 0)
+			{
+				dListScrollPosition = 0;
+				dListCurrentPosition -= MAX_PAGE_MODS_FAST_FORWARD;
 			}
 			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
 			break;
@@ -322,10 +391,16 @@ static int ControlMenu()
 			}
 			break;
 
-		case FLAG_MOVELEFT:
-			break;
-
 		case FLAG_MOVERIGHT:
+			dListCurrentPosition += MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
+			if(dListCurrentPosition > dListMaxDisplay)
+	        {
+		        //if((dListCurrentPosition + dListScrollPosition) < dListTotal)
+                    dListScrollPosition += MAX_PAGE_MODS_FAST_FORWARD;
+		        if((dListCurrentPosition + dListScrollPosition) > dListTotal - 1) dListScrollPosition = dListTotal - MAX_PAGE_MODS_LENGTH;
+			    dListCurrentPosition = dListMaxDisplay;
+			}
 			break;
 
 		case FLAG_START:
@@ -361,9 +436,14 @@ static int ControlMenu()
 static int ControlBGM()
 {
 	int status = -2;
-	int dListMaxDisplay = 17;
+	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
+
 	bothnewkeys = 0;
 	inputrefresh(0);
+
+	bothnewkeys |= hold_key_impulse(FLAG_MOVEDOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	bothnewkeys |= hold_key_impulse(FLAG_MOVEUP, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+
 	switch(bothnewkeys)
 	{
 		case FLAG_MOVEUP:
@@ -500,6 +580,35 @@ static void blit_video_menu(s_screen* vscreen)
     video_stretch(savedata.stretch); // reset to saved value
 }
 
+static void draw_vscrollbar() {
+    int offset_x = (isWide ? 30 : 7)    - 3;
+    int offset_y = (isWide ? 33 : 22)   + 4;
+    int box_width = 144;
+    int box_height = 194;
+    int min_vscrollbar_height = 2;
+    int vbar_height = box_height;
+    int vbar_width = 4;
+    float vbar_ratio;
+    int vspace = 0;
+    int vbar_y = 0;
+
+    if (dListTotal <= MAX_PAGE_MODS_LENGTH) return;
+
+    // set v scroll bar height
+    vbar_ratio = ((MAX_PAGE_MODS_LENGTH * 100.0f) / dListTotal) / 100.0f;
+    vbar_height = box_height * vbar_ratio;
+    if (vbar_height < min_vscrollbar_height) vbar_height = min_vscrollbar_height;
+
+    // set v scroll bar position
+    vspace = box_height - vbar_height;
+    vbar_y = (int)(((dListScrollPosition) * vspace) / (dListTotal - MAX_PAGE_MODS_LENGTH));
+
+    // draw v scroll bar
+    putbox( (offset_x + box_width - vbar_width), offset_y, vbar_width, box_height, LIGHT_GRAY, vscreen, NULL);
+    putbox( (offset_x + box_width - vbar_width), (offset_y + vbar_y), vbar_width, vbar_height, GRAY, vscreen, NULL);
+    //printText(10,220, BLACK, 0, 0, "%d/%d space: %d, vbar_y: %d vbar_height: %d", (dListCurrentPosition + dListScrollPosition), dListTotal, vspace, vbar_y, vbar_height);
+}
+
 static void drawMenu()
 {
 	char listing[45] = {""};
@@ -512,7 +621,7 @@ static void drawMenu()
 	if(dListTotal < 1) printText((isWide ? 30 : 8), (isWide ? 33 : 24), RED, 0, 0, "No Mods In Paks Folder!");
 	for(list = 0; list < dListTotal; list++)
 	{
-		if(list < MAX_MODS_NUM)
+		if(list < MAX_PAGE_MODS_LENGTH)
 		{
 		    int len = strlen(filelist[list+dListScrollPosition].filename)-4;
 			shift = 0;
@@ -529,6 +638,7 @@ static void drawMenu()
 				Image = getPreview(filelist[list+dListScrollPosition].filename);
 			}
 			printText((isWide ? 30 : 7) + shift, (isWide ? 33 : 22)+(11*list) , colors, 0, 0, "%s", listing);
+			draw_vscrollbar();
 		}
 	}
 
@@ -577,9 +687,9 @@ static void drawBGMPlayer()
 	putscreen(vscreen,bgscreen,0,0,NULL);
 	putbox((isWide ? 286 : 155),(isWide ? 32 : 21),160,120,LIGHT_GRAY,vscreen,NULL);
 
-	for(list=0; list<dListTotal; list++)
+	for(list = 0; list < dListTotal; list++)
 	{
-		if(list<MAX_MODS_NUM)
+		if(list < MAX_PAGE_MODS_LENGTH)
 		{
 		    int len = strlen(filelist[list+dListScrollPosition].filename)-4;
 			shift = 0;
@@ -591,6 +701,7 @@ static void drawBGMPlayer()
 				safe_strncpy(listing, filelist[list+dListScrollPosition].filename, (isWide ? 44 : 28));
 			if(list==dListCurrentPosition) { shift = 2; colors = RED; }
 			printText((isWide ? 30 : 7) + shift, (isWide ? 33 : 22)+(11*list) , colors, 0, 0, "%s", listing);
+			draw_vscrollbar();
 		}
 	}
 

@@ -67,7 +67,7 @@ static unsigned int buttonsHeld = 0;
 static unsigned int buttonsPressed = 0;
 static fileliststruct *filelist;
 static s_logfile logfile[2];
-
+extern u64 bothkeys, bothnewkeys;
 typedef int (*ControlInput)();
 static ControlInput pControl;
 
@@ -179,28 +179,33 @@ static int findPaks(void)
     SceIoDirent ds;
 
     dp = sceIoDopen(paksDir);
-
-    while (sceIoDread(dp, &ds) > 0)
+    if (dp != NULL)
     {
-        if (packfile_supported(ds.d_name))
+        filelist = NULL;
+        while (sceIoDread(dp, &ds) > 0)
         {
-            fileliststruct *copy = NULL;
-            if (filelist == NULL) filelist = malloc(sizeof(fileliststruct));
-            else
+            if (packfile_supported(ds.d_name))
             {
-					copy = malloc(i * sizeof(fileliststruct));
-					memcpy(copy, filelist, i * sizeof(fileliststruct));
-					free(filelist);
-					filelist = malloc((i + 1) * sizeof(fileliststruct));
-					memcpy(filelist, copy, i * sizeof(fileliststruct));
-					free(copy); copy = NULL;
+                if (filelist == NULL) filelist = malloc(sizeof(fileliststruct));
+                else
+                {
+                    filelist = (fileliststruct *)realloc(filelist, (i+1) * sizeof(struct fileliststruct));
+                    /*fileliststruct *copy = NULL;
+                    copy = malloc((i + 1) * sizeof(struct fileliststruct));
+                    memcpy(copy, filelist, (i + 1) * sizeof(struct fileliststruct));
+                    free(filelist);
+                    filelist = malloc((i + 1) * sizeof(struct fileliststruct));
+                    memcpy(filelist, copy, (i + 1) * sizeof(struct fileliststruct));
+                    free(copy); copy = NULL;*/
+                }
+                memset(&filelist[i], 0, sizeof(fileliststruct));
+                strncpy(filelist[i].filename, ds.d_name, strlen(ds.d_name));
+                i++;
             }
-            memset(&filelist[i], 0, sizeof(fileliststruct));
-            strncpy(filelist[i].filename, ds.d_name, strlen(ds.d_name));
-            i++;
         }
+        sceIoDclose(dp);
     }
-    sceIoDclose(dp);
+
     return i;
 }
 
@@ -286,7 +291,7 @@ static void freeAllPreviews()
 static int ControlMenu()
 {
     int status = -1;
-    int dListMaxDisplay = 17;
+    int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
 
     refreshInput();
     switch(buttonsPressed)
@@ -312,10 +317,26 @@ static int ControlMenu()
             break;
 
         case SCE_CTRL_LEFT:
-            break;
+			dListScrollPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListScrollPosition < 0)
+			{
+				dListScrollPosition = 0;
+				dListCurrentPosition -= MAX_PAGE_MODS_FAST_FORWARD;
+			}
+			if(dListCurrentPosition < 0) dListCurrentPosition = 0;
+			break;
 
         case SCE_CTRL_RIGHT:
-            break;
+			dListCurrentPosition += MAX_PAGE_MODS_FAST_FORWARD;
+			if(dListCurrentPosition > dListTotal - 1) dListCurrentPosition = dListTotal - 1;
+			if(dListCurrentPosition > dListMaxDisplay)
+	        {
+		        //if((dListCurrentPosition + dListScrollPosition) < dListTotal)
+                    dListScrollPosition += MAX_PAGE_MODS_FAST_FORWARD;
+		        if((dListCurrentPosition + dListScrollPosition) > dListTotal - 1) dListScrollPosition = dListTotal - MAX_PAGE_MODS_LENGTH;
+			    dListCurrentPosition = dListMaxDisplay;
+			}
+			break;
 
         case SCE_CTRL_CROSS:
             // Start Engine!
@@ -363,7 +384,7 @@ static void drawMenu()
     if (dListTotal < 1) printText(30, 33, RED, 0, 0, "No Games In Paks Folder!");
     for (list = 0; list < dListTotal; list++)
     {
-        if(list<MAX_MODS_NUM)
+        if(list<MAX_PAGE_MODS_LENGTH)
         {
             shift = 0;
             colors = GRAY;
@@ -381,6 +402,7 @@ static void drawMenu()
                 else printText(288, 141, RED, 0, 0, "No Preview Available!");
             }
             printText(30 + shift, 33+(11*list), colors, 0, 0, "%s", listing);
+            //draw_vscrollbar();
         }
     }
 
@@ -403,6 +425,7 @@ static void drawMenu()
 static void drawLogs()
 {
     int i = which_logfile, j, k, l, done = 0;
+    bothkeys = bothnewkeys = 0;
 
     while (!done)
     {
@@ -515,6 +538,7 @@ void Menu()
                 default:
 					break;
             }
+            video_copy_screen(Screen);
         }
         freeAllLogs();
         freeAllPreviews();
