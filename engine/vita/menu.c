@@ -291,7 +291,7 @@ static void freeAllPreviews()
 static int ControlMenu()
 {
     int status = -1;
-    int dListMaxDisplay = 17;
+    int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
 
     refreshInput();
     switch(buttonsPressed)

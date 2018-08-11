@@ -595,7 +595,7 @@ static int hold_key_impulse(int key, float time_range, int start_press_flag, flo
 static int ControlMenu()
 {
 	int status = -1;
-	int dListMaxDisplay = 17;
+	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
 	u32 inputs = 0;
 
     //bothnewkeys = 0;
@@ -704,7 +704,7 @@ static int ControlMenu()
 static int ControlBGM()
 {
 	int status = -3;
-	int dListMaxDisplay = 17;
+	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
 	u32 inputs = 0;
 
     //bothnewkeys = 0;
