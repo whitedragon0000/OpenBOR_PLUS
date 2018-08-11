@@ -31,12 +31,6 @@ void blendscreen16(s_screen *dest, s_screen *src, int x, int y, int key, unsigne
 void scalescreen16(s_screen *dest, s_screen *src);
 
 
-//------------------------------24
-
-void putscreenx8p24(s_screen *dest, s_screen *src, int x, int y, int key, unsigned char *remap, unsigned(*blendfp)(unsigned, unsigned));
-void blendscreen24(s_screen *dest, s_screen *src, int x, int y, int key, unsigned(*blendfp)(unsigned, unsigned));
-
-
 //------------------------------32
 
 void putscreenx8p32(s_screen *dest, s_screen *src, int x, int y, int key, unsigned *remap, unsigned(*blendfp)(unsigned, unsigned));

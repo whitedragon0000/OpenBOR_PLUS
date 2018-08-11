@@ -57,6 +57,10 @@ static s_screen* logscreen;
 #define LOG_SCREEN_TOP 2
 #define LOG_SCREEN_END (isWide ? 26 : 23)
 
+#define FIRST_KEYPRESS      1
+#define IMPULSE_TIME        0.12
+#define FIRST_IMPULSE_TIME  1.2
+
 static int bpp = 32;
 static int isWide = 0;
 static int isFull = 0;
@@ -67,7 +71,7 @@ static int which_logfile = OPENBOR_LOG;
 static FILE *bgmFile = NULL;
 static unsigned int bgmPlay = 0, bgmLoop = 0, bgmCycle = 0, bgmCurrent = 0, bgmStatus = 0;
 static fileliststruct *filelist;
-extern u32 bothkeys, bothnewkeys;
+extern u64 bothkeys, bothnewkeys;
 extern const s_drawmethod plainmethod;
 
 typedef struct{
@@ -297,12 +301,64 @@ static void PlayBGM()
 	bgmPlay = packfile_music_play(filelist, bgmFile, bgmLoop, dListCurrentPosition, dListScrollPosition);
 }
 
+/* PARAMS:
+ * key: pressed key flag
+ * time_range: time between 2 key impulses
+ * start_press_flag: 1 == press the first time too, 0 == no first time key press
+ * start_time_eta: wait time after the first key press (time between 1st and 2nd impulse)
+ */
+static int hold_key_impulse(int key, float time_range, int start_press_flag, float start_time_eta) {
+    static int hold_time[64];
+    static int first_keypress[64];
+    static int second_keypress[64];
+    int key_index = 0, tmp_key = key;
+
+    while (tmp_key >>= 1) key_index++;;
+
+    if ( bothkeys & key ) {
+        u32 time = timer_gettick();
+
+        time_range *= GAME_SPEED;
+        start_time_eta *= GAME_SPEED;
+        if ( !hold_time[key_index] ) {
+            hold_time[key_index] = time;
+
+            if ( start_press_flag > 0 && !first_keypress[key_index] ) {
+                first_keypress[key_index] = 1;
+                return key;
+            }
+        } else if ( time - hold_time[key_index] >= time_range ) {
+            if ( start_time_eta > 0 && !second_keypress[key_index] ) {
+                if ( time - hold_time[key_index] < start_time_eta ) return 0;
+            }
+
+            // simulate hold press
+            if ( !second_keypress[key_index] ) second_keypress[key_index] = 1;
+            hold_time[key_index] = 0;
+            return key;
+        }
+    } else {
+        hold_time[key_index] = 0;
+        first_keypress[key_index] = 0;
+        second_keypress[key_index] = 0;
+    }
+
+    return 0;
+}
+
 static int ControlMenu()
 {
 	int status = -1;
 	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
+
 	bothnewkeys = 0;
 	inputrefresh(0);
+
+	bothnewkeys |= hold_key_impulse(FLAG_MOVEDOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	bothnewkeys |= hold_key_impulse(FLAG_MOVELEFT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	bothnewkeys |= hold_key_impulse(FLAG_MOVEUP, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	bothnewkeys |= hold_key_impulse(FLAG_MOVERIGHT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+
 	switch(bothnewkeys)
 	{
 		case FLAG_MOVEUP:
@@ -381,8 +437,13 @@ static int ControlBGM()
 {
 	int status = -2;
 	int dListMaxDisplay = MAX_PAGE_MODS_LENGTH - 1;
+
 	bothnewkeys = 0;
 	inputrefresh(0);
+
+	bothnewkeys |= hold_key_impulse(FLAG_MOVEDOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	bothnewkeys |= hold_key_impulse(FLAG_MOVEUP, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+
 	switch(bothnewkeys)
 	{
 		case FLAG_MOVEUP:

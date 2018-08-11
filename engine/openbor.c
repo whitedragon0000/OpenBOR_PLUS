@@ -745,7 +745,7 @@ int                 ent_count			= 0;					// log count of entites
 int                 ent_max				= 0;
 
 s_player            player[MAX_PLAYERS];
-u64                 bothkeys, bothnewkeys;
+u64                 bothkeys = 0, bothnewkeys = 0;
 
 s_playercontrols    playercontrols1;
 s_playercontrols    playercontrols2;
@@ -34165,7 +34165,6 @@ void inputrefresh(int playrecmode)
         bothkeys |= player[p].keys;
         bothnewkeys |= player[p].newkeys;
     }
-
 }
 
 void execute_keyscripts()

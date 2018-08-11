@@ -18,10 +18,15 @@
 #include "openbor.h"
 #include "packfile.h"
 #include "graphics.h"
+#include "control.h"
 #include "kernel/kernel.h"
 
 #define LOG_SCREEN_TOP 3
 #define LOG_SCREEN_END 24
+
+#define FIRST_KEYPRESS      1
+#define IMPULSE_TIME        0.3
+#define FIRST_IMPULSE_TIME  1.6
 
 char wMode[MAX_LABEL_LEN] = {""};
 char wStatus[MAX_LABEL_LEN] = {"WiFi Disabled"};
@@ -35,6 +40,9 @@ FILE *bgmFile = NULL;
 u32	lastPad = 0;
 u32 bgmPlay = 0, bgmLoop = 0, bgmCycle = 0, bgmCurrent = 0, bgmStatus = 0;
 fileliststruct *filelist;
+static Image *text;
+extern u64 bothkeys, bothnewkeys;
+u32 menukeys;
 
 typedef struct{
 	stringptr *buf;
@@ -46,21 +54,23 @@ typedef struct{
 s_logfile logfile[2];
 
 typedef int (*ControlInput)();
-int ControlMenu();
-int ControlBGM();
-int ControlLOG();
+static int ControlMenu();
+static int ControlBGM();
+static int ControlLOG();
 void PlayBGM();
 void StopBGM();
 static ControlInput pControl;
 
-int Control()
+static int Control()
 {
 	return pControl();
 }
 
 u32 getInput(int delay, int update)
 {
+    menukeys = 0;
 	u32 pad = getPad(0);
+	menukeys |= pad;
 	if(pad == lastPad && delay) return 0;
 	if(update) return lastPad = pad;
 	else return pad;
@@ -441,6 +451,7 @@ void drawBGMPlayer()
 void drawLogs()
 {
 	int i=which_logfile, j, k, l;
+	bothkeys = bothnewkeys = 0;
 	Image *box = createImage(PSP_LCD_WIDTH, 224);
 	copyImageToImage(0, 0, PSP_LCD_WIDTH, PSP_LCD_HEIGHT, pMenu, 0, 0, text);
 	drawImageBox(box, DARK_GRAY, BLACK, 2);
@@ -536,11 +547,68 @@ int ControlBox()
 	return done;
 }
 
-int ControlMenu()
+/* PARAMS:
+ * key: pressed key flag
+ * time_range: time between 2 key impulses
+ * start_press_flag: 1 == press the first time too, 0 == no first time key press
+ * start_time_eta: wait time after the first key press (time between 1st and 2nd impulse)
+ */
+static int hold_key_impulse(int key, float time_range, int start_press_flag, float start_time_eta) {
+    static int hold_time[64];
+    static int first_keypress[64];
+    static int second_keypress[64];
+    int key_index = 0, tmp_key = key;
+
+    while (tmp_key >>= 1) key_index++;;
+
+    if ( menukeys & key ) {
+        unsigned time = timer_gettick() / (GAME_SPEED * 4);
+
+        time_range *= GAME_SPEED;
+        start_time_eta *= GAME_SPEED;
+        if ( !hold_time[key_index] ) {
+            hold_time[key_index] = time;
+
+            if ( start_press_flag > 0 && !first_keypress[key_index] ) {
+                first_keypress[key_index] = 1;
+                return key;
+            }
+        } else if ( time - hold_time[key_index] >= time_range ) {
+            if ( start_time_eta > 0 && !second_keypress[key_index] ) {
+                if ( time - hold_time[key_index] < start_time_eta ) return 0;
+            }
+
+            // simulate hold press
+            if ( !second_keypress[key_index] ) second_keypress[key_index] = 1;
+            hold_time[key_index] = 0;
+            return key;
+        }
+    } else {
+        hold_time[key_index] = 0;
+        first_keypress[key_index] = 0;
+        second_keypress[key_index] = 0;
+    }
+
+    return 0;
+}
+
+static int ControlMenu()
 {
 	int status = -1;
 	int dListMaxDisplay = 17;
-	switch(getInput(1, 1))
+	u32 inputs = 0;
+
+    //bothnewkeys = 0;
+	//inputrefresh(0);
+	inputs = getInput(1, 1);
+
+	inputs |= hold_key_impulse(PSP_DPAD_DOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);;
+	inputs |= hold_key_impulse(PSP_DPAD_LEFT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	inputs |= hold_key_impulse(PSP_DPAD_UP, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	inputs |= hold_key_impulse(PSP_DPAD_RIGHT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+    //printText(text, 30, 200, BLACK, 0, 0, "KEYS: %"PRId32" timer: %u\n", menukeys, timer_gettick());
+
+	switch(inputs)
 	{
 		case PSP_DPAD_UP:
 			dListScrollPosition--;
@@ -633,11 +701,20 @@ int ControlMenu()
 	return status;
 }
 
-int ControlBGM()
+static int ControlBGM()
 {
 	int status = -3;
 	int dListMaxDisplay = 17;
-	switch(getInput(1, 1))
+	u32 inputs = 0;
+
+    //bothnewkeys = 0;
+	//inputrefresh(0);
+	inputs = getInput(1, 1);
+
+	inputs |= hold_key_impulse(FLAG_MOVEDOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+	inputs |= hold_key_impulse(FLAG_MOVEUP, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
+
+	switch(inputs)
 	{
 		case PSP_DPAD_UP:
 			dListScrollPosition--;

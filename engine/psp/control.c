@@ -136,7 +136,11 @@ void control_update(s_playercontrols ** playercontrols, int numplayers)
 	int t;
 	s_playercontrols * pcontrols;
 	unsigned port[MAX_PADS];
-	for(i=0; i<MAX_PADS; i++) port[i] = getPad(i);
+
+	for(i=0; i<MAX_PADS; i++)
+    {
+        port[i] = getPad(i);
+    }
 	for(player=0; player<numplayers; player++)
 	{
 		pcontrols = playercontrols[player];

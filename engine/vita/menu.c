@@ -67,7 +67,7 @@ static unsigned int buttonsHeld = 0;
 static unsigned int buttonsPressed = 0;
 static fileliststruct *filelist;
 static s_logfile logfile[2];
-
+extern u64 bothkeys, bothnewkeys;
 typedef int (*ControlInput)();
 static ControlInput pControl;
 
@@ -425,6 +425,7 @@ static void drawMenu()
 static void drawLogs()
 {
     int i = which_logfile, j, k, l, done = 0;
+    bothkeys = bothnewkeys = 0;
 
     while (!done)
     {
@@ -537,6 +538,7 @@ void Menu()
                 default:
 					break;
             }
+            video_copy_screen(Screen);
         }
         freeAllLogs();
         freeAllPreviews();

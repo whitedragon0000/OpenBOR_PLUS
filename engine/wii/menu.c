@@ -51,6 +51,10 @@ extern int videoMode;
 #define LOG_SCREEN_TOP 2
 #define LOG_SCREEN_END (isWide ? 26 : 23)
 
+#define FIRST_KEYPRESS      1
+#define IMPULSE_TIME        0.12
+#define FIRST_IMPULSE_TIME  1.2
+
 #define DIR_UP			0x00000001
 #define DIR_RIGHT		0x00000002
 #define DIR_DOWN		0x00000004
@@ -99,7 +103,7 @@ int which_logfile = OPENBOR_LOG;
 int buttonsHeld = 0;
 int buttonsPressed = 0;
 FILE *bgmFile = NULL;
-extern unsigned long bothkeys, bothnewkeys;
+extern u64 bothkeys, bothnewkeys;
 fileliststruct *filelist;
 s_videomodes videomodes;
 
@@ -121,14 +125,13 @@ typedef struct{
 
 typedef int (*ControlInput)();
 
-int ControlMenu();
-int ControlBGM();
+static int ControlMenu();
 void PlayBGM();
 void StopBGM();
 void fillRect(s_screen* dest, Rect* rect, u32 color);
 static ControlInput pControl;
 
-int Control()
+static int Control()
 {
 	return pControl();
 }
@@ -545,7 +548,7 @@ s_screen *getPreview(char *filename)
 	return scale;
 }
 
-int ControlMenu()
+static int ControlMenu()
 {
 	int status = -1;
 	int dListMaxDisplay = 17;
@@ -748,6 +751,7 @@ void drawMenu()
 void drawLogs()
 {
 	int i=which_logfile, j, k, l, done=0;
+	bothkeys = bothnewkeys = 0;
 	s_screen *Viewer = NULL;
 
 	bothkeys = bothnewkeys = 0;
