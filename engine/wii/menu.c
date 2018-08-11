@@ -791,10 +791,9 @@ void drawMenu()
 	printText((isWide ? 324 : 192),(isWide ? 191 : 176), DARK_RED, 0, 0, "SecurePAK Edition");
 #endif
 
-	drawScreens(Image, clipX, clipY);
-
 	if(Image)
 	{
+	    drawScreens(Image, clipX, clipY);
 		freescreen(&Image);
 		Image = NULL;
 	}
