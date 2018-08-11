@@ -797,6 +797,7 @@ void drawMenu()
 		freescreen(&Image);
 		Image = NULL;
 	}
+	drawScreens(NULL, 0, 0);
 }
 
 void drawLogs()
