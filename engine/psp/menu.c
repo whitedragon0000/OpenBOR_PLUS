@@ -94,7 +94,7 @@ void PlayBGM()
 
 Image *getPreview(char *filename)
 {
-	int x, y;
+	int x, y, i, pos = 0;
 	int width = 160;
 	int height = 120;
 	unsigned char pal[PAL_BYTES];
@@ -103,10 +103,11 @@ Image *getPreview(char *filename)
 	s_screen *title = NULL;
 	s_screen *scaledown = NULL;
 	Image *preview = NULL;
+	unsigned int palette[256];
 
 	// Grab current path and filename
-	strncpy(packfile, dListPath, 256);
-	strncat(packfile, filename, strlen(filename));
+	strncpy(packfile, dListPath, MAX_LABEL_LEN);
+	strcat(packfile, filename);
 
 	// Create & Load & Scale Image
 	if(!loadscreen("data/bgs/title", packfile, pal, PIXEL_x8, &title)) return NULL;
@@ -115,9 +116,15 @@ Image *getPreview(char *filename)
 	scalescreen(scaledown, title);
 	//memcpy(scaledown->palette, title->palette, PAL_BYTES);
 
-	// Load Pallete for preview
+	// Load Palette for preview
 	pal[0] = pal[1] = pal[2] = 0;
-	palette_set_corrected(pal, 0,0,0, 0,0,0);
+	//palette_set_corrected(pal, 0,0,0, 0,0,0);
+	pos = 0;
+   	for (i = 0; i < 256; i++)
+    {
+        palette[i] = ((pal[pos]) | ((pal[pos+1]) << 8) | ((pal[pos+2]) << 16));
+        pos += 4;
+    }
 
 	// Apply Pallete for preview then blit
 	sp = scaledown->data;

@@ -57,7 +57,7 @@ typedef struct fileliststruct
     SDL_Surface *preview;
 #elif PSP
     Image *preview;
-#elif VITA
+#elif WII || VITA
     s_screen *preview;
 #endif
 } fileliststruct;
