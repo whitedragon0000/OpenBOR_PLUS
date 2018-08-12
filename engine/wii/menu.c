@@ -523,7 +523,7 @@ void printText(int x, int y, int col, int backcol, int fill, char *format, ...)
 	}
 }
 
-s_screen *getPreview(char *filename)
+static s_screen *getPreview(char *filename)
 {
 	int width = factor == 4 ? 640 : (factor == 2 ? 320 : 160);
 	int height = factor == 4 ? 480 : (factor == 2 ? 240 : 120);
@@ -546,6 +546,30 @@ s_screen *getPreview(char *filename)
 	// Free Images and Terminate FileCaching
 	freescreen(&title);
 	return scale;
+}
+
+static void getAllPreviews()
+{
+	int i;
+	for(i=0; i<dListTotal; i++)
+	{
+		filelist[i].preview = getPreview(filelist[i].filename);
+	}
+}
+
+static void freeAllPreviews()
+{
+	int i;
+	for(i=0; i<dListTotal; i++)
+	{
+		if(filelist[i].preview != NULL) freescreen(&filelist[i].preview);
+	}
+}
+
+static void freeAllImages()
+{
+    freeAllLogs();
+	freeAllPreviews();
 }
 
 /* PARAMS:
@@ -741,7 +765,6 @@ void draw_vscrollbar() {
 
 void drawMenu()
 {
-	s_screen *Image = NULL;
 	char listing[45] = {""};
 	int list = 0;
 	int shift = 0;
@@ -766,10 +789,13 @@ void drawMenu()
 				shift = 2;
 				colors = RED;
 				//Image = getPreview(filelist[list+dListScrollPosition].filename);
-				if(Image)
+				if(filelist[list].preview != NULL)
 				{
 					clipX = factor * (isWide ? 286 : 155);
 					clipY = factor * (isWide ? (factor == 4 ? (s16)32.5 : 32) : (factor == 4 ? (s16)21.5 : 21));
+                    drawScreens(filelist[list].preview, clipX, clipY);
+                    //freescreen(&Image);
+                    //Image = NULL;
 				}
 				//else printText((isWide ? 288 : 157), (isWide ? 141 : 130), RED, 0, 0, "No Preview Available!");
 			}
@@ -791,12 +817,6 @@ void drawMenu()
 	printText((isWide ? 324 : 192),(isWide ? 191 : 176), DARK_RED, 0, 0, "SecurePAK Edition");
 #endif
 
-	if(Image)
-	{
-	    drawScreens(Image, clipX, clipY);
-		freescreen(&Image);
-		Image = NULL;
-	}
 	drawScreens(NULL, 0, 0);
 }
 
@@ -935,6 +955,7 @@ void Menu()
 	{
 		sortList();
 		getAllLogs();
+		//getAllPreviews();
 		initMenu(1);
 		drawMenu();
 		pControl = ControlMenu;
@@ -968,7 +989,8 @@ void Menu()
 					break;
 			}
 		}
-		freeAllLogs();
+
+		freeAllImages();
 		termMenu();
 		if(ctrl == 2)
 		{
