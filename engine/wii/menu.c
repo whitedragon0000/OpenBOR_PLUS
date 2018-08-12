@@ -1001,7 +1001,8 @@ void Menu()
 				free(filelist);
 				filelist = NULL;
 			}
-			borExit(0);
+			//borExit(0);
+			borShutdown(0, DEFAULT_SHUTDOWN_MESSAGE);
 		}
 	}
 	getBasePath(packfile, filelist[dListCurrentPosition+dListScrollPosition].filename, 1);

@@ -122,7 +122,7 @@ Image *getPreview(char *filename)
 	pos = 0;
    	for (i = 0; i < 256; i++)
     {
-        palette[i] = ((pal[pos]) | ((pal[pos+1]) << 8) | ((pal[pos+2]) << 16));
+        palette[i] = RGB(pal[pos], pal[pos+1], pal[pos+2]);
         pos += 4;
     }
 
@@ -980,7 +980,11 @@ void menu(char *path)
 	freeAllLogs();
 	freeAllImages();
 	free(filelist);
-	if(ctrl == 2) borExit(0);
+	if(ctrl == 2)
+    {
+        //borExit(0);
+        borShutdown(0, DEFAULT_SHUTDOWN_MESSAGE);
+    }
 	strncpy(packfile, dListPath, 256);
 	strncat(packfile, filelist[dListCurrentPosition+dListScrollPosition].filename,
 			strlen(filelist[dListCurrentPosition+dListScrollPosition].filename)+1);
