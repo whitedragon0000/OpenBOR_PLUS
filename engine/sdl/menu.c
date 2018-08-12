@@ -267,13 +267,17 @@ static void printText(int x, int y, int col, int backcol, int fill, char *format
 
 static s_screen *getPreview(char *filename)
 {
+    int width = 160;
+    int height = 120;
 	s_screen *title = NULL;
 	s_screen *scale = NULL;
+
 	// Grab current path and filename
 	getBasePath(packfile, filename, 1);
+
 	// Create & Load & Scale Image
 	if(!loadscreen("data/bgs/title", packfile, NULL, PIXEL_x8, &title)) return NULL;
-	if((scale = allocscreen(160, 120, title->pixelformat)) == NULL) return NULL;
+	if((scale = allocscreen(width, height, title->pixelformat)) == NULL) return NULL;
 
 	scalescreen(scale, title);
 	memcpy(scale->palette, title->palette, PAL_BYTES);

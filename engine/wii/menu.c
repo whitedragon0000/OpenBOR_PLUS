@@ -530,6 +530,8 @@ static s_screen *getPreview(char *filename)
 	s_screen *title = NULL;
 	s_screen *scale = NULL;
 
+	return NULL;
+
 	// Grab current path and filename
 	getBasePath(packfile, filename, 1);
 
