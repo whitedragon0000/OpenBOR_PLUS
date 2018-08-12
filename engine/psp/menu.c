@@ -106,7 +106,7 @@ Image *getPreview(char *filename)
 	unsigned int palette[256];
 
 	// Grab current path and filename
-	strncpy(packfile, dListPath, MAX_LABEL_LEN);
+	strncpy(packfile, dListPath, MAX_FILENAME_LEN);
 	strcat(packfile, filename);
 
 	// Create & Load & Scale Image
@@ -137,7 +137,7 @@ Image *getPreview(char *filename)
    	}
 
 	// ScreenShots within Menu will be saved as "Menu"
-	strncpy(packfile,"Menu.xxx",MAX_LABEL_LEN);
+	strncpy(packfile,"Menu.xxx",MAX_FILENAME_LEN);
 
 	// Free Images and Terminiate Filecaching
 	freescreen(&title);
