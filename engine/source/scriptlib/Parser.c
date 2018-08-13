@@ -1815,6 +1815,8 @@ void Parser_Unary_expr(Parser *pparser )
         else
         {
             Parser_AddInstructionViaToken(pparser, NEG, (Token *)NULL, NULL );
+            Parser_AddInstructionViaToken(pparser, SAVE, pInstruction->theToken, NULL );
+            Parser_AddInstructionViaToken(pparser, LOAD, pInstruction->theToken, NULL );
         }
     }
     else if (Parser_Check(pparser, TOKEN_BOOLEAN_NOT ))
