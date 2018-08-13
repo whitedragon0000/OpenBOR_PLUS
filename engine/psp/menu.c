@@ -105,6 +105,8 @@ Image *getPreview(char *filename)
 	Image *preview = NULL;
 	unsigned int palette[256];
 
+	return NULL;
+
 	// Grab current path and filename
 	strncpy(packfile, dListPath, MAX_FILENAME_LEN);
 	strcat(packfile, filename);

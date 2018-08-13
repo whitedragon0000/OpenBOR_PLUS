@@ -401,7 +401,7 @@ static Image *getPreview(char *filename)
 	unsigned char *pal_ptr;
 	Color *dp;
 
-	//return NULL;
+	return NULL;
 
 	// Grab current path and filename
 	//getBasePath(packfile, filename, 1);
