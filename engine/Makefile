@@ -368,6 +368,7 @@ GAME_CONSOLE    = wii/control.o                                                 
                   wii/timer.o                                                                       \
                   wii/video.o                                                                       \
                   wii/threads.o                                                                     \
+                  wii/image.o                                                                        \
                   wii/menu.o                                                                        \
                   wii/wiiport.o
 endif

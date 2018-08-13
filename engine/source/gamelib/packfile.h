@@ -28,6 +28,10 @@
 #include "image.h"
 #endif
 
+#ifdef WII
+#include "image.h"
+#endif
+
 #ifdef VITA
 #include "types.h"
 #endif
@@ -55,9 +59,9 @@ typedef struct fileliststruct
     unsigned int bgmTracks[MAX_TRACKS];
 #ifdef SDL
     SDL_Surface *preview;
-#elif PSP
+#elif PSP || WII
     Image *preview;
-#elif WII || VITA
+#elif VITA
     s_screen *preview;
 #endif
 } fileliststruct;

@@ -105,8 +105,10 @@ Image *getPreview(char *filename)
 	Image *preview = NULL;
 	unsigned int palette[256];
 
+	return NULL;
+
 	// Grab current path and filename
-	strncpy(packfile, dListPath, MAX_LABEL_LEN);
+	strncpy(packfile, dListPath, MAX_FILENAME_LEN);
 	strcat(packfile, filename);
 
 	// Create & Load & Scale Image
@@ -122,13 +124,13 @@ Image *getPreview(char *filename)
 	pos = 0;
    	for (i = 0; i < 256; i++)
     {
-        palette[i] = ((pal[pos]) | ((pal[pos+1]) << 8) | ((pal[pos+2]) << 16));
+        palette[i] = RGB(pal[pos], pal[pos+1], pal[pos+2]);
         pos += 4;
     }
 
 	// Apply Pallete for preview then blit
 	sp = scaledown->data;
-   	dp = (void*)preview->data + (4 * 256); // 4 bytes (RGBA) * 256 palette colors
+   	dp = (void*)preview->data;// + (4 * 256); // 4 bytes (RGBA) * 256 palette colors
 	for(y=0; y<height; y++)
 	{
    		for(x=0; x<width; x++) dp[x] = palette[((int)(sp[x])) & 0xFF];
@@ -137,7 +139,7 @@ Image *getPreview(char *filename)
    	}
 
 	// ScreenShots within Menu will be saved as "Menu"
-	strncpy(packfile,"Menu.xxx",MAX_LABEL_LEN);
+	strncpy(packfile,"Menu.xxx",MAX_FILENAME_LEN);
 
 	// Free Images and Terminiate Filecaching
 	freescreen(&title);
@@ -980,7 +982,11 @@ void menu(char *path)
 	freeAllLogs();
 	freeAllImages();
 	free(filelist);
-	if(ctrl == 2) borExit(0);
+	if(ctrl == 2)
+    {
+        //borExit(0);
+        borShutdown(0, DEFAULT_SHUTDOWN_MESSAGE);
+    }
 	strncpy(packfile, dListPath, 256);
 	strncat(packfile, filelist[dListCurrentPosition+dListScrollPosition].filename,
 			strlen(filelist[dListCurrentPosition+dListScrollPosition].filename)+1);
