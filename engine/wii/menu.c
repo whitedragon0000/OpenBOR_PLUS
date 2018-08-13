@@ -16,8 +16,8 @@
 #include "video.h"
 #include "control.h"
 #include "packfile.h"
-#include "hankaku.h"
 #include "stristr.h"
+#include "image.h"
 
 #include "pngdec.h"
 #include "../resources/OpenBOR_Logo_480x272_png.h"
@@ -388,166 +388,63 @@ void drawScreens(s_screen *Image, int x, int y)
 	video_copy_screen(Screen);
 }
 
-void printBox(int x, int y, int width, int height, unsigned int colour, int alpha)
-{
-    unsigned *cp;
-    unsigned(*blendfp)(unsigned, unsigned);
-
-    #define __putpixel32(p) \
-                if(blendfp )\
-                {\
-                    *(p) = blendfp(colour, *(p));\
-                }\
-                else\
-                {\
-                    *(p) = colour;\
-                }
-
-    if(width <= 0)
-    {
-        return;
-    }
-    if(height <= 0)
-    {
-        return;
-    }
-    if(Scaler == NULL)
-    {
-        return;
-    }
-
-    if(x < 0)
-    {
-        if((width += x) <= 0)
-        {
-            return;
-        }
-        x = 0;
-    }
-    else if(x >= Scaler->width)
-    {
-        return;
-    }
-    if(y < 0)
-    {
-        if((height += y) <= 0)
-        {
-            return;
-        }
-        y = 0;
-    }
-    else if(y >= Scaler->height)
-    {
-        return;
-    }
-    if(x + width > Scaler->width)
-    {
-        width = Scaler->width - x;
-    }
-    if(y + height > Scaler->height)
-    {
-        height = Scaler->height - y;
-    }
-
-    cp = ((unsigned *)Scaler->data) + (y * Scaler->width + x);
-    colour &= 0x00FFFFFF;
-
-    blendfp = getblendfunction32(alpha);
-
-    while(--height >= 0)
-    {
-        for(x = 0; x < width; x++)
-        {
-            __putpixel32(cp);
-            cp++;
-        }
-        cp += (Scaler->width - width);
-    }
-
-    #undef __putpixel32
-}
-
-void printText(int x, int y, int col, int backcol, int fill, char *format, ...)
-{
-	int x1, y1, i;
-	unsigned long data;
-	unsigned short *line16 = NULL;
-	unsigned long  *line32 = NULL;
-	unsigned char *font;
-	unsigned char ch = 0;
-	char buf[128] = {""};
-	va_list arglist;
-		va_start(arglist, format);
-		vsprintf(buf, format, arglist);
-		va_end(arglist);
-	if(factor > 1){ y += 5; }
-
-	for(i=0; i<sizeof(buf); i++)
-	{
-		ch = buf[i];
-		// mapping
-		if (ch<0x20) ch = 0;
-		else if (ch<0x80) { ch -= 0x20; }
-		else if (ch<0xa0) {	ch = 0;	}
-		else ch -= 0x40;
-		font = (u8 *)&hankaku_font10[ch*10];
-		// draw
-		if (bpp == 16) line16 = (unsigned short *)Scaler->data + x + y * Scaler->width;
-		else           line32 = (unsigned long  *)Scaler->data + x + y * Scaler->width;
-
-		for (y1=0; y1<10; y1++)
-		{
-			data = *font++;
-			for (x1=0; x1<5; x1++)
-			{
-				if (data & 1)
-				{
-					if (bpp == 16) *line16 = col;
-				    else           *line32 = col;
-				}
-				else if (fill)
-				{
-					if (bpp == 16) *line16 = backcol;
-					else           *line32 = backcol;
-				}
-
-				if (bpp == 16) line16++;
-				else           line32++;
-
-				data = data >> 1;
-			}
-			if (bpp == 16) line16 += Scaler->width-5;
-			else           line32 += Scaler->width-5;
-		}
-		x+=5;
-	}
-}
-
-static s_screen *getPreview(char *filename)
+static Image *getPreview(char *filename)
 {
 	int width = factor == 4 ? 640 : (factor == 2 ? 320 : 160);
 	int height = factor == 4 ? 480 : (factor == 2 ? 240 : 120);
 	s_screen *title = NULL;
 	s_screen *scale = NULL;
+	Image *preview = NULL;
+	unsigned char *sp;
+	int x, y, i, pos = 0;
+	unsigned int palette[256];
+	unsigned char *pal_ptr;
+	Color *dp;
 
-	return NULL;
+	//return NULL;
 
 	// Grab current path and filename
-	getBasePath(packfile, filename, 1);
+	//getBasePath(packfile, filename, 1);
+	strncpy(packfile, paksDir, MAX_FILENAME_LEN);
+	strcat(packfile, "/");
+	strcat(packfile, filename);
 
 	// Create & Load & Scale Image
 	if(!loadscreen("data/bgs/title", packfile, NULL, PIXEL_x8, &title)) return NULL;
 	if((scale = allocscreen(width, height, title->pixelformat)) == NULL) return NULL;
-
+	if((preview = createImage(width, height)) == NULL) return NULL;
 	scalescreen(scale, title);
-	memcpy(scale->palette, title->palette, PAL_BYTES);
+	//memcpy(scale->palette, title->palette, PAL_BYTES);
+
+	pal_ptr = title->palette + 1;
+	pos = 0;
+   	for (i = 0; i < 256; i++)
+    {
+        palette[i] = RGB(pal_ptr[pos], pal_ptr[pos+1], pal_ptr[pos+2]);
+        pos += 4;
+    }
+
+    for(i=0; i<256; i++) printf("0x%x ", palette[i]);
+
+	sp = scale->data;
+	dp = (void*)preview->data;
+	for(y=0; y<height; y++)
+	{
+	    for(x=0; x<width; x++)
+	    {
+            dp[x] = palette[((int)(sp[x])) & 0xFF];
+	    }
+   		sp += scale->width;
+   		dp += preview->imageWidth;
+   	}
 
 	// ScreenShots within Menu will be saved as "Menu"
 	strncpy(packfile,"Menu.ext",MAX_FILENAME_LEN);
 
 	// Free Images and Terminate FileCaching
 	freescreen(&title);
-	return scale;
+	freescreen(&scale);
+	return preview;
 }
 
 static void getAllPreviews()
@@ -564,7 +461,7 @@ static void freeAllPreviews()
 	int i;
 	for(i=0; i<dListTotal; i++)
 	{
-		if(filelist[i].preview != NULL) freescreen(&filelist[i].preview);
+		if(filelist[i].preview != NULL) freeImage(filelist[i].preview);
 	}
 }
 
@@ -760,9 +657,9 @@ void draw_vscrollbar() {
     vbar_y = (int)(((dListScrollPosition) * vspace) / (dListTotal - MAX_PAGE_MODS_LENGTH));
 
     // draw v scroll bar
-    printBox( (offset_x + box_width - vbar_width), offset_y, vbar_width, box_height, LIGHT_GRAY, 0);
-    printBox( (offset_x + box_width - vbar_width), (offset_y + vbar_y), vbar_width, vbar_height, GRAY, 0);
-    //printText(10,220, BLACK, 0, 0, "%d/%d space: %d, vbar_y: %d vbar_height: %d", (dListCurrentPosition + dListScrollPosition), dListTotal, vspace, vbar_y, vbar_height);
+    printBox( (offset_x + box_width - vbar_width), offset_y, vbar_width, box_height, LIGHT_GRAY, 0, Scaler);
+    printBox( (offset_x + box_width - vbar_width), (offset_y + vbar_y), vbar_width, vbar_height, GRAY, 0, Scaler);
+    //printText(Scaler, 10,220, BLACK, 0, 0, "%d/%d space: %d, vbar_y: %d vbar_height: %d", (dListCurrentPosition + dListScrollPosition), dListTotal, vspace, vbar_y, vbar_height);
 }
 
 void drawMenu()
@@ -771,10 +668,12 @@ void drawMenu()
 	int list = 0;
 	int shift = 0;
 	int colors = 0;
-	int clipX=0, clipY=0;
+	int imageX = 0, imageY = 0;
+	int imageW = factor == 4 ? 640 : (factor == 2 ? 320 : 160);
+	int imageH = factor == 4 ? 480 : (factor == 2 ? 240 : 120);
 
 	copyScreens(Source);
-	if(dListTotal < 1) printText((isWide ? 30 : 8), (isWide ? 33 : 24), RED, 0, 0, "No Mods In Paks Folder!");
+	if(dListTotal < 1) printText(Scaler, (isWide ? 30 : 8), (isWide ? 33 : 24), RED, 0, 0, "No Mods In Paks Folder!");
 	for(list=0; list<dListTotal; list++)
 	{
 		if(list < MAX_PAGE_MODS_LENGTH)
@@ -790,33 +689,33 @@ void drawMenu()
 			{
 				shift = 2;
 				colors = RED;
-				//Image = getPreview(filelist[list+dListScrollPosition].filename);
 				if(filelist[list].preview != NULL)
 				{
-					clipX = factor * (isWide ? 286 : 155);
-					clipY = factor * (isWide ? (factor == 4 ? (s16)32.5 : 32) : (factor == 4 ? (s16)21.5 : 21));
-                    drawScreens(filelist[list].preview, clipX, clipY);
+					imageX = factor * (isWide ? 286 : 155);
+					imageY = factor * (isWide ? (factor == 4 ? (s16)32.5 : 32) : (factor == 4 ? (s16)21.5 : 21));
+					printScreen(filelist[list].preview, imageX, imageY, imageW, imageH, 0, Scaler);
+                    //drawScreens(filelist[list].preview, imageX, imageY);
                     //freescreen(&Image);
                     //Image = NULL;
 				}
-				//else printText((isWide ? 288 : 157), (isWide ? 141 : 130), RED, 0, 0, "No Preview Available!");
+				//else printText(Scaler, (isWide ? 288 : 157), (isWide ? 141 : 130), RED, 0, 0, "No Preview Available!");
 			}
-			printText((isWide ? 30 : 7) + shift, (isWide ? 33 : 22)+(11*list) , colors, 0, 0, "%s", listing);
+			printText(Scaler, (isWide ? 30 : 7) + shift, (isWide ? 33 : 22)+(11*list) , colors, 0, 0, "%s", listing);
 			draw_vscrollbar();
 		}
 	}
 
-	printText((isWide ? 26 : 5), (isWide ? 11 : 4), WHITE, 0, 0, "OpenBoR %s", VERSION);
-	printText((isWide ? 392 : 261),(isWide ? 11 : 4), WHITE, 0, 0, __DATE__);
-	printText((isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Start Game", control_getkeyname(savedata.keys[0][SDID_ATTACK]));
-	printText((isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "%s: BGM Player", control_getkeyname(savedata.keys[0][SDID_ATTACK2]));
-	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "%s: View Logs", control_getkeyname(savedata.keys[0][SDID_JUMP]));
-	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Quit Game", control_getkeyname(savedata.keys[0][SDID_SPECIAL]));
-   	printText((isWide ? 330 : 197),(isWide ? 170 : 155), BLACK, 0, 0, "www.LavaLit.com");
-	printText((isWide ? 322 : 190),(isWide ? 180 : 165), BLACK, 0, 0, "www.SenileTeam.com");
+	printText(Scaler, (isWide ? 26 : 5), (isWide ? 11 : 4), WHITE, 0, 0, "OpenBoR %s", VERSION);
+	printText(Scaler, (isWide ? 392 : 261),(isWide ? 11 : 4), WHITE, 0, 0, __DATE__);
+	printText(Scaler, (isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Start Game", control_getkeyname(savedata.keys[0][SDID_ATTACK]));
+	printText(Scaler, (isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "%s: BGM Player", control_getkeyname(savedata.keys[0][SDID_ATTACK2]));
+	printText(Scaler, (isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "%s: View Logs", control_getkeyname(savedata.keys[0][SDID_JUMP]));
+	printText(Scaler, (isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Quit Game", control_getkeyname(savedata.keys[0][SDID_SPECIAL]));
+   	printText(Scaler, (isWide ? 330 : 197),(isWide ? 170 : 155), BLACK, 0, 0, "www.LavaLit.com");
+	printText(Scaler, (isWide ? 322 : 190),(isWide ? 180 : 165), BLACK, 0, 0, "www.SenileTeam.com");
 
 #ifdef SPK_SUPPORTED
-	printText((isWide ? 324 : 192),(isWide ? 191 : 176), DARK_RED, 0, 0, "SecurePAK Edition");
+	printText(Scaler, (isWide ? 324 : 192),(isWide ? 191 : 176), DARK_RED, 0, 0, "SecurePAK Edition");
 #endif
 
 	drawScreens(NULL, 0, 0);
@@ -838,12 +737,12 @@ void drawLogs()
 	    copyScreens(Viewer);
 	    //inputrefresh(0);
 	    refreshInput();
-	    printText((isWide ? 410 : 250), 3, RED, 0, 0, "Quit : 1/B");
+	    printText(Scaler, (isWide ? 410 : 250), 3, RED, 0, 0, "Quit : 1/B");
 		if(buttonsPressed & (WIIMOTE_1|CC_B|GC_B)) done = 1;
 
 		if(logfile[i].ready)
 		{
-			printText(5, 3, RED, 0, 0, "OpenBorLog.txt");
+			printText(Scaler, 5, 3, RED, 0, 0, "OpenBorLog.txt");
 			if(buttonsHeld & DIR_UP) --logfile[i].line;
 	        if(buttonsHeld & DIR_DOWN) ++logfile[i].line;
 			if(buttonsHeld & DIR_LEFT) logfile[i].line = 0;
@@ -861,15 +760,15 @@ void drawLogs()
 						textpad[k] = logfile[i].buf->ptr[logfile[i].pos[j]+k];
 					}
 					if(logfile[i].rows>0xFFFF)
-						printText(5, l*10, WHITE, 0, 0, "0x%08x:  %s", j, textpad);
+						printText(Scaler, 5, l*10, WHITE, 0, 0, "0x%08x:  %s", j, textpad);
 					else
-						printText(5, l*10, WHITE, 0, 0, "0x%04x:  %s", j, textpad);
+						printText(Scaler, 5, l*10, WHITE, 0, 0, "0x%04x:  %s", j, textpad);
 				}
 				else break;
 			}
 		}
-		else if(i == SCRIPT_LOG) printText(5, 3, RED, 0, 0, "Log NOT Found: ScriptLog.txt");
-		else                     printText(5, 3, RED, 0, 0, "Log NOT Found: OpenBorLog.txt");
+		else if(i == SCRIPT_LOG) printText(Scaler, 5, 3, RED, 0, 0, "Log NOT Found: ScriptLog.txt");
+		else                     printText(Scaler, 5, 3, RED, 0, 0, "Log NOT Found: OpenBorLog.txt");
 
 	    drawScreens(NULL, 0, 0);
 	}
@@ -957,7 +856,7 @@ void Menu()
 	{
 		sortList();
 		getAllLogs();
-		//getAllPreviews();
+		getAllPreviews();
 		initMenu(1);
 		drawMenu();
 		pControl = ControlMenu;

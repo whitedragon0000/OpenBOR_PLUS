@@ -28,6 +28,10 @@
 #include "image.h"
 #endif
 
+#ifdef WII
+#include "image.h"
+#endif
+
 #ifdef VITA
 #include "types.h"
 #endif
