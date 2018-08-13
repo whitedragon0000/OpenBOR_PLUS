@@ -245,7 +245,7 @@ throwframe 0 30
 all ports menu now support image previews<br/>
 but into PSP/Wii port is disabled by default for less memory usage<br/>
 
-all menus support more mods loading
-implemented vertical scrollbar fore menus
-implemented fast forward/backward to scroll menu with many mods (left/right arrow)
-implemented hold key impulse for all menus to scroll menu with many mods more easily
+all menus support more mods loading<br/>
+implemented vertical scrollbar fore menus<br/>
+implemented fast forward/backward to scroll menu with many mods (left/right arrow)<br/>
+implemented hold key impulse for all menus to scroll menu with many mods more easily<br/>
