@@ -94,7 +94,7 @@ void PlayBGM()
 
 Image *getPreview(char *filename)
 {
-	int x, y;
+	int x, y, i, pos = 0;
 	int width = 160;
 	int height = 120;
 	unsigned char pal[PAL_BYTES];
@@ -103,10 +103,13 @@ Image *getPreview(char *filename)
 	s_screen *title = NULL;
 	s_screen *scaledown = NULL;
 	Image *preview = NULL;
+	unsigned int palette[256];
+
+	return NULL;
 
 	// Grab current path and filename
-	strncpy(packfile, dListPath, 256);
-	strncat(packfile, filename, strlen(filename));
+	strncpy(packfile, dListPath, MAX_FILENAME_LEN);
+	strcat(packfile, filename);
 
 	// Create & Load & Scale Image
 	if(!loadscreen("data/bgs/title", packfile, pal, PIXEL_x8, &title)) return NULL;
@@ -115,13 +118,19 @@ Image *getPreview(char *filename)
 	scalescreen(scaledown, title);
 	//memcpy(scaledown->palette, title->palette, PAL_BYTES);
 
-	// Load Pallete for preview
+	// Load Palette for preview
 	pal[0] = pal[1] = pal[2] = 0;
-	palette_set_corrected(pal, 0,0,0, 0,0,0);
+	//palette_set_corrected(pal, 0,0,0, 0,0,0);
+	pos = 0;
+   	for (i = 0; i < 256; i++)
+    {
+        palette[i] = RGB(pal[pos], pal[pos+1], pal[pos+2]);
+        pos += 4;
+    }
 
 	// Apply Pallete for preview then blit
 	sp = scaledown->data;
-   	dp = (void*)preview->data + (4 * 256); // 4 bytes (RGBA) * 256 palette colors
+   	dp = (void*)preview->data;// + (4 * 256); // 4 bytes (RGBA) * 256 palette colors
 	for(y=0; y<height; y++)
 	{
    		for(x=0; x<width; x++) dp[x] = palette[((int)(sp[x])) & 0xFF];
@@ -130,7 +139,7 @@ Image *getPreview(char *filename)
    	}
 
 	// ScreenShots within Menu will be saved as "Menu"
-	strncpy(packfile,"Menu.xxx",MAX_LABEL_LEN);
+	strncpy(packfile,"Menu.xxx",MAX_FILENAME_LEN);
 
 	// Free Images and Terminiate Filecaching
 	freescreen(&title);
@@ -973,7 +982,11 @@ void menu(char *path)
 	freeAllLogs();
 	freeAllImages();
 	free(filelist);
-	if(ctrl == 2) borExit(0);
+	if(ctrl == 2)
+    {
+        //borExit(0);
+        borShutdown(0, DEFAULT_SHUTDOWN_MESSAGE);
+    }
 	strncpy(packfile, dListPath, 256);
 	strncat(packfile, filelist[dListCurrentPosition+dListScrollPosition].filename,
 			strlen(filelist[dListCurrentPosition+dListScrollPosition].filename)+1);

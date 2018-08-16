@@ -974,14 +974,14 @@ static int openimage(char *filename, char *packfile)
     char *ext = filename + len - 4;
     open_type = 0;
 
-    if(0 == stricmp(ext, ".png") && openpng(filename, packfile))
-    {
-        open_type = OT_PNG;
-        return 1;
-    }
-    else if(0 == stricmp(ext, ".gif") && opengif(filename, packfile))
+    if(0 == stricmp(ext, ".gif") && opengif(filename, packfile))
     {
         open_type = OT_GIF;
+        return 1;
+    }
+    else if(0 == stricmp(ext, ".png") && openpng(filename, packfile))
+    {
+        open_type = OT_PNG;
         return 1;
     }
     else if(0 == stricmp(ext, ".pcx") && openpcx(filename, packfile))
@@ -995,17 +995,17 @@ static int openimage(char *filename, char *packfile)
         return 1;
     }
 
-    sprintf(fnam, "%s.png", filename);
-    if(openpng(fnam, packfile))
-    {
-        open_type = OT_PNG;
-        return 1;
-    }
-
     sprintf(fnam, "%s.gif", filename);
     if(opengif(fnam, packfile))
     {
         open_type = OT_GIF;
+        return 1;
+    }
+
+    sprintf(fnam, "%s.png", filename);
+    if(openpng(fnam, packfile))
+    {
+        open_type = OT_PNG;
         return 1;
     }
 
@@ -1036,6 +1036,12 @@ static int readimage(unsigned char *buf, unsigned char *pal, int maxwidth, int m
         printf("calling readimage %p %p %d %d with format %s, result is %d\n", buf, pal, maxwidth, maxheight, "GIF", result);
 #endif
         break;
+    case OT_PNG:
+        result = readpng(buf, pal, maxwidth, maxheight);
+#ifdef VERBOSE
+        printf("calling readimage %p %p %d %d with format %s, result is %d\n", buf, pal, maxwidth, maxheight, "PNG", result);
+#endif
+        break;
     case OT_PCX:
         result = readpcx(buf, pal, maxwidth, maxheight);
 #ifdef VERBOSE
@@ -1046,12 +1052,6 @@ static int readimage(unsigned char *buf, unsigned char *pal, int maxwidth, int m
         result = readbmp(buf, pal, maxwidth, maxheight);
 #ifdef VERBOSE
         printf("calling readimage %p %p %d %d with format %s, result is %d\n", buf, pal, maxwidth, maxheight, "BMP", result);
-#endif
-        break;
-    case OT_PNG:
-        result = readpng(buf, pal, maxwidth, maxheight);
-#ifdef VERBOSE
-        printf("calling readimage %p %p %d %d with format %s, result is %d\n", buf, pal, maxwidth, maxheight, "PNG", result);
 #endif
         break;
     }

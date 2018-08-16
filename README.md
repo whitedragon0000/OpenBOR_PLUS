@@ -240,3 +240,12 @@ using custboomerang example:
 custboomerang boomerang
 throwframe 0 30
 ```
+#### ***IMPROVED MENUS***
+
+all ports menu now support image previews<br/>
+but into PSP/Wii port is disabled by default for less memory usage<br/>
+
+all menus support more mods loading<br/>
+implemented vertical scrollbar for menus<br/>
+implemented fast forward/backward to scroll menu with many mods (left/right arrow)<br/>
+implemented hold key impulse for all menus to scroll menu with many mods more easily<br/>

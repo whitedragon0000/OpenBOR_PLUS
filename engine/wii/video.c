@@ -129,7 +129,7 @@ void video_init()
 	viewportWidth = vmode->fbWidth;
 	if(CONF_GetAspectRatio() == CONF_ASPECT_16_9)
 	{//16:9
-		scaledWidth = 620; //16:9 widescreen
+		scaledWidth = 640; //620; //16:9 widescreen
 	}
 	else
 	{//4:3
@@ -140,15 +140,15 @@ void video_init()
 
 	if (vmode == &TVPal576IntDfScale || vmode == &TVPal576ProgScale)
 	{
-		vmode->viXOrigin = (VI_MAX_WIDTH_PAL - vmode->viWidth) / 2;
+		vmode->viXOrigin = (VI_MAX_WIDTH_PAL - vmode->viWidth) / 2 - (viewportWidth - scaledWidth) / 2;
 		vmode->viYOrigin = (VI_MAX_HEIGHT_PAL - vmode->viHeight) / 2;
 		scaledHeight = 524; //PAL
 	}
 	else
 	{
-		vmode->viXOrigin = (VI_MAX_WIDTH_NTSC - vmode->viWidth) / 2;
+		vmode->viXOrigin = (VI_MAX_WIDTH_NTSC - vmode->viWidth) / 2 - (viewportWidth - scaledWidth) / 2;
 		vmode->viYOrigin = (VI_MAX_HEIGHT_NTSC - vmode->viHeight) / 2;
-		scaledHeight = 440; //NTSC
+		scaledHeight = 460; //440; //NTSC
 	}
 
 	VIDEO_Configure(vmode);
