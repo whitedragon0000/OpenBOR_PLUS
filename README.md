@@ -5,7 +5,7 @@ created by the wonderful folks over at [Senile Team](http://www.senileteam.com).
 The plus version is based on official version and it has all official features plus
 new features!
 
-**EXPRESSLY FORBIDDEN THE COPY OF THE "PLUS" CODE WITHOUT MY CONSENT.**
+__*EXPRESSLY FORBIDDEN THE COPY OF THE "PLUS" CODE WITHOUT MY CONSENT.*__
 
 ## History
 In 2004, [Senile Team](http://www.senileteam.com) released Beats of Rage, a free beat-'em-up for DOS inspired
