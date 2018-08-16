@@ -126,7 +126,6 @@ Home of the OpenBOR community and OpenBOR team. This is the place to go if you w
 Senile Team is not responsible for OpenBOR, and has also dropped all support for the original Beats of Rage. Instead you should stop in to see their latest projects - you’ll no doubt find something interesting!
 
 ## New Features
-------
 * added "movex", "movez" to entityproperty: the potential entity directions
 * added "collidedentity" to script: it returns the collided entity handler
 * opened animation platform properties to script
