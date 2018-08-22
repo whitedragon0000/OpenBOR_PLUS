@@ -88,6 +88,8 @@ extern int videoMode;
 #define GC_Z			0x40000000
 #define GC_START		0x80000000
 
+#define PREVIEW_SCREENSHOTS 1
+
 s_screen *Source = NULL;
 s_screen *Scaler = NULL;
 s_screen *Screen = NULL;
@@ -383,7 +385,20 @@ void writeToScreen(s_screen* src)
 
 void drawScreens(s_screen *Image, int x, int y)
 {
-	if(Image) copyscreen_o(Scaler, Image, x, y);
+	if (!PREVIEW_SCREENSHOTS)
+    {
+        if(Image) copyscreen_o(Scaler, Image, x, y);
+    }
+    else
+    {
+        if(Image)
+        {
+            putscreen(Scaler, Image, x, y, NULL);
+            freescreen(&Image);
+            Image = NULL;
+        }
+    }
+
 	writeToScreen(Scaler);
 	video_copy_screen(Screen);
 }
@@ -447,6 +462,41 @@ static Image *getPreview(char *filename)
 	return preview;
 }
 
+static s_screen *getPreviewScreen(char *filename)
+{
+	int width = factor == 4 ? 640 : (factor == 2 ? 320 : 160);
+	int height = factor == 4 ? 480 : (factor == 2 ? 240 : 120);
+	s_screen *title = NULL;
+	s_screen *scale = NULL;
+    FILE *preview = NULL;
+	char ssPath[MAX_FILENAME_LEN] = "";
+
+	// Grab current path and filename
+	getBasePath(ssPath,"ScreenShots/",0); //get screenshots directory from base path
+	strncat(ssPath, filename, strrchr(filename, '.') - filename); //remove extension from pak filename
+	strcat(ssPath, " - 0000.png"); //add to end of pak filename
+	preview = fopen(ssPath, "r"); //open preview image
+
+	if(preview) //if preview image found
+	{
+		fclose(preview); //close preview image
+		strcpy(packfile,"null.file"); //dummy pak file since we are loading outside a pak file
+
+		//Create & Load & Scale Image
+		if(!loadscreen32(ssPath, packfile, &title)) return NULL; //exit if image screen not loaded
+		if((scale = allocscreen(width, height, title->pixelformat)) == NULL) return NULL; //exit if scaled screen not
+		scalescreen32(scale, title); //copy image to scaled down screen
+
+	} else { return NULL; }
+
+	// ScreenShots within Menu will be saved as "Menu"
+	strncpy(packfile,"Menu.ext",MAX_FILENAME_LEN);
+
+	// Free Images and Terminate FileCaching
+    if(title) freescreen(&title); //free image screen
+    return scale; // return scaled down screen
+}
+
 static void getAllPreviews()
 {
 	int i;
@@ -468,7 +518,7 @@ static void freeAllPreviews()
 static void freeAllImages()
 {
     freeAllLogs();
-	freeAllPreviews();
+	if (!PREVIEW_SCREENSHOTS) freeAllPreviews();
 }
 
 /* PARAMS:
@@ -689,16 +739,29 @@ void drawMenu()
 			{
 				shift = 2;
 				colors = RED;
-				if(filelist[list].preview != NULL)
-				{
-					imageX = factor * (isWide ? 286 : 155);
-					imageY = factor * (isWide ? (factor == 4 ? (s16)32.5 : 32) : (factor == 4 ? (s16)21.5 : 21));
-					printScreen(filelist[list].preview, imageX, imageY, imageW, imageH, 0, Scaler);
-                    //drawScreens(filelist[list].preview, imageX, imageY);
-                    //freescreen(&Image);
-                    //Image = NULL;
-				}
-				//else printText(Scaler, (isWide ? 288 : 157), (isWide ? 141 : 130), RED, 0, 0, "No Preview Available!");
+				if (!PREVIEW_SCREENSHOTS)
+                {
+                    if(filelist[list].preview != NULL)
+                    {
+                        imageX = factor * (isWide ? 286 : 155);
+                        imageY = factor * (isWide ? (factor == 4 ? (s16)32.5 : 32) : (factor == 4 ? (s16)21.5 : 21));
+                        printScreen(filelist[list].preview, imageX, imageY, imageW, imageH, 0, Scaler);
+
+                        //drawScreens(filelist[list].preview, imageX, imageY);
+                        //freescreen(&Image);
+                        //Image = NULL;
+                    }
+                    //else printText(Scaler, (isWide ? 288 : 157), (isWide ? 141 : 130), RED, 0, 0, "No Preview Available!");
+                }
+                else
+                {
+                    s_screen* Image = getPreviewScreen(filelist[list+dListScrollPosition].filename);
+                    if(Image)
+                    {
+                        //draw screen with the preview image
+                        drawScreens(Image, imageX, imageY);
+                    }
+                }
 			}
 			printText(Scaler, (isWide ? 30 : 7) + shift, (isWide ? 33 : 22)+(11*list) , colors, 0, 0, "%s", listing);
 			draw_vscrollbar();
@@ -856,7 +919,7 @@ void Menu()
 	{
 		sortList();
 		getAllLogs();
-		getAllPreviews();
+		if (!PREVIEW_SCREENSHOTS) getAllPreviews();
 		initMenu(1);
 		drawMenu();
 		pControl = ControlMenu;
