@@ -333,7 +333,7 @@ char* get_joystick_name(const char* name)
     strcpy(lname,name);
     for(int i = 0; lname[i]; i++)
     {
-        lname[i] = tolower(lname[i]);
+        lname[i] = tolower((unsigned char)lname[i]);
     }
     if ( strstr(lname, "null") == NULL ) return JOY_UNKNOWN_NAME;
     return ( (char*)name );

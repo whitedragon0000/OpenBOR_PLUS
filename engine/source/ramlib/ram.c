@@ -184,7 +184,7 @@ void setSystemRam()
     systemRam = getFreeRam(BYTES);
 #endif
 #if !(defined(WIN) || defined(LINUX) || defined(DARWIN) || defined(SYMBIAN) || defined(VITA))
-    stackSize = (int)&_end - (int)&_start + ((int)&_start - elfOffset);
+    stackSize = (unsigned long)&_end - (unsigned long)&_start + ((unsigned long)&_start - elfOffset);
 #endif
     getRamStatus(BYTES);
 }
