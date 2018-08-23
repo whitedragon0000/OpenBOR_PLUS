@@ -24,7 +24,6 @@
 
 char packfile[MAX_FILENAME_LEN] = {"bor.pak"};
 #if ANDROID
-#include <unistd.h>
 char rootDir[MAX_BUFFER_LEN] = {""};
 #endif
 char paksDir[MAX_FILENAME_LEN] = {"Paks"};

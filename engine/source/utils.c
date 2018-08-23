@@ -78,7 +78,7 @@ typedef void DIR;
 #define COPY_ROOT_PATH(buf, name) strcpy(buf, rootDir); strcat(buf, name); strcat(buf, "/");
 #define COPY_PAKS_PATH(buf, name) strcpy(buf, paksDir); strcat(buf, "/"); strcat(buf, name);
 #elif VITA
-#define CHECK_LOGFILE(type)  type ? fileExists("ux0:/data/OpenBOR/Logs/OpenBorLog.txt") : fileExists("./Logs/ScriptLog.txt")
+#define CHECK_LOGFILE(type)  type ? fileExists("ux0:/data/OpenBOR/Logs/OpenBorLog.txt") : fileExists("ux0:/data/OpenBOR/Logs/ScriptLog.txt")
 #define OPEN_LOGFILE(type)   type ? fopen("ux0:/data/OpenBOR/Logs/OpenBorLog.txt", "wt") : fopen("ux0:/data/OpenBOR/Logs/ScriptLog.txt", "wt")
 #define APPEND_LOGFILE(type) type ? fopen("ux0:/data/OpenBOR/Logs/OpenBorLog.txt", "at") : fopen("ux0:/data/OpenBOR/Logs/ScriptLog.txt", "at")
 #define READ_LOGFILE(type)   type ? fopen("ux0:/data/OpenBOR/Logs/OpenBorLog.txt", "rt") : fopen("ux0:/data/OpenBOR/Logs/ScriptLog.txt", "rt")
