@@ -34388,7 +34388,7 @@ int playRecordedInputs()
             u32 nextsynctime = reckey.synctime;
 
             //time = (u32)reckey.time;
-            printf("Play recorded inputs: Out of sync! Time: %d, RecTime: %d\n",time,reckey.time);
+            printf("Play recorded inputs: Out of sync! Time: %d, RecTime: %d\n",_time,reckey.time);
             /*if ( interval != reckey.interval )
             {
                 //interval = (u32)reckey.interval;
