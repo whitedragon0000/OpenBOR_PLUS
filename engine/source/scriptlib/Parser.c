@@ -1784,11 +1784,23 @@ void Parser_Unary_expr(Parser *pparser )
     else if (Parser_Check(pparser, TOKEN_BITWISE_NOT ))
     {
         Parser_Match(pparser);
-        Parser_Unary_expr( pparser);
+        Parser_Unary_expr(pparser );
         pInstruction = (Instruction *)List_Retrieve(pparser->pIList);
-        Parser_AddInstructionViaToken(pparser, NEG, (Token *)NULL, NULL );
-        Parser_AddInstructionViaToken(pparser, SAVE, pInstruction->theToken, NULL );
-        Parser_AddInstructionViaToken(pparser, LOAD, pInstruction->theToken, NULL );
+        if(pInstruction->OpCode == CONSTINT || pInstruction->OpCode == CONSTDBL)
+        {
+            //convert to bitwise not constant
+            sprintf(buf, "~%s", pInstruction->theToken->theSource);
+            strcpy(pInstruction->theToken->theSource, buf);
+        }
+        else if(pInstruction->OpCode == CONSTSTR)
+        {
+            //string constant should not be valid , drop it anyway
+            Parser_Error(pparser, unary_expr );
+        }
+        else
+        {
+            Parser_AddInstructionViaToken(pparser, BNOT, (Token *)NULL, NULL );
+        }
     }
     else if (Parser_Check(pparser, TOKEN_ADD ))
     {
@@ -1800,8 +1812,7 @@ void Parser_Unary_expr(Parser *pparser )
         Parser_Match(pparser);
         Parser_Unary_expr(pparser );
         pInstruction = (Instruction *)List_Retrieve(pparser->pIList);
-        if(pInstruction->OpCode == CONSTINT ||
-                pInstruction->OpCode == CONSTDBL )
+        if(pInstruction->OpCode == CONSTINT || pInstruction->OpCode == CONSTDBL)
         {
             //convert to negative constant
             sprintf(buf, "-%s", pInstruction->theToken->theSource);
@@ -1815,8 +1826,6 @@ void Parser_Unary_expr(Parser *pparser )
         else
         {
             Parser_AddInstructionViaToken(pparser, NEG, (Token *)NULL, NULL );
-            //Parser_AddInstructionViaToken(pparser, SAVE, pInstruction->theToken, NULL );
-            //Parser_AddInstructionViaToken(pparser, LOAD, pInstruction->theToken, NULL );
         }
     }
     else if (Parser_Check(pparser, TOKEN_BOOLEAN_NOT ))
@@ -1926,7 +1935,7 @@ void Parser_Postfix_expr2(Parser *pparser )
         Parser_Match(pparser);
         Parser_Unary_expr(pparser );
         pInstruction = (Instruction *)List_Retrieve(pparser->pIList);
-        Parser_AddInstructionViaToken(pparser, NEG, (Token *)NULL, NULL );
+        Parser_AddInstructionViaToken(pparser, BNOT, (Token *)NULL, NULL );
         Parser_AddInstructionViaToken(pparser, SAVE, pInstruction->theToken, NULL );
         Parser_AddInstructionViaToken(pparser, LOAD, pInstruction->theToken, NULL );
     }
