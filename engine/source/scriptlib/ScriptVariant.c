@@ -950,5 +950,21 @@ void ScriptVariant_Boolean_Not(ScriptVariant *svar )
 
 }
 
+void ScriptVariant_Bitwise_Not( ScriptVariant *svar)
+{
+    switch(svar->vt)
+    {
+    case VT_DECIMAL:
+        svar->dblVal = (DOUBLE)~((LONG)(svar->dblVal));
+        break;
+    case VT_INTEGER:
+        svar->lVal = ~(svar->lVal);
+        break;
+    default:
+        break;
+    }
+    //return svar;
+}
+
 
 

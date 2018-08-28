@@ -139,7 +139,7 @@ void Instruction_ConvertConstant(Instruction *pins)
         //Note: There shouldn't be any double constants added via a label,
         //      unless you added something I don't know...
         sc = pins->theToken->theSource;
-        if(sc[0] == '!' || sc[0] == '-')
+        if(sc[0] == '!' || sc[0] == '-' || sc[0] == '~')
         {
             sc++;
         }
@@ -152,7 +152,10 @@ void Instruction_ConvertConstant(Instruction *pins)
         {
             pvar->dblVal = -pvar->dblVal;
         }
-
+        else if(pins->theToken->theSource[0] == '~')
+        {
+            pvar->dblVal = (DOUBLE)~(LONG)pvar->dblVal;
+        }
     }
     else if( pins->OpCode == CONSTINT || pins->OpCode == CHECKARG)
     {
@@ -163,7 +166,7 @@ void Instruction_ConvertConstant(Instruction *pins)
         if (pins->theToken->theType != END_OF_TOKENS)
         {
             sc = pins->theToken->theSource;
-            if(sc[0] == '!' || sc[0] == '-')
+            if(sc[0] == '!' || sc[0] == '-' || sc[0] == '~')
             {
                 sc++;
             }
@@ -177,11 +180,15 @@ void Instruction_ConvertConstant(Instruction *pins)
             }
             if(pins->theToken->theSource[0] == '!')
             {
-                pvar->lVal = (LONG)(!pvar->dblVal);
+                pvar->lVal = (LONG)(!pvar->lVal);
             }
             else if(pins->theToken->theSource[0] == '-')
             {
                 pvar->lVal = -pvar->lVal;
+            }
+            else if(pins->theToken->theSource[0] == '~')
+            {
+                pvar->lVal = ~pvar->lVal;
             }
         }
         else
@@ -251,6 +258,9 @@ void Instruction_ToString(Instruction *pins, LPSTR strRep)
         break;
     case NEG:
         strcpy( strRep, "NEG " );
+        break;
+    case BNOT:
+        strcpy( strRep, "BNOT " );
         break;
     case NOT:
         strcpy( strRep, "NOT " );
