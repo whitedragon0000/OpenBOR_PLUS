@@ -130,6 +130,9 @@ Senile Team is not responsible for OpenBOR, and has also dropped all support for
 * added "collidedentity" to script: it returns the collided entity handler
 * opened animation platform properties to script
 
+#### ***NEW OPERATORS***
+bitwise not (~)<br/>
+
 #### ***ENTITY COLLISION***
 accessible in debug mode too.<br/>
 
