@@ -871,6 +871,8 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(PORTING_WINDOWS)
         ICMPCONST(PORTING_WIZ)
         ICMPCONST(PORTING_XBOX)
+        ICMPCONST(PORTING_VITA)
+        ICMPCONST(PORTING_PS3)
 
         // Variable types.
         ICMPCONST(VT_DECIMAL)

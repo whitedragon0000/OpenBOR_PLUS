@@ -50,6 +50,8 @@ extern int pixelbytes[(int)5];
 // TODO: use these for throughout the engine where fixed-length types are needed
 #if PSP
 #include "psptypes.h"
+#elif PS3
+#include "ppu-types.h"
 #elif WII
 #include "gctypes.h"
 #elif ((__STDC_VERSION__ >= 199901L) || (defined(__GNUC__) && (__GNUC__ >= 3))) && (!defined(DC))

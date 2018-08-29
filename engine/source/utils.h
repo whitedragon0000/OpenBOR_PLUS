@@ -10,7 +10,11 @@
 #define UTILS_H
 
 // *** INCLUDES ***
+#ifdef PS3
+#include <sys/time.h>
+#else
 #include <time.h>
+#endif
 #include "types.h"
 #include "stringptr.h"
 

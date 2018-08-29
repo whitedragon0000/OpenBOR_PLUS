@@ -147,6 +147,23 @@ function vita {
   fi
 }
 
+# PS3 Environment && Compile
+function ps3 {
+  export PATH=$OLD_PATH
+  . ./environ.sh 11
+  if test $PS3SDK; then
+    make clean BUILD_PS3=1
+    make BUILD_PS3=1
+    if test -f "./OpenBOR.pkg"; then
+      if test ! -e "./releases/PS3"; then
+        mkdir ./releases/PS3
+      fi
+      mv OpenBOR.pkg ./releases/PS3/
+    fi
+    make clean BUILD_PS3=1
+  fi
+}
+
 # Linux Environment && Compile (common to all architectures)
 function linux {
   export PATH=$OLD_PATH
@@ -308,6 +325,7 @@ function build_all {
     wii
     darwin
 	android
+	ps3
   fi
   distribute
 }
@@ -323,6 +341,7 @@ function print_help {
   echo "    5 = Windows"
   echo "    7 = Wii"
   echo "   10 = Darwin"
+  echo "   11 = PS3"
   echo "  all = build for all applicable targets"
   echo "-------------------------------------------------------"
   echo "Example: $0 10"
@@ -363,6 +382,11 @@ case $1 in
   10)
     version
     darwin
+    ;;
+
+  11)
+    version
+    ps3
     ;;
 
   ?)

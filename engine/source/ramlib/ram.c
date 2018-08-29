@@ -28,6 +28,9 @@
 #elif LINUX
 #include <sys/sysinfo.h>
 #include <unistd.h>
+#elif PS3
+#include <sys/unistd.h>
+#include <ppu-lv2.h>
 #elif PSP
 #include "kernel/kernel.h"
 #elif GP2X
@@ -48,7 +51,7 @@
 
 static u64 systemRam = 0x00000000;
 
-#if !(defined(WIN) || defined(LINUX) || defined(DARWIN))
+#if !(defined(WIN) || defined(LINUX) || defined(DARWIN) || defined(PS3))
 static unsigned long elfOffset = 0x00000000;
 static unsigned long stackSize = 0x00000000;
 #endif
@@ -68,6 +71,13 @@ extern unsigned long start;
 #endif
 #endif
 
+#ifdef PS3
+typedef struct {
+	uint32_t total;
+	uint32_t avail;
+} _meminfo;
+#endif
+
 /////////////////////////////////////////////////////////////////////////////
 //  Functions
 
@@ -79,6 +89,10 @@ u64 getFreeRam(int byte_size)
     stat.dwLength = sizeof(MEMORYSTATUSEX);
     GlobalMemoryStatusEx(&stat);
     return stat.ullAvailPhys / byte_size;
+#elif PS3
+    _meminfo meminfo;
+    lv2syscall1(352,(uint64_t) &meminfo);
+    return meminfo.avail;
 #elif DARWIN
     vm_size_t size;
     unsigned int count = HOST_VM_INFO_COUNT;
@@ -133,6 +147,10 @@ void setSystemRam()
     stat.dwLength = sizeof(MEMORYSTATUSEX);
     GlobalMemoryStatusEx(&stat);
     systemRam = stat.ullTotalPhys;
+#elif PS3
+    _meminfo meminfo;
+    lv2syscall1(352,(uint64_t) &meminfo);
+    systemRam = meminfo.total;
 #elif DARWIN
     u64 mem;
     size_t len = sizeof(mem);
@@ -183,7 +201,7 @@ void setSystemRam()
     stackSize = 0x00000000;
     systemRam = getFreeRam(BYTES);
 #endif
-#if !(defined(WIN) || defined(LINUX) || defined(DARWIN) || defined(SYMBIAN) || defined(VITA))
+#if !(defined(WIN) || defined(LINUX) || defined(DARWIN) || defined(SYMBIAN) || defined(VITA) || defined(PS3))
     stackSize = (unsigned long)&_end - (unsigned long)&_start + ((unsigned long)&_start - elfOffset);
 #endif
     getRamStatus(BYTES);

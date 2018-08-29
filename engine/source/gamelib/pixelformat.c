@@ -26,10 +26,17 @@ typedef struct
         struct
         {
 #ifdef BOR_BIG_ENDIAN
+    #ifdef SONY_REVERSE_COLOR
+            unsigned char r;
+            unsigned char g;
+            unsigned char b;
+            unsigned char a; //unused
+    #else
             unsigned char a; //unused
             unsigned char b;
             unsigned char g;
             unsigned char r;
+    #endif
 #else
 	        unsigned char r;
             unsigned char g;
@@ -72,14 +79,15 @@ void drawmethod_global_init(s_drawmethod *drawmethod)
 
     if(drawmethod && drawmethod->flag)
     {
-#if REVERSE_COLOR
+    #if REVERSE_COLOR
         channelr = drawmethod->channelb;
         channelb = drawmethod->channelr;
-#else
+    #else
         channelr = drawmethod->channelr;
         channelb = drawmethod->channelb;
-#endif
+    #endif
         channelg = drawmethod->channelg;
+
         tintmode = drawmethod->tintmode;
         tintcolor = drawmethod->tintcolor;
         usechannel = (channelr < 255) || (channelg < 255) || (channelb < 255);
@@ -113,6 +121,8 @@ unsigned colour32(unsigned char r, unsigned char g, unsigned char b)
 {
 #if REVERSE_COLOR
     return ((r << 16) | (g << 8) | b);
+#elif SONY_REVERSE_COLOR
+    return ((b << 8) | (g << 16) | (r << 24));
 #else
     return ((b << 16) | (g << 8) | r);
 #endif
@@ -143,7 +153,12 @@ unsigned colour32(unsigned char r, unsigned char g, unsigned char b)
 #define _overlay(c1,c2) ((c2)<128?_multiply((c2)<<1,(c1)):_screen(((c2)-128)<<1,(c1)))
 #define _dodge(c1,c2) (((c2)<<8)/(256-(c1)))
 #define _channel(src,dest,alpha) (((src*alpha)+(dest*(255-alpha)))>>8)
+
+#ifdef SONY_REVERSE_COLOR
+#define _color(r,g,b) (((b)<<8)|((g)<<16)|((r)<<24))
+#else
 #define _color(r,g,b) (((b)<<16)|((g)<<8)|(r))
+#endif
 
 
 // common blend function
@@ -204,9 +219,15 @@ unsigned blend_multiply32(unsigned color1, unsigned color2)
     {
         return _color(tbl[ri], tbl[gi], tbl[bi]);
     }
+    #ifndef SONY_REVERSE_COLOR
     return _color(_multiply(color1 >> 16, color2 >> 16),
                   _multiply((color1 & 0xFF00) >> 8, (color2 & 0xFF00) >> 8),
                   _multiply(color1 & 0xFF, color2 & 0xFF));
+    #else
+    return _color(_multiply((color1 & 0xFF00) >> 8, (color2 & 0xFF00) >> 8),
+                  _multiply((color1 & 0xFF0000) >> 16, (color2 & 0xFF0000) >> 16),
+                  _multiply((color1 & 0xFF000000) >> 24, (color2 & 0xFF000000) >> 24));
+    #endif
 }
 
 unsigned char *create_screen32_tbl()
@@ -229,9 +250,15 @@ unsigned blend_screen32(unsigned color1, unsigned color2)
     {
         return _color(tbl[ri], tbl[gi], tbl[bi]);
     }
+    #ifndef SONY_REVERSE_COLOR
     return _color(_screen(color1 >> 16, color2 >> 16),
                   _screen((color1 & 0xFF00) >> 8, (color2 & 0xFF00) >> 8),
                   _screen(color1 & 0xFF, color2 & 0xFF));
+    #else
+    return _color(_screen((color1 & 0xFF00) >> 8, (color2 & 0xFF00) >> 8),
+                  _screen((color1 & 0xFF0000) >> 16, (color2 & 0xFF0000) >> 16),
+                  _screen((color1 & 0xFF000000) >> 24, (color2 & 0xFF000000) >> 24));
+    #endif
 }
 
 unsigned char *create_overlay32_tbl()
@@ -255,9 +282,15 @@ unsigned blend_overlay32(unsigned color1, unsigned color2)
     {
         return _color(tbl[ri], tbl[gi], tbl[bi]);
     }
+    #ifndef SONY_REVERSE_COLOR
     b1 = color1 >> 16, b2 = color2 >> 16;
     g1 = (color1 & 0xFF00) >> 8, g2 = (color2 & 0xFF00) >> 8;
     r1 = color1 & 0xFF, r2 = color2 & 0xFF;
+    #else
+    b1 = (color1 & 0xFF00) >> 8, b2 = (color2 & 0xFF00) >> 8;
+    g1 = (color1 & 0xFF0000) >> 16, g2 = (color2 & 0xFF0000) >> 16;
+    r1 = (color1 & 0xFF000000) >> 24, r2 = (color2 & 0xFF000000) >> 24;
+    #endif
     return _color(_overlay(r1, r2),
                   _overlay(g1, g2),
                   _overlay(b1, b2));
@@ -284,9 +317,15 @@ unsigned blend_hardlight32(unsigned color1, unsigned color2)
     {
         return _color(tbl[ri], tbl[gi], tbl[bi]);
     }
+    #ifndef SONY_REVERSE_COLOR
     b1 = color1 >> 16, b2 = color2 >> 16;
     g1 = (color1 & 0xFF00) >> 8, g2 = (color2 & 0xFF00) >> 8;
     r1 = color1 & 0xFF, r2 = color2 & 0xFF;
+    #else
+    b1 = (color1 & 0xFF00) >> 8, b2 = (color2 & 0xFF00) >> 8;
+    g1 = (color1 & 0xFF0000) >> 16, g2 = (color2 & 0xFF0000) >> 16;
+    r1 = (color1 & 0xFF000000) >> 24, r2 = (color2 & 0xFF000000) >> 24;
+    #endif
     return _color(_hardlight(r1, r2),
                   _hardlight(g1, g2),
                   _hardlight(b1, b2));
@@ -312,9 +351,15 @@ unsigned blend_dodge32(unsigned color1, unsigned color2)
     {
         return _color(tbl[ri], tbl[gi], tbl[bi]);
     }
+    #ifndef SONY_REVERSE_COLOR
     b = _dodge(color1 >> 16, color2 >> 16);
     g = _dodge((color1 & 0xFF00) >> 8, (color2 & 0xFF00) >> 8);
     r = _dodge(color1 & 0xFF, color2 & 0xFF);
+    #else
+    b = _dodge((color1 & 0xFF00) >> 8, (color2 & 0xFF00) >> 8);
+    g = _dodge((color1 & 0xFF0000) >> 16, (color2 & 0xFF0000) >> 16);
+    r = _dodge((color1 & 0xFF000000) >> 24, (color2 & 0xFF000000) >> 24);
+    #endif
     return _color(r > 255 ? 255 : r, g > 255 ? 255 : g, b > 255 ? 255 : b);
 }
 
@@ -338,9 +383,15 @@ unsigned blend_half32(unsigned color1, unsigned color2)
     {
         return _color(tbl[ri], tbl[gi], tbl[bi]);
     }
+    #ifndef SONY_REVERSE_COLOR
     return _color(((color1 >> 16) + (color2 >> 16)) >> 1,
                   (((color1 & 0xFF00) >> 8) + ((color2 & 0xFF00) >> 8)) >> 1,
                   ((color1 & 0xFF) + (color2 & 0xFF)) >> 1);
+    #else
+    return _color((((color1 & 0xFF00) >> 8) + ((color2 & 0xFF00) >> 8)) >> 1,
+                  (((color1 & 0xFF0000) >> 16) + ((color2 & 0xFF0000) >> 16)) >> 1,
+                  ((((color1 & 0xFF000000) >> 24) + (((color2 & 0xFF000000)) >> 24))) >> 1);
+    #endif
 }
 
 unsigned blend_tint32(unsigned color1, unsigned color2)
@@ -352,9 +403,15 @@ unsigned blend_tint32(unsigned color1, unsigned color2)
 //copy from below
 unsigned blend_rgbchannel32(unsigned color1, unsigned color2)
 {
+    #ifndef SONY_REVERSE_COLOR
     unsigned b1 = color1 >> 16, b2 = color2 >> 16;
     unsigned g1 = (color1 & 0xFF00) >> 8, g2 = (color2 & 0xFF00) >> 8;
     unsigned r1 = color1 & 0xFF, r2 = color2 & 0xFF;
+    #else
+    unsigned b1 = (color1 & 0xFF00) >> 8, b2 = (color2 & 0xFF00) >> 8;
+    unsigned g1 = (color1 & 0xFF0000) >> 16, g2 = (color2 & 0xFF0000) >> 16;
+    unsigned r1 = (color1 & 0xFF000000) >> 24, r2 = (color2 & 0xFF000000) >> 24;
+    #endif
     return _color(	_channel(r1, r2, channelr),
                     _channel(g1, g2, channelg),
                     _channel(b1, b2, channelb));
@@ -362,9 +419,15 @@ unsigned blend_rgbchannel32(unsigned color1, unsigned color2)
 
 unsigned blend_channel32(unsigned color1, unsigned color2, unsigned a)
 {
+    #ifndef SONY_REVERSE_COLOR
     int b1 = color1 >> 16, b2 = color2 >> 16;
     int g1 = (color1 & 0xFF00) >> 8, g2 = (color2 & 0xFF00) >> 8;
     int r1 = color1 & 0xFF, r2 = color2 & 0xFF;
+    #else
+    int b1 = (color1 & 0xFF00) >> 8, b2 = (color2 & 0xFF00) >> 8;
+    int g1 = (color1 & 0xFF0000) >> 16, g2 = (color2 & 0xFF0000) >> 16;
+    int r1 = (color1 & 0xFF000000) >> 24, r2 = (color2 & 0xFF000000) >> 24;
+    #endif
     return _color(	_channel(r1, r2, a),
                     _channel(g1, g2, a),
                     _channel(b1, b2, a));

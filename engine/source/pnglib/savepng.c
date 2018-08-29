@@ -81,6 +81,10 @@ void savepng(const char *filename, s_screen *screen, u8 *pal)
                 b = color & 0xff;
                 g = (color >> 8) & 0xff;
                 r = (color >> 16) & 0xff;
+#elif SONY_REVERSE_COLOR
+                r = (color >> 24) & 0xff;
+                g = (color >> 16) & 0xff;
+                b = (color >> 8) & 0xff;
 #else
                 r = color & 0xff;
                 g = (color >> 8) & 0xff;

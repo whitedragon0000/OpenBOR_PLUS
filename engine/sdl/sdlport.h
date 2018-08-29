@@ -14,7 +14,12 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
+
+#ifdef PS3
+#include <sys/unistd.h>
+#else
 #include <unistd.h>
+#endif
 
 #include "globals.h"
 
@@ -27,7 +32,7 @@
 #define SDL2 1
 #endif
 
-#if GP2X || DARWIN || OPENDINGUX || ANDROID
+#if GP2X || DARWIN || OPENDINGUX || ANDROID || PS3
 #define SKIP_CODE
 #endif
 
@@ -45,6 +50,8 @@ void _usleep(u32 usec);
 void initSDL();
 #ifdef ANDROID
 char* AndroidRoot(char *relPath);
+extern char rootDir[MAX_BUFFER_LEN];
+#elif PS3
 extern char rootDir[MAX_BUFFER_LEN];
 #endif
 void borExit(int reset);

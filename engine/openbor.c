@@ -21392,13 +21392,15 @@ void adjust_bind(entity *e)
 {
     if(e->binding.ent)
     {
+
         if(e->binding.ani_bind)
         {
             if(e->animnum != e->binding.ent->animnum)
             {
                 if(!validanim(e, e->binding.ent->animnum))
                 {
-                    if(e->binding.ani_bind & 4)
+                    // Don't have the animation? Kill ourself.
+                    if(e->binding.ani_bind & BINDING_ANI_ANIMATION_KILL)
                     {
                         kill_entity(e);
                     }
@@ -21407,13 +21409,27 @@ void adjust_bind(entity *e)
                 }
                 ent_set_anim(e, e->binding.ent->animnum, 1);
             }
-            if(e->animpos != e->binding.ent->animpos && e->binding.ani_bind & 2)
+
+            if(e->animpos != e->binding.ent->animpos && e->binding.ani_bind & BINDING_ANI_FRAME_MATCH)
             {
+                // If we don't have the frame and frame kill flag is set, kill ourself.
+                if(e->animation[e->animnum].numframes < e->binding.ent->animation[e->binding.ent->animnum].numframes)
+                {
+                    if(e->binding.ani_bind & BINDING_ANI_FRAME_KILL)
+                    {
+                        kill_entity(e);
+                        e->binding.ent = NULL;
+                        return;
+                    }
+                }
+
                 update_frame(e, e->binding.ent->animpos);
             }
         }
-        if (e->binding.bind_toggle.z) e->position.z = e->binding.ent->position.z + e->binding.offset.z;
-        if (e->binding.bind_toggle.y) e->position.y = e->binding.ent->position.y + e->binding.offset.y;
+
+
+        if (e->binding.enable.z) e->position.z = e->binding.ent->position.z + e->binding.offset.z;
+        if (e->binding.enable.y) e->position.y = e->binding.ent->position.y + e->binding.offset.y;
         e->sortid = e->binding.ent->sortid + e->binding.sortid;
 
         switch(e->binding.direction)
@@ -21421,45 +21437,45 @@ void adjust_bind(entity *e)
         case DIRECTION_ADJUST_NONE:
             if(e->binding.ent->direction == DIRECTION_RIGHT)
             {
-                if (e->binding.bind_toggle.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
+                if (e->binding.enable.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
             }
             else
             {
-                if (e->binding.bind_toggle.x) e->position.x = e->binding.ent->position.x - e->binding.offset.x;
+                if (e->binding.enable.x) e->position.x = e->binding.ent->position.x - e->binding.offset.x;
             }
             break;
         case DIRECTION_ADJUST_SAME:
             e->direction = e->binding.ent->direction;
             if(e->binding.ent->direction == DIRECTION_RIGHT)
             {
-                if (e->binding.bind_toggle.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
+                if (e->binding.enable.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
             }
             else
             {
-                if (e->binding.bind_toggle.x) e->position.x = e->binding.ent->position.x - e->binding.offset.x;
+                if (e->binding.enable.x) e->position.x = e->binding.ent->position.x - e->binding.offset.x;
             }
             break;
         case DIRECTION_ADJUST_OPPOSITE:
             e->direction = !e->binding.ent->direction;
             if(e->binding.ent->direction == DIRECTION_RIGHT)
             {
-                if (e->binding.bind_toggle.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
+                if (e->binding.enable.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
             }
             else
             {
-                if (e->binding.bind_toggle.x) e->position.x = e->binding.ent->position.x - e->binding.offset.x;
+                if (e->binding.enable.x) e->position.x = e->binding.ent->position.x - e->binding.offset.x;
             }
             break;
         case DIRECTION_ADJUST_RIGHT:
             e->direction = DIRECTION_RIGHT;
-            if (e->binding.bind_toggle.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
+            if (e->binding.enable.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
             break;
         case DIRECTION_ADJUST_LEFT:
             e->direction = DIRECTION_LEFT;
-            if (e->binding.bind_toggle.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
+            if (e->binding.enable.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
             break;
         default:
-            if (e->binding.bind_toggle.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
+            if (e->binding.enable.x) e->position.x = e->binding.ent->position.x + e->binding.offset.x;
             break;
             // the default is no change :), just give a value of 12345 or so
         }
@@ -37280,6 +37296,9 @@ void init_videomodes(int log)
     tryfile("data/videosymbian.txt");
 #elif VITA
     tryfile("data/videovita.txt");
+    tryfile("data/video169.txt");
+#elif PS3
+    tryfile("data/videops3.txt");
     tryfile("data/video169.txt");
 #endif
 #undef tryfile

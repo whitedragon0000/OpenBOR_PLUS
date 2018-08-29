@@ -6,7 +6,13 @@
 
 #include <stdio.h>
 #include <string.h>
+
+#ifdef PS3
+#include <sys/unistd.h>
+#else
 #include <unistd.h>
+#endif
+
 #include "utils.h"
 #include "packfile.h"
 #include "filecache.h"
