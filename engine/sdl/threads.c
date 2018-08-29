@@ -68,5 +68,5 @@ int cond_wait(bor_cond *cond, bor_mutex *mutex)
 
 int cond_wait_timed(bor_cond *cond, bor_mutex *mutex, int ms)
 {
-	return SDL_CondWaitTimeout(cond, mutex, ms);
+	return SDL_CondWaitTimeout(cond, mutex, ms); //SDL_MUTEX_MAXWAIT
 }

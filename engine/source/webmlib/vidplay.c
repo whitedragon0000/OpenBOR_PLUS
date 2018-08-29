@@ -29,8 +29,9 @@
 #include "soundmix.h"
 
 // lowering these might save a bit of memory but could also cause lag
-#define PACKET_QUEUE_SIZE 20
-#define FRAME_QUEUE_SIZE 10
+#define PACKET_QUEUE_SIZE   20
+#define FRAME_QUEUE_SIZE    10
+#define COND_TIMEOUT        1000
 
 #define debug_printf(...) //printf(__VA_ARGS__)
 
@@ -121,7 +122,7 @@ int queue_insert(FixedSizeQueue *queue, void *data)
     //SPIT("size=%i\n", queue->size);
     if (queue->size == queue->max_size)
     {
-        while(cond_wait_timed(queue->not_full, queue->mutex, 10) != 0)
+        while(cond_wait_timed(queue->not_full, queue->mutex, COND_TIMEOUT) != 0)
         {
             if (quit_video)
             {
@@ -131,6 +132,7 @@ int queue_insert(FixedSizeQueue *queue, void *data)
             else if (queue->size < queue->max_size) break;
         }
     }
+    //if (queue->size >= queue->max_size) return -1;
     assert(queue->size < queue->max_size);
     int index = (queue->start + queue->size) % queue->max_size;
     queue->data[index] = data;
@@ -149,7 +151,7 @@ void *queue_get(FixedSizeQueue *queue)
     //SPIT("size=%i\n", queue->size);
     if (queue->size == 0)
     {
-        while (cond_wait_timed(queue->not_empty, queue->mutex, 10) != 0)
+        while (cond_wait_timed(queue->not_empty, queue->mutex, COND_TIMEOUT) != 0)
         {
             if (quit_video)
             {
@@ -159,6 +161,7 @@ void *queue_get(FixedSizeQueue *queue)
             else if (queue->size > 0) break;
         }
     }
+    //if (queue->size <= 0) return NULL;
     assert(queue->size > 0);
     void *data = queue->data[queue->start];
     --queue->size;
@@ -268,7 +271,7 @@ static int audio_thread(void *data)
         }
 
         // Sleep for 1 ms so that this thread doesn't waste CPU cycles busywaiting
-        usleep(1000);
+        usleep(COND_TIMEOUT);
     }
 
     return 0;
@@ -391,6 +394,7 @@ static int video_thread(void *data)
                     memcpy(frame->cb+(y*img->d_w/2), img->planes[2]+(y*img->stride[2]), img->d_w / 2);
                 }
 
+                printf("CAZZO1\n");
                 if (queue_insert(ctx->frame_queue, (void *)frame) < 0)
                 {
                     debug_printf("destroying last frame\n");
@@ -402,7 +406,7 @@ static int video_thread(void *data)
         }
         nestegg_free_packet(pkt);
     }
-
+    printf("CAZZO2\n");
     queue_insert(ctx->frame_queue, NULL);
     return 0;
 }
@@ -470,6 +474,7 @@ static int demux_thread(void *data)
 
         if (track == ctx->audio_track)
         {
+            printf("CAZZO3\n");
             if (queue_insert(ctx->audio_ctx.packet_queue, pkt) < 0)
             {
                 nestegg_free_packet(pkt);
@@ -478,6 +483,7 @@ static int demux_thread(void *data)
         }
         else if (track == ctx->video_track)
         {
+            printf("CAZZO4\n");
             if (queue_insert(ctx->video_ctx.packet_queue, pkt) < 0)
             {
                 nestegg_free_packet(pkt);
@@ -487,7 +493,9 @@ static int demux_thread(void *data)
 
         if (quit_video) break;
     }
+    printf("CAZZO5\n");
     queue_insert(ctx->video_ctx.packet_queue, NULL);
+    printf("CAZZO6\n");
     if (ctx->audio_track >= 0) queue_insert(ctx->audio_ctx.packet_queue, NULL);
     return 0;
 }
