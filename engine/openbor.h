@@ -252,7 +252,8 @@ typedef enum
     PORTING_WINDOWS,
     PORTING_WIZ,
     PORTING_XBOX,
-    PORTING_VITA
+    PORTING_VITA,
+    PORTING_PS3
 } e_porting;
 
 typedef enum
