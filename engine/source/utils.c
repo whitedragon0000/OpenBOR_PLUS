@@ -25,13 +25,19 @@
 #endif
 
 #ifdef SDL
-#include <unistd.h>
+    #ifdef PS3
+    #include <sys/unistd.h>
+    #else
+    #include <unistd.h>
+    #endif
 #include "sdlport.h"
 #include "savepng.h"
 #endif
 
 #if _POSIX_VERSION > 0
+#ifndef PS3
 #include <sys/stat.h>
+#endif
 #endif
 
 #ifdef DC
@@ -57,6 +63,18 @@ typedef void DIR;
 #define closedir(X) sceIoDclose((SceUID)(X))
 #endif
 
+#ifdef PS3
+#include <ppu-lv2.h>
+#include <sys/dirent.h>
+#include <sys/time.h>
+//#include <sys/stat.h>
+#include <sys/file.h>
+#include <sys/types.h>
+#include <sys/lv2errno.h>
+#include <lv2/sysfs.h>
+#define chmod sysLv2FsChmod
+#endif
+
 #if ANDROID
 #include "sdlport.h"
 #include "savepng.h"
@@ -66,6 +84,9 @@ typedef void DIR;
 #define MKDIR(x) mkdir(x)
 #elif VITA
 #define MKDIR(x) sceIoMkdir(x, 0777)
+#elif PS3
+#define MKDIR(x) sysLv2FsMkdir(realName, 0777)
+//#define MKDIR(x) sysFsMkdir(x, S_IRWXO | S_IRWXU | S_IRWXG | S_IFDIR)
 #else
 #define MKDIR(x) mkdir(x, 0777)
 #endif
@@ -84,6 +105,13 @@ typedef void DIR;
 #define READ_LOGFILE(type)   type ? fopen("ux0:/data/OpenBOR/Logs/OpenBorLog.txt", "rt") : fopen("ux0:/data/OpenBOR/Logs/ScriptLog.txt", "rt")
 #define COPY_ROOT_PATH(buf, name) strcpy(buf, "ux0:/data/OpenBOR/"); strcat(buf, name); strcat(buf, "/");
 #define COPY_PAKS_PATH(buf, name) strcpy(buf, "ux0:/data/OpenBOR/Paks/"); strcat(buf, name);
+#elif PS3
+#define CHECK_LOGFILE(type)  type ? fileExists("/dev_hdd0/OpenBOR/Logs/OpenBorLog.txt") : fileExists("/dev_hdd0/OpenBOR/Logs/ScriptLog.txt")
+#define OPEN_LOGFILE(type)   type ? fopen("/dev_hdd0/OpenBOR/Logs/OpenBorLog.txt", "wt") : fopen("/dev_hdd0/OpenBOR/Logs/ScriptLog.txt", "wt")
+#define APPEND_LOGFILE(type) type ? fopen("/dev_hdd0/OpenBOR/Logs/OpenBorLog.txt", "at") : fopen("/dev_hdd0/OpenBOR/Logs/ScriptLog.txt", "at")
+#define READ_LOGFILE(type)   type ? fopen("/dev_hdd0/OpenBOR/Logs/OpenBorLog.txt", "rt") : fopen("/dev_hdd0/OpenBOR/Logs/ScriptLog.txt", "rt")
+#define COPY_ROOT_PATH(buf, name) strcpy(buf, "/dev_hdd0/OpenBOR/"); strcat(buf, name); strcat(buf, "/");
+#define COPY_PAKS_PATH(buf, name) strcpy(buf, "/dev_hdd0/OpenBOR/Paks/"); strcat(buf, name);
 #elif ANDROID
 //msmalik681 now using AndroidRoot fuction from sdlport.c to update all android paths.
 #define Alog AndroidRoot("Logs/OpenBorLog.txt")
@@ -177,13 +205,27 @@ void getBasePath(char *newName, char *name, int type)
 int dirExists(char *dname, int create)
 {
     char realName[MAX_LABEL_LEN] = {""};
-    DIR	*fd1 = NULL;
     int  fd2 = -1;
+    #ifdef PS3
+    s32 *fd1 = NULL;
+    #else
+    DIR	*fd1 = NULL;
+    #endif
+
     strncpy(realName, dname, MAX_LABEL_LEN - 1);
+    #ifdef PS3
+    sysFsOpendir(realName, fd1);
+    #else
     fd1 = opendir(realName);
+    #endif
+
     if(fd1 != NULL)
     {
+        #ifdef PS3
+        sysFsClosedir(*fd1);
+        #else
         closedir(fd1);
+        #endif
         return 1;
     }
     if(create)

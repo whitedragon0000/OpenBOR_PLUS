@@ -34,7 +34,7 @@ case $1 in
 #                           PSP Environment                                #
 #                                                                          #
 ############################################################################
-1) 
+1)
    if test -e "C:/pspsdk"; then
      export PSPDEV=C:/pspsdk
      export PATH=$PATH:$PSPDEV/bin
@@ -86,6 +86,36 @@ case $1 in
    else
      echo "-------------------------------------------------------"
      echo "            ERROR - VITA Environment Failed"
+     echo "                   SDK Installed?"
+     echo "-------------------------------------------------------"
+   fi
+  ;;
+
+############################################################################
+#                                                                          #
+#                             PS3 Environment                              #
+#                                                                          #
+############################################################################
+11)
+  if test -e "../tools/ps3-sdk"; then
+    export BASEDIR="${PWD%/*}"
+	export PS3TOOLSDIR=tools/ps3-sdk
+	
+    export PS3SDK=$BASEDIR/$PS3TOOLSDIR
+    export WIN_PS3SDK=$BASEDIR/$PS3TOOLSDIR
+    export PATH="$PATH:$WIN_PS3SDK/mingw/msys/1.0/bin:$WIN_PS3SDK/mingw/bin:$WIN_PS3SDK/ps3dev/bin:$WIN_PS3SDK/ps3dev/ppu/bin:$WIN_PS3SDK/ps3dev/spu/bin:$WIN_PS3SDK/mingw/Python27"
+    export PSL1GHT=$PS3SDK/psl1ght
+    export PS3DEV=$WIN_PS3SDK/ps3dev
+	
+    export PS3DEVBIN=$PS3DEV/ppu/bin
+    export PREFIX=powerpc64-ps3-elf-
+    export EXTENSION=.exe
+     echo "-------------------------------------------------------"
+     echo "     PS3 SDK ($HOST_PLATFORM) Environment Loaded!"
+     echo "-------------------------------------------------------"
+   else
+     echo "-------------------------------------------------------"
+     echo "            ERROR - PS3 Environment Failed"
      echo "                   SDK Installed?"
      echo "-------------------------------------------------------"
    fi
@@ -261,7 +291,7 @@ case $1 in
      fi
      HOST_PLATFORM="SVN";
      export PATH=$TOOLS
-     . ../tools/dc-sdk/kos/environ.sh     
+     . ../tools/dc-sdk/kos/environ.sh
    fi
    if test $KOS_BASE; then
      echo "-------------------------------------------------------"
@@ -339,7 +369,7 @@ case $1 in
      echo "-------------------------------------------------------"
    fi
    ;;
-   
+
 ############################################################################
 #                                                                          #
 #                             WIZ Environment                              #
@@ -421,7 +451,7 @@ case $1 in
    echo
    echo "-------------------------------------------------------"
    echo "   1 = PSP"
-   echo "   2 = (Not Used)"   
+   echo "   2 = (Not Used)"
    echo "   3 = Gp2x"
    echo "   4 = Linux"
    echo "   5 = Windows"
@@ -430,6 +460,7 @@ case $1 in
    echo "   8 = OpenDingux"
    echo "   9 = Wiz"
    echo "  10 = Darwin"
+   echo "  11 = PS3"
    echo "-------------------------------------------------------"
    echo
    ;;

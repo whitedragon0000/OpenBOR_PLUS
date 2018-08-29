@@ -137,7 +137,11 @@ void line32(int sx, int sy, int ex, int ey, unsigned colour, s_screen *screen, i
 
     data = (unsigned *)screen->data;
 
+    #ifndef SONY_REVERSE_COLOR
     colour &= 0x00FFFFFF;
+    #else
+    colour &= 0xFFFFFF00;
+    #endif
 
     blendfp = getblendfunction32(alpha);
 
@@ -254,7 +258,11 @@ void drawbox32(int x, int y, int width, int height, unsigned colour, s_screen *s
     }
 
     cp = ((unsigned *)screen->data) + (y * screen->width + x);
+    #ifndef SONY_REVERSE_COLOR
     colour &= 0x00FFFFFF;
+    #else
+    colour &= 0xFFFFFF00;
+    #endif
 
     blendfp = getblendfunction32(alpha);
 
@@ -283,7 +291,11 @@ void _putpixel32(unsigned x, unsigned y, unsigned colour, s_screen *screen, int 
     }
     pixind = x + y * screen->width;
     data = (unsigned *)screen->data + pixind;
+    #ifndef SONY_REVERSE_COLOR
     colour &= 0x00FFFFFF;
+    #else
+    colour &= 0xFFFFFF00;
+    #endif
     blendfp = getblendfunction32(alpha);
     __putpixel32(data);
 }

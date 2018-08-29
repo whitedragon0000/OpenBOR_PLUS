@@ -11,7 +11,13 @@
 #include "ram.h"
 #include "video.h"
 #include "menu.h"
+#ifdef PS3
+#include <lv2/sysfs.h>
+#include <sys/time.h>
+#include <sys/stat.h>
+#else
 #include <time.h>
+#endif
 #include <unistd.h>
 
 #undef usleep
@@ -23,7 +29,7 @@
 #endif
 
 char packfile[MAX_FILENAME_LEN] = {"bor.pak"};
-#if ANDROID
+#if ANDROID || PS3
 char rootDir[MAX_BUFFER_LEN] = {""};
 #endif
 char paksDir[MAX_FILENAME_LEN] = {"Paks"};
@@ -129,6 +135,17 @@ int main(int argc, char *argv[])
     }
 	dirExists(rootDir, 1);
     chdir(rootDir);
+#elif PS3
+    strcpy(rootDir, "/dev_hdd0/OpenBOR");
+    strcpy(paksDir, "/dev_hdd0/OpenBOR/Paks");
+    strcpy(savesDir, "/dev_hdd0/OpenBOR/Saves");
+    strcpy(logsDir, "/dev_hdd0/OpenBOR/Logs");
+    strcpy(screenShotsDir, "/dev_hdd0/OpenBOR/ScreenShots");
+
+    //sysFsChmod("/dev_hdd0/", S_IRWXO | S_IRWXU | S_IRWXG | S_IFDIR);
+    //chdir("/dev_hdd0");
+	dirExists("/dev_hdd0/OpenBOR", 1);
+    //chdir(rootDir);
 #endif
 
 	dirExists(paksDir, 1);
@@ -139,7 +156,7 @@ int main(int argc, char *argv[])
 	Menu();
 #ifndef SKIP_CODE
 	getPakName(pakname, -1);
-	video_set_window_title(pakname);
+    video_set_window_title(pakname);
 #endif
 	openborMain(argc, argv);
 	borExit(0);

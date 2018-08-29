@@ -15,8 +15,9 @@
 static SDL_AudioSpec cspec;
 static SDL_AudioDeviceID audio_dev;
 static int sample_per_byte;
-static int voicevol = 15;
 static int buffsize = 4096;
+static int voicevol = 15;
+
 
 static void callback(void *userdata, Uint8 *stream, int len)
 {
@@ -26,9 +27,30 @@ static void callback(void *userdata, Uint8 *stream, int len)
 
 static int started;
 
+/*#ifdef PS3
+int roundDownPowerOfTwo(int samples) {
+	// Public domain code from Sean Eron Anderson
+	// http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+	int rounded = samples;
+	--rounded;
+	rounded |= rounded >> 1;
+	rounded |= rounded >> 2;
+	rounded |= rounded >> 4;
+	rounded |= rounded >> 8;
+	rounded |= rounded >> 16;
+	++rounded;
+
+	if (rounded != samples)
+		rounded >>= 1;
+
+	return rounded;
+}
+#endif*/
+
 int SB_playstart(int bits, int samplerate)
 {
 	SDL_AudioSpec spec;
+
 	spec.channels = 2;
 	spec.format = bits==16?AUDIO_S16SYS:AUDIO_U8;
 	spec.freq = samplerate;
@@ -37,11 +59,12 @@ int SB_playstart(int bits, int samplerate)
 	spec.userdata = NULL;
 	spec.callback = callback;
 
-	//SDL_PauseAudio(1);
+	/*SDL_PauseAudio(1);
+	if (SDL_OpenAudio(&spec,&cspec)<0) return 0;
+	SDL_PauseAudio(0);*/
+
 	SDL_PauseAudioDevice(audio_dev, 1);
-	//if (SDL_OpenAudio(&spec,&cspec)<0) return 0;
 	if (!(audio_dev = SDL_OpenAudioDevice(NULL, 0, &spec, &cspec, 0))) return 0; //SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE
-	//SDL_PauseAudio(0);
 	SDL_PauseAudioDevice(audio_dev, 0);
 
 	started = 1;
