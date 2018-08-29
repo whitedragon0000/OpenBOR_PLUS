@@ -12782,9 +12782,9 @@ HRESULT openbor_bindentity(ScriptVariant **varlist , ScriptVariant **pretvar, in
     if(!other)
     {
         ent->binding.ent = NULL;
-        ent->binding.bind_toggle.x = 0;
-        ent->binding.bind_toggle.z = 0;
-        ent->binding.bind_toggle.y = 0;
+        ent->binding.enable.x = 0;
+        ent->binding.enable.z = 0;
+        ent->binding.enable.y = 0;
         return S_OK;
     }
 
@@ -12805,8 +12805,8 @@ HRESULT openbor_bindentity(ScriptVariant **varlist , ScriptVariant **pretvar, in
         }
 
         ent->binding.offset.x = (int)x;
-        ent->binding.bind_toggle.x = 1;
-    } else ent->binding.bind_toggle.x = 0;
+        ent->binding.enable.x = 1;
+    } else ent->binding.enable.x = 0;
     if(paramCount < 4)
     {
         goto BIND;
@@ -12820,8 +12820,8 @@ HRESULT openbor_bindentity(ScriptVariant **varlist , ScriptVariant **pretvar, in
             return E_FAIL;
         }
         ent->binding.offset.z = (int)z;
-        ent->binding.bind_toggle.z = 1;
-    } else ent->binding.bind_toggle.z = 0;
+        ent->binding.enable.z = 1;
+    } else ent->binding.enable.z = 0;
     if(paramCount < 5)
     {
         goto BIND;
@@ -12835,8 +12835,8 @@ HRESULT openbor_bindentity(ScriptVariant **varlist , ScriptVariant **pretvar, in
             return E_FAIL;
         }
         ent->binding.offset.y = (int)a;
-        ent->binding.bind_toggle.y = 1;
-    } else ent->binding.bind_toggle.y = 0;
+        ent->binding.enable.y = 1;
+    } else ent->binding.enable.y = 0;
     if(paramCount < 6)
     {
         goto BIND;
@@ -14290,6 +14290,40 @@ HRESULT openbor_loadmodel(ScriptVariant **varlist , ScriptVariant **pretvar, int
 
 loadmodel_error:
     printf("Function needs a string and integer parameters: loadmodel(name, unload, selectable)\n");
+    ScriptVariant_Clear(*pretvar);
+    *pretvar = NULL;
+    return E_FAIL;
+}
+
+//unload_model("name");
+HRESULT openbor_unload_model(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
+{
+    LONG unload = 0;
+    s_model *model;
+    if(paramCount < 1)
+    {
+        goto unload_model_error;
+    }
+    if(varlist[0]->vt != VT_STR)
+    {
+        goto unload_model_error;
+    }
+
+    model = load_cached_model(StrCache_Get(varlist[0]->strVal), "openbor_loadmodel", (char)unload);
+
+    if(paramCount >= 1 && model)
+    {
+		cache_model_sprites(model,0);
+		free_model(model);
+    }
+
+    //(*pretvar)->ptrVal = (VOID *)model;
+
+    //else, it should return an empty value
+	return S_OK;
+	
+	unload_model_error:
+    printf("Function needs a string parameter: unload_model(name)\n");
     ScriptVariant_Clear(*pretvar);
     *pretvar = NULL;
     return E_FAIL;

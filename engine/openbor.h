@@ -1202,6 +1202,15 @@ typedef enum
 
 typedef enum
 {
+    BINDING_ANI_NONE            = 0,
+    BINDING_ANI_ANIMATION_MATCH = 1,
+    BINDING_ANI_FRAME_MATCH     = 2,
+    BINDING_ANI_ANIMATION_KILL  = 4,
+    BINDING_ANI_FRAME_KILL      = 6
+} e_binding_animation;
+
+typedef enum
+{
     /*
     Direction adjustment enum. Used for binding and changing direction of defender when hit.
     Damon V. Caskey
@@ -2349,7 +2358,7 @@ typedef struct
 {
     unsigned int      ani_bind;       // Animation binding type.
     int               sortid;         // Relative binding sortid. Default = -1
-    s_axis_principal_int bind_toggle;    // Toggle binding on X, Y and Z axis.
+    s_axis_principal_int enable;    // Toggle binding on X, Y and Z axis.
     s_axis_principal_int  offset;         // x,y,z offset.
     e_direction_adjust      direction;      // Direction force
     struct entity *ent;                     // Entity to bind.
@@ -2905,6 +2914,8 @@ s_model *nextplayermodel(s_model *current);
 s_model *prevplayermodel(s_model *current);
 void free_anim(s_anim *anim);
 void free_models();
+int free_model();
+void cache_model_sprites();
 s_anim                  *alloc_anim();
 s_collision_attack      *collision_alloc_attack_instance(s_collision_attack* properties);
 s_collision_attack      **collision_alloc_attack_list();
