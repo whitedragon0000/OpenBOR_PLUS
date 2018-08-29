@@ -8425,6 +8425,8 @@ int getsyspropertybyindex(ScriptVariant *var, int index)
             porting = PORTING_XBOX;
         #elif VITA
             porting = PORTING_VITA;
+        #elif PS3
+            porting = PORTING_PS3;
         #else
             porting = PORTING_UNKNOWN;
         #endif

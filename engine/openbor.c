@@ -37297,6 +37297,9 @@ void init_videomodes(int log)
 #elif VITA
     tryfile("data/videovita.txt");
     tryfile("data/video169.txt");
+#elif PS3
+    tryfile("data/videops3.txt");
+    tryfile("data/video169.txt");
 #endif
 #undef tryfile
 

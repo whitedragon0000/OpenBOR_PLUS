@@ -67,6 +67,31 @@ endif
 endif
 
 
+ifdef BUILD_PS3
+TARGET          = $(VERSION_NAME).elf
+TARGET_FINAL    = $(VERSION_NAME).self
+TARGET_PLATFORM = PS3
+BUILD_PS3       = 1
+BUILD_GFX       = 1
+BUILD_STATIC    = 1
+BUILD_WEBM      = 1
+BUILDING        = 1
+CC              = $(PS3DEVBIN)/$(PREFIX)gcc$(EXTENSION)
+INCLUDES        = $(PSL1GHT)/ppu/include \
+			      $(PS3DEV)/portlibs/ppu/include \
+                  $(PS3DEV)/portlibs/ppu/include/SDL2 \
+				  $(PS3DEV)/ppu/ppu/include
+LIBRARIES       = $(PSL1GHT)/ppu/lib \
+				  $(PS3DEV)/portlibs/ppu/lib
+TITLE		:=	OpenBOR
+APPID		:=	OPENBOR00
+CONTENTID	:=	UP0001-$(APPID)_00-0000000000000000
+ifeq ($(BUILD_PS3), 0)
+BUILD_DEBUG     = 1
+endif
+endif
+
+
 ifdef BUILD_LINUX
 TARGET 	        = $(VERSION_NAME).elf
 TARGET_FINAL    = $(VERSION_NAME)
@@ -185,7 +210,7 @@ BUILD_DEBUG     = 1
 endif
 endif
 
-
+ifndef BUILD_PS3
 STRIP           = cp $(TARGET) $(TARGET_FINAL)
 ifndef BUILD_DEBUG
 ifndef NO_STRIP
@@ -203,6 +228,7 @@ STRIP 	        = $(PNDDEV)/bin/arm-none-linux-gnueabi-strip $(TARGET) -o $(TARGE
 endif
 ifdef BUILD_WII
 STRIP           = elf2dol $< $@
+endif
 endif
 endif
 endif
@@ -226,6 +252,10 @@ ifdef BUILD_VITA
 INCS           += vita
 endif
 
+ifdef BUILD_PS3
+INCS           += ps3
+INCS           += sdl
+endif
 
 ifdef BUILD_SDL
 INCS           += sdl
@@ -388,6 +418,11 @@ GAME	       += source/gamelib/filters.o
 endif
 
 
+ifdef BUILD_PS3
+GAME	       += source/gamelib/filters.o
+endif
+
+
 
 ifdef BUILD_SDL_IO
 GAME_CONSOLE   += sdl/joysticks.o                                                                   \
@@ -399,6 +434,17 @@ GAME_CONSOLE   += sdl/joysticks.o                                               
                   sdl/videocommon.o                                                                 \
 				  sdl/threads.o                                                                     \
                   sdl/menu.o
+endif
+
+ifdef BUILD_PS3
+GAME_CONSOLE   += ps3/control.o                                                                     \
+                  sdl/sblaster.o                                                                    \
+                  sdl/timer.o                                                                       \
+                  sdl/sdlport.o                                                                     \
+                  ps3/video.o                                                                       \
+                  sdl/videocommon.o                                                                 \
+				  sdl/threads.o                                                                     \
+                  ps3/menu.o
 endif
 
 
@@ -443,7 +489,9 @@ OBJS            = $(MAIN)                                                       
 # Compiler Flags
 #----------------------------------------------------------------------------------------------------
 
-CFLAGS 	       += $(addprefix -I", $(addsuffix ", $(INCS))) $(ARCHFLAGS) -D$(TARGET_PLATFORM)
+
+CFLAGS 	       += $(addprefix -I", $(addsuffix ", $(INCS)))
+CFLAGS 	       += $(ARCHFLAGS) -D$(TARGET_PLATFORM)
 CFLAGS 	       += -g -Wall -Werror -fsigned-char -std=gnu99
 
 
@@ -471,6 +519,10 @@ ifdef BUILD_PSP
 CFLAGS         += -G0
 endif
 
+ifdef BUILD_PS3
+CFLAGS 	       += -mcpu=cell $(MACHDEP) -DSDL=1 -DCACHE_BACKGROUNDS -DSONY_REVERSE_COLOR -DOV_EXCLUDE_STATIC_CALLBACKS -DPS3TITILE=\"$(TITLE)\" -DPS3APPID=\"$(APPID)\" -DPS3CONTENTID=\"$(CONTENTID)\"
+LDFLAGS			= $(MACHDEP) -Wl,-Map,$(notdir $@).map
+endif
 
 ifdef BUILD_SDL
 CFLAGS 	       += -DSDL=1
@@ -572,6 +624,12 @@ endif
 endif
 
 
+ifdef BUILD_PS3
+LIBS           += -lfont -lsimdmath -lgcm_sys -lio -lsysutil -lrt -llv2 -lsysfs
+LIBS           += -lSDL2   -Wl,--no-undefined -lm -lgcm_sys -lrsx -lsysutil -lio -laudio -lrt -llv2 -lio
+endif
+
+
 ifdef BUILD_WIN
 LIBS           += -lpsapi -lopengl32 -lwinmm -lole32 -loleaut32 -luuid -limm32 -lversion -mwindows
 endif
@@ -601,6 +659,11 @@ endif
 
 ifdef BUILD_VORBIS
 LIBS           += -lvorbisfile -lvorbis -logg
+endif
+
+
+ifdef BUILD_PS3
+LIBS           += -logg
 endif
 
 
@@ -715,6 +778,55 @@ OpenBOR.vpk: eboot.bin
 	@echo $(TARGET_FINAL) is now ready!
 endif
 
+#----------------------------------------------------------------------------------------------------
+# Rules to manage Files and Libraries for PS3
+#----------------------------------------------------------------------------------------------------
+
+ifdef BUILD_PS3
+PKG_NAME = $(VERSION_NAME).pkg
+INCLUDE = $(foreach dir,$(INCLUDES), -I$(dir)) \
+		  $(foreach dir,$(LIBDIRS),-I$(dir)/include) \
+		  $(LIBPSL1GHT_INC) \
+		  $(foreach dir,$(INCS), -I$(dir))
+include $(PSL1GHT)/ppu_rules
+SFOXML=$(CURDIR)/resources/sfo.xml
+ICON0=$(CURDIR)/resources/ICON0.PNG
+SCETOOL_FLAGS += --self-ctrl-flags 4000000000000000000000000000000000000000000000000000000000000002
+SCETOOL_FLAGS += --self-cap-flags 00000000000000000000000000000000000000000000007B0000000100000000 
+all : $(TARGET) $(TARGET_FINAL)
+	@echo
+%.o : %.c
+	@echo Compiling $(TARGET_PLATFORM) Port: $<...
+	@#$(CC) $(CFLAGS) -c $< -o $@
+	$(VERB) $(CC) $(DEPSOPT) $(CFLAGS) -c $< -o $@ $(ERROR_FILTER)
+$(TARGET) : $(OBJS) $(RES)
+	@echo
+	@echo Linking $(TARGET_PLATFORM) Port: $(TARGET)...
+	@#$(CC) $(CFLAGS) -o $(TARGET) $(OBJS) $(TARGET_RESOURCE) $(LIBS)
+	$(VERB) $(PREFIX)gcc $^ $(LDFLAGS) $(LIBPATHS) $(LIBS) -o $@
+%.self : %.elf
+	$(VERB) echo CEX self ... $(notdir $@)
+	$(VERB) mkdir -p "build"
+	$(VERB) $(STRIP) $< -o $(BUILDDIR)/$(notdir $<)
+	$(VERB) #cp $(VERSION_NAME).elf $(BUILDDIR)/$(VERSION_NAME).elf
+	$(VERB) $(SPRX) $(BUILDDIR)/$(notdir $<)
+	$(VERB) $(PS3DEV)/bin/$(SELF) $(SCETOOL_FLAGS) --encrypt $(BUILDDIR)/$(notdir $<) $@
+	$(VERB) mv $(PS3DEV)/bin/$@ $(BUILDDIR)/$@
+	$(VERB) #$(FSELF) $(BUILDDIR)/$(notdir $<) $(basename $@).fake.self
+#%.pkg: %.self
+	@echo
+	$(VERB) echo building pkg ... $(notdir $(PKG_NAME))
+	$(VERB) mkdir -p build/pkg/USRDIR
+	$(VERB) cp $(ICON0) $(BUILDDIR)/pkg/ICON0.PNG
+	$(VERB) $(SELF_NPDRM) $(SCETOOL_FLAGS) --np-content-id=$(CONTENTID) --encrypt $(BUILDDIR)/$(basename $(notdir $<)).elf $(BUILDDIR)/pkg/USRDIR/EBOOT.BIN #$(CONTENTID) >> /dev/null
+	$(VERB) $(PS3SDK)/MinGW/Python27/python$(EXTENSION) $(PS3DEV)/bin/$(SFO) --title "$(TITLE)" --appid "$(APPID)" -f $(SFOXML) $(BUILDDIR)/pkg/PARAM.SFO
+	
+	$(VERB) if [ -n "$(PKGFILES)" -a -d "$(PKGFILES)" ]; then cp -rf $(PKGFILES)/* $(BUILDDIR)/pkg/; fi
+	$(VERB) $(PS3SDK)/MinGW/Python27/python$(EXTENSION) $(PS3DEV)/bin/$(PKG) --contentid $(CONTENTID) $(BUILDDIR)/pkg/ $(PKG_NAME) >> /dev/null
+	$(VERB) #cp $(PKG_NAME) $(basename $(PKG_NAME)).gnpdrm.pkg
+	$(VERB) #$(PACKAGE_FINALIZE) $(basename $(PKG_NAME)).gnpdrm.pkg
+endif
+
 
 #----------------------------------------------------------------------------------------------------
 # Rules to CleanUp Files for All Platforms
@@ -752,7 +864,8 @@ clean-releases:
 clean:
 	@echo
 	@echo "Removing All $(TARGET_PLATFORM) Files..."
-	@rm -f $(TARGET) $(TARGET_FINAL) $(TARGET_MAP) PARAM.SFO param.sfo eboot.bin OpenBOR.velf linkmap $(OBJS)
+	@rm -f $(TARGET) $(TARGET_FINAL) $(TARGET_MAP) PARAM.SFO param.sfo eboot.bin OpenBOR.velf OpenBOR.elf.map linkmap $(OBJS)
+	@rm -rf build
 	@echo Done!
 	@echo
 endif
