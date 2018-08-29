@@ -97,6 +97,19 @@ case $1 in
 #                                                                          #
 ############################################################################
 11)
+  if [ `echo $HOST_PLATFORM | grep -E "windows|CYGWIN"` ]; then
+     if [ ! -d "../tools/ps3-sdk" ]; then
+        echo "-------------------------------------------------------"
+        echo "         PS3 SDK - Not Found, Installing SDK!"
+        echo "-------------------------------------------------------"
+        ../tools/7-Zip/7za.exe x -y ../tools/ps3-sdk/ps3-sdk.7z.001 -o../tools/ps3-sdk/
+        echo
+        echo "-------------------------------------------------------"
+        echo "         PS3 SDK - Installation Has Completed!"
+        echo "-------------------------------------------------------"
+     fi
+     HOST_PLATFORM="SVN";
+  fi
   if test -e "../tools/ps3-sdk"; then
     export BASEDIR="${PWD%/*}"
 	export PS3TOOLSDIR=tools/ps3-sdk
