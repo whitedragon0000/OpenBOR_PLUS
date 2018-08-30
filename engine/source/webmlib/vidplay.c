@@ -394,7 +394,6 @@ static int video_thread(void *data)
                     memcpy(frame->cb+(y*img->d_w/2), img->planes[2]+(y*img->stride[2]), img->d_w / 2);
                 }
 
-                printf("CAZZO1\n");
                 if (queue_insert(ctx->frame_queue, (void *)frame) < 0)
                 {
                     debug_printf("destroying last frame\n");
@@ -406,7 +405,7 @@ static int video_thread(void *data)
         }
         nestegg_free_packet(pkt);
     }
-    printf("CAZZO2\n");
+
     queue_insert(ctx->frame_queue, NULL);
     return 0;
 }
@@ -474,7 +473,6 @@ static int demux_thread(void *data)
 
         if (track == ctx->audio_track)
         {
-            printf("CAZZO3\n");
             if (queue_insert(ctx->audio_ctx.packet_queue, pkt) < 0)
             {
                 nestegg_free_packet(pkt);
@@ -483,7 +481,6 @@ static int demux_thread(void *data)
         }
         else if (track == ctx->video_track)
         {
-            printf("CAZZO4\n");
             if (queue_insert(ctx->video_ctx.packet_queue, pkt) < 0)
             {
                 nestegg_free_packet(pkt);
@@ -493,9 +490,8 @@ static int demux_thread(void *data)
 
         if (quit_video) break;
     }
-    printf("CAZZO5\n");
+
     queue_insert(ctx->video_ctx.packet_queue, NULL);
-    printf("CAZZO6\n");
     if (ctx->audio_track >= 0) queue_insert(ctx->audio_ctx.packet_queue, NULL);
     return 0;
 }
