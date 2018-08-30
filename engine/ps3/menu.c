@@ -14,7 +14,7 @@
 #include "video.h"
 #include "soundmix.h"
 #include "packfile.h"
-#include "gfx.h"
+//#include "gfx.h"
 #include "hankaku.h"
 #include "stristr.h"
 #include "stringptr.h"

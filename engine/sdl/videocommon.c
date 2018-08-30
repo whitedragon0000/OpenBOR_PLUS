@@ -10,7 +10,9 @@
 #include "globals.h"
 #include "video.h"
 #include "savedata.h"
+#ifndef PS3
 #include "gfx.h"
+#endif
 #include "videocommon.h"
 
 static SDL_Surface *screen = NULL;
@@ -26,15 +28,15 @@ static int bytes_per_pixel;
 s_videomodes setupPreBlitProcessing(s_videomodes videomodes)
 {
 	bytes_per_pixel = videomodes.pixel;
-	
+
 	if(screen) { SDL_FreeSurface(screen); screen=NULL; }
 	if(bscreen) { SDL_FreeSurface(bscreen); bscreen=NULL; }
 	if(bscreen2) { SDL_FreeSurface(bscreen2); bscreen2=NULL; }
-	
+
 	// set scale factors to 1 by default
 	videomodes.hScale = savedata.hwscale;
 	videomodes.vScale = savedata.hwscale;
-	
+
 	// set up indexed to RGB conversion
 	if(videomodes.pixel == 1)
 	{
@@ -44,7 +46,7 @@ s_videomodes setupPreBlitProcessing(s_videomodes videomodes)
 		SDL_SetSurfacePalette(bscreen, screenPalette);
 		videomodes.pixel = 4;
 	}
-	
+
 	// set up software scaling
 	if(savedata.swfilter && (savedata.hwscale >= 2.0 || savedata.fullscreen))
 	{
@@ -52,9 +54,11 @@ s_videomodes setupPreBlitProcessing(s_videomodes videomodes)
 		screen = SDL_CreateRGBSurface(0, videomodes.hRes*2, videomodes.vRes*2, 16, masks[1][0], masks[1][1], masks[1][2], masks[1][3]);
 		if (!bscreen) bscreen = SDL_CreateRGBSurface(0, videomodes.hRes, videomodes.vRes, 8*bytes_per_pixel, masks[bytes_per_pixel-1][0], masks[bytes_per_pixel-1][1], masks[bytes_per_pixel-1][2], masks[bytes_per_pixel-1][3]); // 24bit mask
 		bscreen2 = SDL_CreateRGBSurface(0, videomodes.hRes+4, videomodes.vRes+8, 16, masks[1][0], masks[1][1], masks[1][2], masks[1][3]);
+		#ifndef PS3
 		Init_Gfx(565, 16);
+		#endif
 		memset(pDeltaBuffer, 0x00, 1244160);
-		
+
 		assert(bscreen);
 		assert(bscreen2);
 
@@ -64,7 +68,7 @@ s_videomodes setupPreBlitProcessing(s_videomodes videomodes)
 		videomodes.vScale /= 2;
 		videomodes.pixel = 2;
 	}
-	
+
 	return videomodes;
 }
 
@@ -108,11 +112,12 @@ s_videosurface *getVideoSurface(s_screen *src)
 		if (bscreen2)
 		{
 			SDL_BlitSurface(bscreen, NULL, bscreen2, &rectsrc);
-
+            #ifndef PS3
 			(*GfxBlitters[savedata.swfilter])((u8*)bscreen2->pixels+bscreen2->pitch*4+4, bscreen2->pitch, pDeltaBuffer+bscreen2->pitch, (u8*)screen->pixels, screen->pitch, screen->w/2, screen->h/2);
+            #endif
 		}
 		else SDL_BlitSurface(bscreen, NULL, screen, NULL);
-		
+
 		videoSurface.width = screen->w;
 		videoSurface.height = screen->h;
 		videoSurface.pitch = screen->pitch;

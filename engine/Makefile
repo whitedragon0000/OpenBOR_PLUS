@@ -72,7 +72,6 @@ TARGET          = $(VERSION_NAME).elf
 TARGET_FINAL    = $(VERSION_NAME).self
 TARGET_PLATFORM = PS3
 BUILD_PS3       = 1
-BUILD_GFX       = 1
 BUILD_STATIC    = 1
 BUILD_WEBM      = 1
 BUILDING        = 1
@@ -416,12 +415,6 @@ endif
 ifdef BUILD_SDL
 GAME	       += source/gamelib/filters.o
 endif
-
-
-ifdef BUILD_PS3
-GAME	       += source/gamelib/filters.o
-endif
-
 
 
 ifdef BUILD_SDL_IO
