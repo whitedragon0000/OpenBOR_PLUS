@@ -17,8 +17,8 @@
 #include "screen.h"
 #include "sdlport.h"
 #include "openbor.h"
-#include "gfxtypes.h"
-#include "gfx.h"
+//#include "gfxtypes.h"
+//#include "gfx.h"
 #include "videocommon.h"
 #include "pngdec.h"
 
@@ -125,7 +125,7 @@ int video_set_mode(s_videomodes videomodes)
 
     if(videomodes.hRes == 0 && videomodes.vRes == 0)
     {
-        Term_Gfx();
+        //Term_Gfx();
         return 0;
     }
 

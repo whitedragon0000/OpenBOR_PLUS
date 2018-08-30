@@ -38600,6 +38600,88 @@ void menu_options_system()
     #undef SYS_OPT_Y_POS
 }
 
+void menu_options_ps3_video()
+{
+    int quit = 0;
+    int selector = 0;
+    int dir;
+    int col1 = -15, col2 = 1;
+
+    videooptionsMenu = 1;
+    bothnewkeys = 0;
+
+    while(!quit)
+    {
+        _menutextm(2, -2, 0, Tr("Video Options"));
+
+        _menutext((selector == 0), col1, 0, Tr("Display Mode:"));
+        _menutext((selector == 0), col2, 0, (savedata.stretch ? Tr("Stretch to Screen") : Tr("Preserve Aspect Ratio")));
+        _menutextm((selector == 1), 6, 0, Tr("Back"));
+        if(selector < 0)
+        {
+            selector = 1;
+        }
+        if(selector > 1)
+        {
+            selector = 0;
+        }
+
+        update((level != NULL), 0);
+
+        if(bothnewkeys & FLAG_ESC)
+        {
+            quit = 1;
+        }
+        if(bothnewkeys & FLAG_MOVEUP)
+        {
+            --selector;
+            if(SAMPLE_BEEP >= 0)
+            {
+                sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
+            }
+        }
+        if(bothnewkeys & FLAG_MOVEDOWN)
+        {
+            ++selector;
+            if(SAMPLE_BEEP >= 0)
+            {
+                sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
+            }
+        }
+        if(bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
+        {
+            dir = 0;
+
+            if(bothnewkeys & FLAG_MOVELEFT)
+            {
+                dir = -1;
+            }
+            else if(bothnewkeys & FLAG_MOVERIGHT)
+            {
+                dir = 1;
+            }
+
+            if(SAMPLE_BEEP2 >= 0)
+            {
+                sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
+            }
+
+            switch(selector)
+            {
+            case 0:
+                //video_fullscreen_flip();
+                video_stretch((savedata.stretch ^= 1));
+                break;
+
+            default:
+                quit = 1;
+            }
+        }
+    }
+    savesettings();
+    bothnewkeys = 0;
+    videooptionsMenu = 0;
+}
 
 void menu_options_video()
 {
@@ -38647,7 +38729,7 @@ void menu_options_video()
         }
 #endif
 
-#if WII
+#if WII || PS3
         _menutext((selector == 3), col1, 0, Tr("Display Mode:"));
         _menutext((selector == 3), col2, 0, (savedata.stretch ? Tr("Stretch to Screen") : Tr("Preserve Aspect Ratio")));
         _menutextm((selector == 4), 6, 0, Tr("Back"));
@@ -38662,7 +38744,7 @@ void menu_options_video()
 #endif
 
 #if SDL
-#if !defined(GP2X) && !defined(OPENDINGUX)
+#if !defined(GP2X) && !defined(OPENDINGUX) && !defined(PS3)
         _menutext((selector == 3), col1, 0, Tr("Display Mode:"));
         _menutext((selector == 3), col2, 0, savedata.fullscreen ? Tr("Full") : Tr("Window"));
 
@@ -38827,14 +38909,14 @@ void menu_options_video()
                     savedata.windowpos = 20;
                 }
                 break;
-#if SDL || PSP || WII
+#if SDL || PSP || WII || PS3
             case 3:
 #if OPENDINGUX
                 video_fullscreen_flip();
                 break;
 #endif
 
-#if WII
+#if WII || PS3
                 //video_fullscreen_flip();
                 video_stretch((savedata.stretch ^= 1));
                 break;
@@ -38922,7 +39004,7 @@ void menu_options_video()
 
 
 #if SDL
-#if !defined(GP2X) && !defined(OPENDINGUX)
+#if !defined(GP2X) && !defined(OPENDINGUX) && !defined(PS3)
                 video_fullscreen_flip();
                 break;
             case 4:
@@ -39106,7 +39188,11 @@ void menu_options()
             }
 
                 if(selector==BACK_OPTION) quit = 1;
+           #ifndef PS3
            else if(selector==VIDEO_OPTION) menu_options_video();
+           #else
+           else if(selector==VIDEO_OPTION) menu_options_ps3_video();
+           #endif
            else if(selector==SOUND_OPTION) menu_options_sound();
            else if(selector==CONTROL_OPTION) menu_options_input();
            else if(selector==SYSTEM_OPTION)
