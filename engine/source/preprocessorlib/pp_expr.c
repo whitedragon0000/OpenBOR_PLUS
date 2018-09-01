@@ -149,6 +149,7 @@ void pp_expr_destroy(pp_expr *node)
     if(node->info)
     {
         free(node->info);
+        node->info = NULL;
     }
     if(node->left)
     {
@@ -202,7 +203,8 @@ void pp_expr_fix_precedence(pp_expr *self)
             pp_expr_init(self->left->left, self->left->info, ll ? ll : NULL, self->left->right);
             pp_expr_init(self->left, self->info, self->left->left, self->right->left);
             pp_expr_init(self, self->right->info, self->left, self->right->right);
-            free(r);
+            pp_expr_destroy(r); // WD: fix
+            r = NULL;
         }
         pp_expr_fix_precedence(self->left);
     }
@@ -418,11 +420,13 @@ error:
     }
     if(current != root)
     {
-        free(current);
+        pp_expr_destroy(current); // WD: fix
+        current = NULL;
     }
     if(currentdata)
     {
         free(currentdata);
+        currentdata = NULL;
     }
     return NULL;
 }

@@ -23,6 +23,7 @@
 // speeds up search for "findByname" type of queries.
 // it will always be used, so memory usage will be slightly increased.
 #define USE_STRING_HASHES
+#define MAX_BACKETS 256
 
 #ifndef UNIT_TEST
 #include "depends.h"
@@ -108,6 +109,8 @@ typedef struct List
 
 void List_SetCurrent(List *list, Node *current);
 void Node_Clear(Node *node);
+void Node_Free(Node *node);
+void List_Free(List *list);
 void List_Init(List *list);
 void List_Solidify(List *list);
 int List_GetIndex(List *list);

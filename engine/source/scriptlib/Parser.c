@@ -34,6 +34,20 @@ void Parser_Clear(Parser *pparser)
     List_Clear(&(pparser->LabelStack));
 }
 
+void Parser_Free(Parser *pparser)
+{
+    Label label;
+    Lexer_Clear(&(pparser->theLexer));
+    ParserSet_Clear(&(pparser->theParserSet));
+    while(!Stack_IsEmpty(&(pparser->LabelStack)))
+    {
+        label = (Label)Stack_Top(&(pparser->LabelStack));
+        free(label);
+        Stack_Pop(&(pparser->LabelStack));
+    }
+    List_Clear(&(pparser->LabelStack));
+}
+
 /******************************************************************************
 *  ParseText -- This method begins the recursive-descent process for each global
 *  variable and function definition.
@@ -108,6 +122,7 @@ void Parser_ParseExpression(Parser *pparser, List *pIList, LPSTR scriptText,
     //Append a semi-colon to the end of the expression, in order to use the
     //same grammar as regular script text.
     LPSTR expressionText = (CHAR *)malloc(sizeof(CHAR) * strlen(scriptText) + 2);
+
     strcpy( (CHAR *)expressionText, scriptText );
     strcat( (CHAR *)expressionText, ";" );
 
@@ -211,8 +226,8 @@ Label Parser_CreateLabel( Parser *pparser )
     //Allocate a buffer for the new Label.  A long can take 10 characters at
     //most, so allocate that plus two extra for the "" and the null
     //terminator
-    Label theLabel = (CHAR *)malloc(12);
-    memset(theLabel, 0, 12);
+    Label theLabel = (CHAR *)malloc(13);
+    memset(theLabel, 0, 13);
 
     //Increment the label count.
     pparser->LabelCount++;
@@ -657,6 +672,7 @@ void Parser_Expr_stmt(Parser *pparser )
         {
             Instruction_Clear(pInstruction);
             free(pInstruction);
+            pInstruction = NULL;
             List_Remove(pparser->pIList);
         }
         else
@@ -1004,6 +1020,7 @@ void Parser_Iter_stmt(Parser *pparser )
 
             List_Clear(pDefInst);
             free(pDefInst);
+            pDefInst = NULL;
         }
 
         //Add the jump statement
@@ -1261,6 +1278,7 @@ void Parser_Assignment_expr2(Parser *pparser )
         {
             Instruction_Clear(pInstruction);
             free(pInstruction);
+            pInstruction = NULL;
         }
         Parser_Assignment_expr2(pparser );
     }
