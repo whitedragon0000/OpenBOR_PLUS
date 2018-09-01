@@ -5,9 +5,9 @@
  *
  * Copyright (c) 2004 - 2014 OpenBOR Team
  */
-
 #include "StackedSymbolTable.h"
 #include <stdio.h>
+
 /******************************************************************************
 *  CStackedSymbolTable -- This class handles the scoping issues related to
 *  the symbol table, allowing correct resolution of variable references.
@@ -17,6 +17,7 @@
 *  Initialize -- This method intializes the stacked symbol table with its name
 *  and creates a new stack for the symbol tables.
 ******************************************************************************/
+
 void StackedSymbolTable_Init(StackedSymbolTable *sstable, LPCSTR theName )
 {
 
@@ -53,6 +54,7 @@ void StackedSymbolTable_PushScope(StackedSymbolTable *sstable, LPCSTR scopeName 
     SymbolTable *newSymbolTable = NULL;
 
     newSymbolTable = (SymbolTable *)malloc(sizeof(SymbolTable));
+
     //We have to have a name for this scope, so if we got NULL, then use ""
     if (scopeName)
     {
@@ -91,6 +93,7 @@ void StackedSymbolTable_PopScope(StackedSymbolTable *sstable)
     {
         SymbolTable_Clear(pSymbolTable);
         free((void *)pSymbolTable);
+        pSymbolTable = NULL;
     }
 }
 

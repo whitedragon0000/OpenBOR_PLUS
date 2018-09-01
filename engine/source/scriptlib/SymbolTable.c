@@ -9,7 +9,6 @@
 #include "SymbolTable.h"
 #include <stdio.h>
 
-
 void Symbol_Init(Symbol *symbol, LPCSTR theName, DWORD flags,
                  ScriptVariant *pvar, Instruction  *theRef)
 {
@@ -56,10 +55,11 @@ void SymbolTable_Clear(SymbolTable *stable)
     FOREACH( stable->SymbolList,
              psymbol = (Symbol *)List_Retrieve(&(stable->SymbolList));
              if(psymbol)
-{
-    ScriptVariant_Clear(&(psymbol->var));
-        free(psymbol);
-    }
+             {
+                    ScriptVariant_Clear(&(psymbol->var));
+                    free(psymbol);
+                    psymbol = NULL;
+             }
            );
     List_Clear(&(stable->SymbolList));
 }

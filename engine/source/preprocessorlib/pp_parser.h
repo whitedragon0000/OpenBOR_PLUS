@@ -96,6 +96,7 @@ void pp_parser_init(pp_parser *self, pp_context *ctx, const char *filename, char
 pp_parser *pp_parser_alloc(pp_parser *parent, const char *filename, char *sourceCode, pp_parser_type type);
 pp_parser* pp_parser_alloc_macro(pp_parser* parent, char* macroContents, List* params, pp_parser_type type);
 
+void pp_parser_free(pp_parser *self);
 pp_token *pp_parser_emit_token(pp_parser *self);
 HRESULT pp_parser_lex_token(pp_parser *self, bool skip_whitespace);
 HRESULT pp_parser_readline(pp_parser *self, char *buf, int bufsize);

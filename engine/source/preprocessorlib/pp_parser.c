@@ -413,20 +413,7 @@ pp_token *pp_parser_emit_token(pp_parser *self)
                 }
 
                 // free the source code and filename if necessary
-                if(self->child->freeFilename)
-                {
-                    free((void *)self->child->filename);
-                }
-                if(self->child->freeSourceCode)
-                {
-                    free(self->child->sourceCode);
-                }
-                if(self->child->macroName)
-                {
-                    free(self->child->macroName);
-                }
-
-                free(self->child);
+                pp_parser_free(self->child);///WDTROVATO
                 self->child = NULL;
 
                 if(child_token == NULL)
@@ -1200,7 +1187,9 @@ HRESULT pp_parser_eval_conditional(pp_parser *self, PP_TOKEN_TYPE directive, int
         subparser->lexer.theTextPosition.row = self->lexer.theTextPosition.row;
 
         *result = pp_expr_eval_expression(subparser);
-        free(subparser);
+        pp_parser_free(subparser);///WDTROVATO
+        subparser = NULL;
+        pp_parser_free(self->child); // WD: not sure?
         self->child = NULL;
         if(*result < 0)
         {
@@ -1455,3 +1444,24 @@ bool pp_parser_is_defined(pp_parser *self, const char *name)
     return false;
 }
 
+void pp_parser_free(pp_parser *self)
+{
+    if(self->freeFilename)
+    {
+        free((void *)self->filename);
+    }
+    if(self->freeSourceCode)
+    {
+        free(self->sourceCode);
+    }
+    if(self->macroName)
+    {
+        free(self->macroName);
+    }
+	/*if (self->params)
+	{
+		List_Clear(self->params);
+		free(self->params);
+	}*/
+	free(self);
+}

@@ -53,6 +53,7 @@ char *readscript(const char *path)
         goto error;
     }
     buffer = malloc(size + 1);
+
     if(buffer == NULL)
     {
         goto error;
@@ -178,6 +179,13 @@ void ImportNode_Clear(ImportNode *self)
     List_Clear(&self->functions);
 }
 
+void ImportNode_Free(ImportNode *self)
+{
+    Interpreter_Clear(&self->interpreter);
+    List_Clear(&self->functions);
+    free(self);
+}
+
 /**
  * From a list of ImportNodes, finds and returns a pointer to the function with
  * the specified name in the list. Script files at the *end* of the import list
@@ -259,7 +267,10 @@ ImportNode *ImportCache_ImportFile(const char *path)
     node = malloc(sizeof(ImportNode));
     if(FAILED(ImportNode_Init(node, path2)))
     {
-        free(node);
+        // WD: Fix
+        ImportNode_Free(node);
+        //free(node);
+        node = NULL;
         return NULL;
     }
     List_GotoLast(&imports);
@@ -277,8 +288,8 @@ void ImportCache_Clear()
     while(List_GetSize(&imports))
     {
         ImportNode *node = (ImportNode *)List_Retrieve(&imports);
-        ImportNode_Clear(node);
-        free(node);
+        ImportNode_Free(node); // WD: Fix
+        node = NULL;
         List_Remove(&imports);
     }
     List_Clear(&imports);

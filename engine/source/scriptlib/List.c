@@ -50,7 +50,7 @@ void List_AddHash(List *list, Node *node)
 
     if (!list->buckets)
     {
-        list->buckets = calloc(1, sizeof(Bucket *) * 256);
+        list->buckets = calloc(1, sizeof(Bucket *) * MAX_BACKETS);
     }
 
     h = strhash((char *)node->name);
@@ -114,11 +114,11 @@ void List_FreeHashes(List *list)
     {
         return;
     }
-    for (i = 0; i < 256; i++)
+    for (i = 0; i < MAX_BACKETS; i++)
     {
         if(list->buckets[i])
         {
-            free(list->buckets[i]->nodes);
+            if (list->buckets[i]->nodes) free(list->buckets[i]->nodes);
             free(list->buckets[i]);
         }
     }
@@ -164,7 +164,7 @@ void List_AddIndex(List *list, Node *node, size_t index)
 
     if (!list->mindices)
     {
-        list->mindices = calloc(1, sizeof(LIndex *) * 256);
+        list->mindices = calloc(1, sizeof(LIndex *) * MAX_BACKETS);
     }
 
     h = ptrhash(node->value);
@@ -245,12 +245,13 @@ void List_FreeIndices(List *list)
     {
         return;
     }
-    for (i = 0; i < 256; i++)
+    for (i = 0; i < MAX_BACKETS; i++)
     {
         if(list->mindices[i])
         {
-            free(list->mindices[i]->indices);
-            free(list->mindices[i]->nodes);
+            // WD: Fix
+            if (list->mindices[i]->indices) free(list->mindices[i]->indices);
+            if (list->mindices[i]->nodes) free(list->mindices[i]->nodes);
             free(list->mindices[i]);
         }
     }
@@ -316,7 +317,6 @@ void List_SetCurrent(List *list, Node *current)
     }
 }
 
-
 void Node_Clear(Node *node)
 {
     if(!node)
@@ -326,7 +326,25 @@ void Node_Clear(Node *node)
     if(node->name)
     {
         free((void *)node->name);
+        node->name = NULL;
     }
+}
+
+void Node_Free(Node *node)
+{
+    if(!node)
+    {
+        return;
+    }
+    if(node->name)
+    {
+        free((void *)node->name);
+    }
+    if(node->value)
+    {
+        free((void *)node->value);
+    }
+    free(node);
 }
 
 void List_Init(List *list)
@@ -512,6 +530,45 @@ void List_Copy(List *listdest, const List *listsrc)
     List_CreateHashes(listdest);
 #endif
 
+}
+
+void List_Free(List *list)
+{
+#ifdef DEBUG
+    chklist((List *)list);
+#endif
+#ifdef LIST_DEBUG
+    printf("List_clear %p \n", list);
+#endif
+
+    //Delete all the Nodes in the list.
+    Node *nptr = list->first;
+    list->current = list->first;
+
+    while(list->current)
+    {
+        list->current = list->current->next;
+        Node_Free(nptr); // WD: Fix
+        nptr = list->current;
+    }
+    if(list->solidlist)
+    {
+        free(list->solidlist);
+        list->solidlist = NULL;
+    }
+
+#ifdef USE_INDEX
+    if(list->mindices)
+    {
+        List_FreeIndices(list);
+    }
+#endif
+
+#ifdef USE_STRING_HASHES
+    List_FreeHashes(list);
+#endif
+
+    free(list);
 }
 
 void List_Clear(List *list)
@@ -733,8 +790,8 @@ void List_Remove(List *list)
         List_RemoveHash(list, list->current);
 #endif
 
+        // WD: Fix
         Node_Clear(list->current);
-        free(list->current);
 
         if (list->current == list->last)
         {
@@ -744,6 +801,7 @@ void List_Remove(List *list)
         {
             list->first = nptr;
         }
+        free(list->current);
         list->current = nptr;
     }
     list->size--;
