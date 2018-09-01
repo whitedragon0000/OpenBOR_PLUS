@@ -44,10 +44,8 @@
 #include    "version.h"
 #include    "savedata.h"
 
-#ifndef PS3
 #ifdef SDL
 #include    "gfx.h"
-#endif
 #endif
 
 #ifdef WEBM

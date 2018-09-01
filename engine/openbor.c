@@ -38600,89 +38600,6 @@ void menu_options_system()
     #undef SYS_OPT_Y_POS
 }
 
-void menu_options_ps3_video()
-{
-    int quit = 0;
-    int selector = 0;
-    int dir;
-    int col1 = -15, col2 = 1;
-
-    videooptionsMenu = 1;
-    bothnewkeys = 0;
-
-    while(!quit)
-    {
-        _menutextm(2, -2, 0, Tr("Video Options"));
-
-        _menutext((selector == 0), col1, 0, Tr("Display Mode:"));
-        _menutext((selector == 0), col2, 0, (savedata.stretch ? Tr("Stretch to Screen") : Tr("Preserve Aspect Ratio")));
-        _menutextm((selector == 1), 6, 0, Tr("Back"));
-        if(selector < 0)
-        {
-            selector = 1;
-        }
-        if(selector > 1)
-        {
-            selector = 0;
-        }
-
-        update((level != NULL), 0);
-
-        if(bothnewkeys & FLAG_ESC)
-        {
-            quit = 1;
-        }
-        if(bothnewkeys & FLAG_MOVEUP)
-        {
-            --selector;
-            if(SAMPLE_BEEP >= 0)
-            {
-                sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
-            }
-        }
-        if(bothnewkeys & FLAG_MOVEDOWN)
-        {
-            ++selector;
-            if(SAMPLE_BEEP >= 0)
-            {
-                sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
-            }
-        }
-        if(bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
-        {
-            dir = 0;
-
-            if(bothnewkeys & FLAG_MOVELEFT)
-            {
-                dir = -1;
-            }
-            else if(bothnewkeys & FLAG_MOVERIGHT)
-            {
-                dir = 1;
-            }
-
-            if(SAMPLE_BEEP2 >= 0)
-            {
-                sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
-            }
-
-            switch(selector)
-            {
-            case 0:
-                //video_fullscreen_flip();
-                video_stretch((savedata.stretch ^= 1));
-                break;
-
-            default:
-                quit = 1;
-            }
-        }
-    }
-    savesettings();
-    bothnewkeys = 0;
-    videooptionsMenu = 0;
-}
-
 void menu_options_video()
 {
     int quit = 0;
@@ -38696,12 +38613,14 @@ void menu_options_video()
     while(!quit)
     {
         _menutextm(2, -5, 0, Tr("Video Options"));
+#ifndef PS3
         _menutext((selector == 0), col1, -3, Tr("Brightness:"));
         _menutext((selector == 0), col2, -3, "%i", savedata.brightness);
         _menutext((selector == 1), col1, -2, Tr("Gamma:"));
         _menutext((selector == 1), col2, -2, "%i", savedata.gamma);
         _menutext((selector == 2), col1, -1, Tr("Window Offset:"));
         _menutext((selector == 2), col2, -1, "%i", savedata.windowpos);
+#endif
 
 #if OPENDINGUX
         _menutext((selector == 3), col1, 0, Tr("Display Mode:"));
@@ -38729,7 +38648,7 @@ void menu_options_video()
         }
 #endif
 
-#if WII || PS3
+#if WII
         _menutext((selector == 3), col1, 0, Tr("Display Mode:"));
         _menutext((selector == 3), col2, 0, (savedata.stretch ? Tr("Stretch to Screen") : Tr("Preserve Aspect Ratio")));
         _menutextm((selector == 4), 6, 0, Tr("Back"));
@@ -38738,6 +38657,22 @@ void menu_options_video()
             selector = 4;
         }
         if(selector > 4)
+        {
+            selector = 0;
+        }
+#endif
+
+#if PS3
+        _menutext((selector == 0), col1, 0, Tr("Software Filter:"));
+        _menutext((selector == 0), col2, 0, ((savedata.hwscale >= 2.0 || savedata.fullscreen) ? Tr(GfxBlitterNames[savedata.swfilter]) : Tr("Disabled")));
+        _menutext((selector == 1), col1, 1, Tr("Display Mode:"));
+        _menutext((selector == 1), col2, 1, (savedata.stretch ? Tr("Stretch to Screen") : Tr("Preserve Aspect Ratio")));
+        _menutextm((selector == 2), 6, 0, Tr("Back"));
+        if(selector < 0)
+        {
+            selector = 2;
+        }
+        if(selector > 2)
         {
             selector = 0;
         }
@@ -38872,6 +38807,8 @@ void menu_options_video()
 
             switch(selector)
             {
+
+#if !defined(PS3)
             case 0:
                 savedata.brightness += 8 * dir;
                 if(savedata.brightness < -256)
@@ -38909,14 +38846,17 @@ void menu_options_video()
                     savedata.windowpos = 20;
                 }
                 break;
-#if SDL || PSP || WII || PS3
+#endif
+
+#if SDL || PSP || WII
+#if !defined(PS3)
             case 3:
 #if OPENDINGUX
                 video_fullscreen_flip();
                 break;
 #endif
 
-#if WII || PS3
+#if WII
                 //video_fullscreen_flip();
                 video_stretch((savedata.stretch ^= 1));
                 break;
@@ -39001,7 +38941,7 @@ void menu_options_video()
                 break;
 #endif
 #endif
-
+#endif
 
 #if SDL
 #if !defined(GP2X) && !defined(OPENDINGUX) && !defined(PS3)
@@ -39081,6 +39021,31 @@ void menu_options_video()
                 break;
 #endif
 #endif
+
+#if PS3
+            case 0:
+                if(!savedata.fullscreen && savedata.hwscale < 2.0)
+                {
+                    break;
+                }
+                videomodes.filter += dir;
+                if(videomodes.filter > BLITTER_MAX - 1)
+                {
+                    videomodes.filter = 0;
+                }
+                if(videomodes.filter < 0)
+                {
+                    videomodes.filter = BLITTER_MAX - 1;
+                }
+                savedata.swfilter = videomodes.filter;
+                memset(pDeltaBuffer, 0x00, 1244160);
+				video_set_mode(videomodes);
+                break;
+            case 1:
+                video_stretch((savedata.stretch ^= 1));
+                break;
+#endif
+
             default:
                 quit = 1;
             }
@@ -39188,11 +39153,7 @@ void menu_options()
             }
 
                 if(selector==BACK_OPTION) quit = 1;
-           #ifndef PS3
            else if(selector==VIDEO_OPTION) menu_options_video();
-           #else
-           else if(selector==VIDEO_OPTION) menu_options_ps3_video();
-           #endif
            else if(selector==SOUND_OPTION) menu_options_sound();
            else if(selector==CONTROL_OPTION) menu_options_input();
            else if(selector==SYSTEM_OPTION)

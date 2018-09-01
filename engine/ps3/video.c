@@ -17,8 +17,8 @@
 #include "screen.h"
 #include "sdlport.h"
 #include "openbor.h"
-//#include "gfxtypes.h"
-//#include "gfx.h"
+#include "gfxtypes.h"
+#include "gfx.h"
 #include "videocommon.h"
 #include "pngdec.h"
 
@@ -125,7 +125,7 @@ int video_set_mode(s_videomodes videomodes)
 
     if(videomodes.hRes == 0 && videomodes.vRes == 0)
     {
-        //Term_Gfx();
+        Term_Gfx();
         return 0;
     }
 
@@ -203,8 +203,8 @@ void blit()
     {
         //SDL_RenderSetLogicalSize(renderer, 0, 0);
         //SDL_RenderCopy(renderer, texture, NULL, NULL);
-        unsigned scaledWidth  = nativeWidth  - 40;
-        unsigned scaledHeight = nativeHeight - 40;
+        unsigned scaledWidth  = nativeWidth  - 50;
+        unsigned scaledHeight = (scaledWidth * nativeHeight) / nativeWidth;
 
         SDL_Rect d_rect = {(int)(nativeWidth/2.0f - scaledWidth/2.0f), (int)(nativeHeight/2.0f - scaledHeight/2.0f), scaledWidth, scaledHeight};
         SDL_RenderCopy(renderer, texture, NULL, &d_rect);
@@ -214,9 +214,12 @@ void blit()
         //SDL_RenderSetLogicalSize(renderer, textureWidth, textureHeight);
         float aspectRatio = (float)textureWidth / (float)textureHeight;
         float newWidth = nativeHeight * aspectRatio;
+        unsigned scaledWidth  = newWidth  - 50;
+        unsigned scaledHeight = (scaledWidth * nativeHeight) / newWidth;
 
         //SDL_Log("aspect: from %d/%d con %f, orig: %d/%d -> %d",textureWidth,textureHeight,aspectRatio,nativeWidth,nativeHeight,(int)newWidth);
-        SDL_Rect d_rect = {(int)(nativeWidth/2.0f - newWidth/2.0f), 0, (int)newWidth, nativeHeight};
+        //SDL_Rect d_rect = {(int)(nativeWidth/2.0f - newWidth/2.0f), 0, (int)newWidth, nativeHeight};
+        SDL_Rect d_rect = {(int)(nativeWidth/2.0f - scaledWidth/2.0f), (int)(nativeHeight/2.0f - scaledHeight/2.0f), scaledWidth, scaledHeight};
         SDL_RenderCopy(renderer, texture, NULL, &d_rect);
     }
 

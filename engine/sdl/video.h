@@ -9,9 +9,7 @@
 #ifndef VIDEO_H
 #define VIDEO_H
 
-#ifndef PS3
 #include "gfxtypes.h"
-#endif
 #include "types.h"
 #include "yuv.h"
 #include "SDL.h"
