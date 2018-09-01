@@ -413,7 +413,7 @@ pp_token *pp_parser_emit_token(pp_parser *self)
                 }
 
                 // free the source code and filename if necessary
-                pp_parser_free(self->child);///WDTROVATO
+                pp_parser_free(self->child); // WD: Fix
                 self->child = NULL;
 
                 if(child_token == NULL)
@@ -1187,7 +1187,7 @@ HRESULT pp_parser_eval_conditional(pp_parser *self, PP_TOKEN_TYPE directive, int
         subparser->lexer.theTextPosition.row = self->lexer.theTextPosition.row;
 
         *result = pp_expr_eval_expression(subparser);
-        pp_parser_free(subparser);///WDTROVATO
+        pp_parser_free(subparser); // WD: Fix
         subparser = NULL;
         pp_parser_free(self->child); // WD: not sure?
         self->child = NULL;

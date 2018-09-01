@@ -532,45 +532,6 @@ void List_Copy(List *listdest, const List *listsrc)
 
 }
 
-void List_Free(List *list)
-{
-#ifdef DEBUG
-    chklist((List *)list);
-#endif
-#ifdef LIST_DEBUG
-    printf("List_clear %p \n", list);
-#endif
-
-    //Delete all the Nodes in the list.
-    Node *nptr = list->first;
-    list->current = list->first;
-
-    while(list->current)
-    {
-        list->current = list->current->next;
-        Node_Free(nptr); // WD: Fix
-        nptr = list->current;
-    }
-    if(list->solidlist)
-    {
-        free(list->solidlist);
-        list->solidlist = NULL;
-    }
-
-#ifdef USE_INDEX
-    if(list->mindices)
-    {
-        List_FreeIndices(list);
-    }
-#endif
-
-#ifdef USE_STRING_HASHES
-    List_FreeHashes(list);
-#endif
-
-    free(list);
-}
-
 void List_Clear(List *list)
 {
 #ifdef DEBUG
