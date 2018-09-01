@@ -114,7 +114,7 @@ extern int            *backblkpains;
 
 extern int            noshare;
 extern int            credits;
-extern char           musicname[128];
+extern char           musicname[MAX_STR_LEN];
 extern float          musicfade[2];
 extern int            musicloop;
 extern u32            musicoffset;
