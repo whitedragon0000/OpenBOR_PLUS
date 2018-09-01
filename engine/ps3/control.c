@@ -191,13 +191,13 @@ unsigned int getPad(int port)
 
     ioPadGetData(port, &paddata[port]);
 
-    /*if (control_getjoyenabled())
+    if (control_getjoyenabled())
     {
-        if (paddata.ANA_L_V > ANAG_STAND + PAD_STICK_DEADZONE)        btns |= PS3_DPAD_DOWN;
-        else if (paddata.ANA_L_V < ANAG_STAND - PAD_STICK_DEADZONE)   btns |= PS3_DPAD_UP;
-        if (paddata.ANA_L_H < ANAG_STAND - PAD_STICK_DEADZONE)        btns |= PS3_DPAD_LEFT;
-        else if (paddata.ANA_L_H > ANAG_STAND + PAD_STICK_DEADZONE)   btns |= PS3_DPAD_RIGHT;
-    }*/
+             if (paddata[port].ANA_L_V > ANAG_STAND + PAD_STICK_DEADZONE)   btns |= PS3_DPAD_DOWN;
+        else if (paddata[port].ANA_L_V < ANAG_STAND - PAD_STICK_DEADZONE)   btns |= PS3_DPAD_UP;
+             if (paddata[port].ANA_L_H < ANAG_STAND - PAD_STICK_DEADZONE)   btns |= PS3_DPAD_LEFT;
+        else if (paddata[port].ANA_L_H > ANAG_STAND + PAD_STICK_DEADZONE)   btns |= PS3_DPAD_RIGHT;
+    }
 
     if (paddata[port].BTN_SELECT)   btns |= PS3_SELECT;
     if (paddata[port].BTN_START)    btns |= PS3_START;

@@ -10,9 +10,7 @@
 #include "globals.h"
 #include "video.h"
 #include "savedata.h"
-#ifndef PS3
 #include "gfx.h"
-#endif
 #include "videocommon.h"
 
 static SDL_Surface *screen = NULL;
@@ -22,7 +20,11 @@ static SDL_Palette *screenPalette = NULL;
 u8 pDeltaBuffer[480 * 2592];
 
 static s_videosurface videoSurface;
+#ifndef SONY_REVERSE_COLOR
 static unsigned masks[4][4] = {{0,0,0,0},{0x1F,0x07E0,0xF800,0},{0xFF,0xFF00,0xFF0000,0},{0xFF,0xFF00,0xFF0000,0}};
+#else
+static unsigned masks[4][4] = {{0,0,0,0},{0xF800,0x07E0,0x1F,0},{0xFF000000,0xFF0000,0xFF00,0},{0xFF000000,0xFF0000,0xFF00,0}};
+#endif
 static int bytes_per_pixel;
 
 s_videomodes setupPreBlitProcessing(s_videomodes videomodes)
@@ -54,9 +56,9 @@ s_videomodes setupPreBlitProcessing(s_videomodes videomodes)
 		screen = SDL_CreateRGBSurface(0, videomodes.hRes*2, videomodes.vRes*2, 16, masks[1][0], masks[1][1], masks[1][2], masks[1][3]);
 		if (!bscreen) bscreen = SDL_CreateRGBSurface(0, videomodes.hRes, videomodes.vRes, 8*bytes_per_pixel, masks[bytes_per_pixel-1][0], masks[bytes_per_pixel-1][1], masks[bytes_per_pixel-1][2], masks[bytes_per_pixel-1][3]); // 24bit mask
 		bscreen2 = SDL_CreateRGBSurface(0, videomodes.hRes+4, videomodes.vRes+8, 16, masks[1][0], masks[1][1], masks[1][2], masks[1][3]);
-		#ifndef PS3
+
 		Init_Gfx(565, 16);
-		#endif
+
 		memset(pDeltaBuffer, 0x00, 1244160);
 
 		assert(bscreen);
@@ -112,9 +114,7 @@ s_videosurface *getVideoSurface(s_screen *src)
 		if (bscreen2)
 		{
 			SDL_BlitSurface(bscreen, NULL, bscreen2, &rectsrc);
-            #ifndef PS3
 			(*GfxBlitters[savedata.swfilter])((u8*)bscreen2->pixels+bscreen2->pitch*4+4, bscreen2->pitch, pDeltaBuffer+bscreen2->pitch, (u8*)screen->pixels, screen->pitch, screen->w/2, screen->h/2);
-            #endif
 		}
 		else SDL_BlitSurface(bscreen, NULL, screen, NULL);
 
