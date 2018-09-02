@@ -20,7 +20,7 @@
 //#define ATTR_UNUSED __attribute__((__unused__))
 
 #ifdef DMALLOC_MODE
-#define MAX_DMALLOCS 2000000
+#define MAX_DMALLOCS sizeof(size_t)
 #define MAX_STR_BUF_LEN 128
 struct dmalloc_info
 {
@@ -92,7 +92,7 @@ static inline void safeFree(void* ptr, const char *func, const char *file, int l
 #ifdef DMALLOC_MODE
     size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
     __mi[hash].active = 0;
-    if (ptr != NULL) --dmalloc_count;
+    if (--dmalloc_count < 0) dmalloc_count = 0;
 #endif
     free(ptr);
 }
