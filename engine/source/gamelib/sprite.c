@@ -742,7 +742,7 @@ unsigned encodesprite(
             linetab[y] = ((size_t)data) - ((size_t)(linetab + y));
         }
         x = 0;
-        for(;;)
+        while(1)
         {
             // search for the first visible pixel
             x0 = x;

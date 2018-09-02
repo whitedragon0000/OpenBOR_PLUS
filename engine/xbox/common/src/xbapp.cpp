@@ -102,8 +102,8 @@ HRESULT CXBApplication::Create()
 
     // Create the device
     OUTPUT_DEBUG_STRING( "XBApp: Creating the D3D device...\n" );
-    if( FAILED( hr = m_pD3D->CreateDevice( 0, D3DDEVTYPE_HAL, NULL, 
-                                           D3DCREATE_HARDWARE_VERTEXPROCESSING, 
+    if( FAILED( hr = m_pD3D->CreateDevice( 0, D3DDEVTYPE_HAL, NULL,
+                                           D3DCREATE_HARDWARE_VERTEXPROCESSING,
                                            &m_d3dpp, &m_pd3dDevice ) ) )
     {
         OUTPUT_DEBUG_STRING( "XBApp: Could not create D3D device!\n" );
@@ -118,7 +118,7 @@ HRESULT CXBApplication::Create()
     m_pd3dDevice->GetBackBuffer( 0, 0, &m_pBackBuffer );
 
     // Initialize core peripheral port support. Note: If these parameters
-    // are 0 and NULL, respectively, then the default number and types of 
+    // are 0 and NULL, respectively, then the default number and types of
     // controllers will be initialized.
     XInitDevices( m_dwNumInputDeviceTypes, m_InputDeviceTypes );
 
@@ -163,7 +163,7 @@ VOID CXBApplication::Destroy()
 
 //-----------------------------------------------------------------------------
 // Name: Run()
-// Desc: 
+// Desc:
 //-----------------------------------------------------------------------------
 INT CXBApplication::Run()
 {
@@ -185,7 +185,7 @@ INT CXBApplication::Run()
     qwElapsedAppTime.QuadPart = 0;
 
     // Run the game loop, animating and rendering frames
-    for( ;; )
+    while(1)
     {
         //-----------------------------------------
         // Handle input
@@ -313,14 +313,14 @@ INT CXBApplication::Run()
 // Name: RenderGradientBackground()
 // Desc: Draws a gradient filled background
 //-----------------------------------------------------------------------------
-HRESULT CXBApplication::RenderGradientBackground( DWORD dwTopColor, 
+HRESULT CXBApplication::RenderGradientBackground( DWORD dwTopColor,
                                                   DWORD dwBottomColor )
 {
     // First time around, allocate a vertex buffer
     static LPDIRECT3DVERTEXBUFFER8 g_pVB  = NULL;
     if( g_pVB == NULL )
     {
-        m_pd3dDevice->CreateVertexBuffer( 4*5*sizeof(FLOAT), D3DUSAGE_WRITEONLY, 
+        m_pd3dDevice->CreateVertexBuffer( 4*5*sizeof(FLOAT), D3DUSAGE_WRITEONLY,
                                           0L, D3DPOOL_DEFAULT, &g_pVB );
         struct BACKGROUNDVERTEX { D3DXVECTOR4 p; D3DCOLOR color; };
         BACKGROUNDVERTEX* v;
@@ -335,8 +335,8 @@ HRESULT CXBApplication::RenderGradientBackground( DWORD dwTopColor,
     // Set states
     m_pd3dDevice->SetTexture( 0, NULL );
     m_pd3dDevice->SetTextureStageState( 0, D3DTSS_COLOROP, D3DTOP_DISABLE );
-    m_pd3dDevice->SetRenderState( D3DRS_ZENABLE, FALSE ); 
-    m_pd3dDevice->SetRenderState( D3DRS_ALPHABLENDENABLE, FALSE ); 
+    m_pd3dDevice->SetRenderState( D3DRS_ZENABLE, FALSE );
+    m_pd3dDevice->SetRenderState( D3DRS_ALPHABLENDENABLE, FALSE );
     m_pd3dDevice->SetVertexShader( D3DFVF_XYZRHW|D3DFVF_DIFFUSE );
     m_pd3dDevice->SetStreamSource( 0, g_pVB, 5*sizeof(FLOAT) );
 

@@ -89,7 +89,7 @@ void pp_lexer_Clear(pp_lexer *plexer)
 ******************************************************************************/
 HRESULT pp_lexer_GetNextToken (pp_lexer *plexer, pp_token *theNextToken)
 {
-    for(;;)
+    while(1)
     {
         plexer->theTokenSource[0] = plexer->theTokenLen = 0;
         plexer->theTokenPosition = plexer->theTextPosition;

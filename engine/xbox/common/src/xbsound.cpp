@@ -78,7 +78,7 @@ CRiffChunk::CRiffChunk()
 // Name: Initialize()
 // Desc: Initializes the object
 //-----------------------------------------------------------------------------
-VOID CRiffChunk::Initialize( FOURCC fccChunkId, const CRiffChunk* pParentChunk, 
+VOID CRiffChunk::Initialize( FOURCC fccChunkId, const CRiffChunk* pParentChunk,
                              HANDLE hFile )
 {
     m_fccChunkId   = fccChunkId;
@@ -107,9 +107,9 @@ HRESULT CRiffChunk::Open()
         if( FOURCC_RIFF == m_pParentChunk->m_fccChunkId )
             lOffset += sizeof(FOURCC);
     }
-    
+
     // Read each child chunk header until we find the one we're looking for
-    for( ;; )
+    while(1)
     {
         if( INVALID_SET_FILE_POINTER == SetFilePointer( m_hFile, lOffset, NULL, FILE_BEGIN ) )
             return HRESULT_FROM_WIN32( GetLastError() );
@@ -196,9 +196,9 @@ HRESULT CWaveFile::Open( const CHAR* strFileName )
 {
     // If we're already open, close
     Close();
-    
+
     // Open the file
-    m_hFile = CreateFile( strFileName, GENERIC_READ, FILE_SHARE_READ, NULL, 
+    m_hFile = CreateFile( strFileName, GENERIC_READ, FILE_SHARE_READ, NULL,
                           OPEN_EXISTING, 0L, NULL );
     if( INVALID_HANDLE_VALUE == m_hFile )
         return HRESULT_FROM_WIN32( GetLastError() );
@@ -251,7 +251,7 @@ HRESULT CWaveFile::GetFormat( WAVEFORMATEX* pwfxFormat, DWORD dwFormatSize, DWOR
     // We should be reading a wave format and/or
     // telling the caller the size of the format
     if( ( NULL == pwfxFormat ||
-          0 == dwFormatSize ) && 
+          0 == dwFormatSize ) &&
         NULL == pdwRequiredSize )
         return E_INVALIDARG;
 
@@ -266,7 +266,7 @@ HRESULT CWaveFile::GetFormat( WAVEFORMATEX* pwfxFormat, DWORD dwFormatSize, DWOR
         if( dwFormatSize > dwValidSize )
             ZeroMemory( (BYTE*)pwfxFormat + dwValidSize, dwFormatSize - dwValidSize );
     }
-    
+
     // Tell caller how much space they need for the format
     if( pdwRequiredSize )
     {
@@ -283,9 +283,9 @@ HRESULT CWaveFile::GetFormat( WAVEFORMATEX* pwfxFormat, DWORD dwFormatSize, DWOR
 // Name: ReadSample()
 // Desc: Reads data from the audio file.
 //-----------------------------------------------------------------------------
-HRESULT CWaveFile::ReadSample( DWORD dwPosition, VOID* pBuffer, 
+HRESULT CWaveFile::ReadSample( DWORD dwPosition, VOID* pBuffer,
                                DWORD dwBufferSize, DWORD* pdwRead )
-{                                   
+{
     // Don't read past the end of the data chunk
     DWORD dwDuration;
     GetDuration( &dwDuration );
@@ -323,7 +323,7 @@ HRESULT CWaveFile::GetLoopRegion( DWORD *pdwStart, DWORD *pdwLength )
     // Check to see if there was a wave sample chunk
     if( !m_WaveSampleChunk.IsValid() )
         return E_FAIL;
-    
+
     // Read the WAVESAMPLE struct from the chunk
     hr = m_WaveSampleChunk.ReadData( 0, &ws, sizeof( WAVESAMPLE ) );
     if( FAILED( hr ) )
@@ -337,14 +337,14 @@ HRESULT CWaveFile::GetLoopRegion( DWORD *pdwStart, DWORD *pdwLength )
     hr = m_WaveSampleChunk.ReadData( ws.cbSize, &wsl, sizeof( WAVESAMPLE_LOOP ) );
     if( FAILED( hr ) )
         return hr;
-    
+
     // Fill output vars with the loop region
     *pdwStart = wsl.ulLoopStart;
     *pdwLength = wsl.ulLoopLength;
 
     return S_OK;
 }
-    
+
 
 
 
@@ -366,7 +366,7 @@ VOID CWaveFile::Close()
 
 //-----------------------------------------------------------------------------
 // Name: CXBSound()
-// Desc: 
+// Desc:
 //-----------------------------------------------------------------------------
 CXBSound::CXBSound()
 {
@@ -379,7 +379,7 @@ CXBSound::CXBSound()
 
 //-----------------------------------------------------------------------------
 // Name: ~CXBSound()
-// Desc: 
+// Desc:
 //-----------------------------------------------------------------------------
 CXBSound::~CXBSound()
 {
@@ -427,7 +427,7 @@ HRESULT CXBSound::Create( const CHAR* strFileName, DWORD dwFlags )
     VOID* pLock2 = NULL;
     DWORD dwLockSize1 = 0L;
     DWORD dwLockSize2 = 0L;
-    hr = m_pDSoundBuffer->Lock( 0L, m_dsbd.dwBufferBytes, &pLock1, &dwLockSize1, 
+    hr = m_pDSoundBuffer->Lock( 0L, m_dsbd.dwBufferBytes, &pLock1, &dwLockSize1,
                                 &pLock2, &dwLockSize2, 0L );
     if( FAILED(hr) )
         return hr;
@@ -468,7 +468,7 @@ HRESULT CXBSound::Create( const WAVEFORMATEX* pwfxFormat, DWORD dwFlags,
     // including alignment bytes.
     if( pBuffer == NULL )
     {
-        m_dsbd.dwBufferBytes = ( 0 == m_WaveFormat.nBlockAlign ) ? dwBytes : 
+        m_dsbd.dwBufferBytes = ( 0 == m_WaveFormat.nBlockAlign ) ? dwBytes :
                                  dwBytes - ( dwBytes % m_WaveFormat.nBlockAlign );
     }
 
@@ -510,7 +510,7 @@ HRESULT CXBSound::Play( DWORD dwFlags ) const
 {
     if( NULL == m_pDSoundBuffer )
         return E_INVALIDARG;
-        
+
     return m_pDSoundBuffer->Play( 0, 0, dwFlags );
 }
 
@@ -534,7 +534,7 @@ HRESULT CXBSound::Stop() const
 {
     if( NULL == m_pDSoundBuffer )
         return E_INVALIDARG;
-        
+
     return m_pDSoundBuffer->Stop();
 }
 
@@ -549,7 +549,7 @@ HRESULT CXBSound::SetPosition( const D3DXVECTOR3& v ) const
 {
     if( NULL == m_pDSoundBuffer )
         return E_INVALIDARG;
-        
+
     return m_pDSoundBuffer->SetPosition( v.x, v.y, v.z, DS3D_IMMEDIATE );
 }
 
@@ -564,7 +564,7 @@ HRESULT CXBSound::SetVelocity( const D3DXVECTOR3& v ) const
 {
     if( NULL == m_pDSoundBuffer )
         return E_INVALIDARG;
-        
+
     return m_pDSoundBuffer->SetVelocity( v.x, v.y, v.z, DS3D_IMMEDIATE );
 }
 
@@ -595,10 +595,10 @@ CDSPImage::~CDSPImage()
 
 //-----------------------------------------------------------------------------
 // Name: LoadFromFile
-// Desc: Loads the DSP image from the given file.  Searches in the media 
+// Desc: Loads the DSP image from the given file.  Searches in the media
 //       directory if it can't find the file as specified.
 //-----------------------------------------------------------------------------
-HRESULT 
+HRESULT
 CDSPImage::LoadFromFile( char * szFilename )
 {
     HRESULT hr = S_OK;
@@ -657,10 +657,10 @@ CDSPImage::LoadFromFile( char * szFilename )
 
 //-----------------------------------------------------------------------------
 // Name: DownloadImage
-// Desc: Downloads the DSP image by calling DownloadEffectsImage on the 
+// Desc: Downloads the DSP image by calling DownloadEffectsImage on the
 //       given DSound object
 //-----------------------------------------------------------------------------
-HRESULT 
+HRESULT
 CDSPImage::DownloadImage( LPDIRECTSOUND8 pDSound )
 {
     HRESULT hr = S_OK;

@@ -580,7 +580,8 @@ void get_now_string(char buffer[], unsigned buffer_size, char* pattern)
 
 int safe_stricmp(const char *s1, const char *s2)
 {
-    for (;;) {
+    while(1)
+    {
         if (*s1 != *s2) {
             int c1 = toupper((unsigned char)*s1);
             int c2 = toupper((unsigned char)*s2);
@@ -600,13 +601,36 @@ int safe_stricmp(const char *s1, const char *s2)
 
 int safe_strnicmp(const char *s1, const char *s2, size_t n)
 {
-    for (;;) {
-        if (n-- == 0) {
+    while(1) {
+        if (n-- <= 0) {
             return 0;
         }
         if (*s1 != *s2) {
             int c1 = toupper((unsigned char)*s1);
             int c2 = toupper((unsigned char)*s2);
+
+            if (c2 != c1) {
+                return c2 > c1 ? -1 : 1;
+            }
+        } else {
+            if (*s1 == '\0') {
+                return 0;
+            }
+        }
+        ++s1;
+        ++s2;
+    }
+}
+
+int safe_strncmp(const char *s1, const char *s2, size_t n)
+{
+    while(1) {
+        if (n-- <= 0) {
+            return 0;
+        }
+        if (*s1 != *s2) {
+            int c1 = (unsigned char)*s1;
+            int c2 = (unsigned char)*s2;
 
             if (c2 != c1) {
                 return c2 > c1 ? -1 : 1;

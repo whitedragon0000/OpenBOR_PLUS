@@ -153,7 +153,7 @@ static int decodegifblock(anigif_info *info, gifblockstruct *gb, int n)
     lineb = gb->top * width;
 
     // loop until something breaks
-    for(;;)
+    while(1)
     {
         if(bitsleft == 8)
         {

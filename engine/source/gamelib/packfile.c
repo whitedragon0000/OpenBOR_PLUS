@@ -204,7 +204,7 @@ int myfilenamecmp(const char *a, size_t asize, const char *b, size_t bsize)
     ca = (char *) a;
     cb = (char *) b;
 
-    for (;;)
+    while(1)
     {
         if (!*ca)
         {
@@ -615,7 +615,7 @@ void makefilenamecache(void)
     // look for filename in the header
 
     hpos = 0;
-    for(;;)
+    while(1)
     {
         if((hpos + 12) >= pak_headersize)
         {
