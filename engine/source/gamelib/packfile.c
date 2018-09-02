@@ -280,7 +280,7 @@ static char *slashfwd(const char *sz)
 char *casesearch(const char *dir, const char *filepath)
 {
     DIR *d;
-    struct dirent *entry;;
+    struct dirent *entry;
     char filename[PACKFILE_PATH_MAX] = {""}, *rest_of_path;
     static char fullpath[PACKFILE_PATH_MAX];
     int i = 0;
