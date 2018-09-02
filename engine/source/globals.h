@@ -70,6 +70,20 @@
 #define strnicmp strncasecmp
 #endif
 
+#ifdef PS3
+#include <ppu-types.h>
+#include "sdlport.h"
+#ifndef stricmp
+    #define stricmp safe_stricmp
+#endif
+#ifndef strnicmp
+    #define strnicmp safe_strnicmp
+#endif
+#ifndef strncmp
+    #define strncmp safe_strncmp
+#endif
+#endif
+
 #include "packfile.h"
 
 /////////////////////////////////////////////////////////////////////////////

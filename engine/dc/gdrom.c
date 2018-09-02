@@ -157,7 +157,7 @@ static int quickblockread(int lba, int num) {
   param[2] = (int)GDROM_READBUFFER_P2;
   param[3] = 0;
   i = bios_gdGdcReqCmd(CMD_PIOREAD, param);
-  for(;;) {
+  while(1) {
 	bios_gdGdcExecServer();
 	param[0] = 0; param[1] = 0; param[2] = 0; param[3] = 0;
 	j = bios_gdGdcGetCmdStat(i, param);
@@ -192,7 +192,7 @@ int gdrom_init(void) {
 tryinit:
 
   i = bios_gdGdcReqCmd(CMD_INIT, NULL);
-  for(;;) {
+  while(1) {
 	bios_gdGdcExecServer();
 	param[0] = 0; param[1] = 0; param[2] = 0; param[3] = 0;
 	j = bios_gdGdcGetCmdStat(i, param);
@@ -211,7 +211,7 @@ tryinit:
   param[0] = 0; // session
   param[1] = (int)(&gdrom_toc); // toc
   i = bios_gdGdcReqCmd(CMD_GETTOC2, param);
-  for(;;) {
+  while(1) {
 	bios_gdGdcExecServer();
 	param[0] = 0; param[1] = 0; param[2] = 0; param[3] = 0;
 	j = bios_gdGdcGetCmdStat(i, param);

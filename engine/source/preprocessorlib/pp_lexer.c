@@ -75,9 +75,20 @@ void pp_lexer_Init(pp_lexer *plexer, LPCSTR theSource, TEXTPOS theStartingPositi
 
 void pp_lexer_Clear(pp_lexer *plexer)
 {
-    memset(plexer, 0, sizeof(pp_lexer));
-}
+    //memset(plexer, 0, sizeof(pp_lexer));
 
+    plexer->ptheSource = NULL;
+    plexer->theTextPosition.col = 0;
+    plexer->theTextPosition.row = 0;
+    plexer->offset = 0;
+    plexer->tokOffset = 0;
+    plexer->pcurChar = NULL;
+    //Character buffer for the tokens
+    memset(plexer->theTokenSource, 0, sizeof(char)*(MAX_TOKEN_LENGTH + 1));
+    plexer->theTokenLen = 0;
+    plexer->theTokenPosition.col = 0;
+    plexer->theTokenPosition.row = 0;
+}
 /******************************************************************************
 *  getNextToken -- Thie method searches the input stream and returns the next
 *  token found within that stream, using the principle of maximal munch.  It
@@ -89,7 +100,7 @@ void pp_lexer_Clear(pp_lexer *plexer)
 ******************************************************************************/
 HRESULT pp_lexer_GetNextToken (pp_lexer *plexer, pp_token *theNextToken)
 {
-    for(;;)
+    while(1)
     {
         plexer->theTokenSource[0] = plexer->theTokenLen = 0;
         plexer->theTokenPosition = plexer->theTextPosition;

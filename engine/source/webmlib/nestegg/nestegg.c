@@ -1047,7 +1047,7 @@ ne_parse(nestegg * ctx, struct ebml_element_desc * top_level, int64_t max_offset
   if (!ctx->ancestor)
     return -1;
 
-  for (;;) {
+  while(1) {
     if (max_offset > 0 && ne_io_tell(ctx->io) >= max_offset) {
       /* Reached end of offset allowed for parsing - return gracefully */
       r = 1;
@@ -2436,7 +2436,7 @@ nestegg_read_packet(nestegg * ctx, nestegg_packet ** pkt)
 
   *pkt = NULL;
 
-  for (;;) {
+  while(1) {
     r = ne_peek_element(ctx, &id, &size);
     if (r != 1)
       return r;

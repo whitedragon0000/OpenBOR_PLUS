@@ -486,7 +486,7 @@ int filecache_readpakblock(unsigned char *dest, int pakblock, int startofs, int 
         bytes = filecache_blocksize - startofs;
     }
 
-    for(;;)
+    while(1)
     {
         // see if we can copy from the cache
         cacheblock = where_is_this_pakblock_cached[pakblock];
