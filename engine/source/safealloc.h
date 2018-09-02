@@ -30,7 +30,7 @@ struct dmalloc_info
     short active;
 };
 struct dmalloc_info __mi[MAX_DMALLOCS];
-size_t dmalloc_count;
+long dmalloc_count;
 #undef MAX_STR_BUF_LEN
 #endif
 
@@ -92,7 +92,7 @@ static inline void safeFree(void* ptr, const char *func, const char *file, int l
 #ifdef DMALLOC_MODE
     size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
     __mi[hash].active = 0;
-    --dmalloc_count;
+    if (ptr != NULL) --dmalloc_count;
 #endif
     free(ptr);
 }
@@ -131,12 +131,12 @@ static inline void print_dmalloc_info()
     writeToLogFile("///////////     DMALLOC INFO    ////////////\n");
     writeToLogFile("////////////////////////////////////////////\n");
     writeToLogFile("\n");
-    writeToLogFile("total unfreed mallocs: %lu\n", dmalloc_count);
+    writeToLogFile("Total Unfreed Mallocs: %ld\n", dmalloc_count);
     for (i = 0; i < MAX_DMALLOCS; i++)
     {
         if (__mi[i].active)
         {
-            writeToLogFile("unfreed malloc from %s:%d in function: %s\n",__mi[i].file,__mi[i].line,__mi[i].func);
+            writeToLogFile("Unfreed Malloc from %s:%d into function: %s\n",__mi[i].file,__mi[i].line,__mi[i].func);
         }
     }
 }
