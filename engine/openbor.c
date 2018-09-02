@@ -5017,6 +5017,7 @@ void free_frames(s_anim *anim)
                     }
                 }
 
+                free(anim->collision_body[i]->instance);
                 free(anim->collision_body[i]);
                 anim->collision_body[i] = NULL;
             }
@@ -5051,6 +5052,7 @@ void free_frames(s_anim *anim)
                     }
                 }
 
+                free(anim->collision_entity[i]->instance);
                 free(anim->collision_entity[i]);
                 anim->collision_entity[i] = NULL;
             }
@@ -5092,6 +5094,7 @@ void free_frames(s_anim *anim)
                     }
                 }
 
+                free(anim->collision_attack[i]->instance);
                 free(anim->collision_attack[i]);
                 anim->collision_attack[i] = NULL;
             }
