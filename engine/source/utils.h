@@ -51,8 +51,6 @@ void lc(char *buf, size_t size);
 size_t getNewLineStart(char *buf);
 void debugBuf(unsigned char *buf, size_t size, int columns);
 void debug_printf(char *, ...);
-void *checkAlloc(void *ptr, size_t size, const char *func, const char *file, int line);
-void exitIfFalse(int value, const char *assertion, const char *func, const char *file, int line);
 void abortIfFalse(int value, const char *assertion, const char *func, const char *file, int line);
 void getPakName(char *name, int type);
 void screenshot(s_screen *vscreen, unsigned char *pal, int ingame);
@@ -67,7 +65,10 @@ int safe_stricmp(const char *s1, const char *s2);
 int safe_strnicmp(const char *s1, const char *s2, size_t n);
 void get_time_string(char buffer[], unsigned buffer_size, time_t timestamp, char* pattern); // pattern ex. "%Y-%m-%d %H:%M:%S"
 void get_now_string(char buffer[], unsigned buffer_size, char* pattern);
+
 void Array_Check_Size( const char *f_caller, char **array, int new_size, int *curr_size_allocated, int grow_step );
+void *checkAlloc(void *ptr, size_t size, const char *func, const char *file, int line);
+void exitIfFalse(int value, const char *assertion, const char *func, const char *file, int line);
 
 #endif
 
