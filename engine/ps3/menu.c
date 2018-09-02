@@ -345,7 +345,7 @@ static int hold_key_impulse(int key, float time_range, int start_press_flag, flo
     static int second_keypress[64];
     int key_index = 0, tmp_key = key;
 
-    while (tmp_key >>= 1) key_index++;;
+    while (tmp_key >>= 1) key_index++;
 
     if ( buttonsHeld & key ) {
         u32 time = timer_gettick();

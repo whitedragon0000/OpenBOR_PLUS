@@ -334,6 +334,8 @@ HRESULT pp_lexer_GetNextToken (pp_lexer *plexer, pp_token *theNextToken)
             return S_OK;
         }
     }
+
+    return E_FAIL;
 }
 
 /******************************************************************************

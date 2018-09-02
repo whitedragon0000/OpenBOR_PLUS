@@ -30935,7 +30935,7 @@ void player_think()
     // check endlevel item
     if((other = find_ent_here(self, self->position.x, self->position.z, TYPE_ENDLEVEL, NULL)) && diff(self->position.y, other->position.y) <= 0.1)
     {
-        int no_reached_flag = 0, sum_reached = 0;;
+        int no_reached_flag = 0, sum_reached = 0;
         int i;
 
         for (i = 0; i < MAX_PLAYERS; i++)

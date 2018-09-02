@@ -99,7 +99,7 @@ Image *loadPNGImage(const char* filename)
 	if(png_ptr == NULL)
 	{
 		fclose(fp);
-		return NULL;;
+		return NULL;
 	}
 	png_set_error_fn(png_ptr, (png_voidp) NULL, (png_error_ptr) NULL, user_warning_fn);
 	info_ptr = png_create_info_struct(png_ptr);

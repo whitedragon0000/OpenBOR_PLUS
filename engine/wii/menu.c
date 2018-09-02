@@ -533,7 +533,7 @@ static int hold_key_impulse(int key, float time_range, int start_press_flag, flo
     static int second_keypress[64];
     int key_index = 0, tmp_key = key;
 
-    while (tmp_key >>= 1) key_index++;;
+    while (tmp_key >>= 1) key_index++;
 
     if ( buttonsHeld & key ) {
         unsigned time = timer_gettick();
@@ -575,7 +575,7 @@ static int ControlMenu()
 	//inputrefresh(0);
 	refreshInput();
 
-	buttonsPressed |= hold_key_impulse(DIR_DOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);;
+	buttonsPressed |= hold_key_impulse(DIR_DOWN, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
 	buttonsPressed |= hold_key_impulse(DIR_LEFT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
 	buttonsPressed |= hold_key_impulse(DIR_UP, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
 	buttonsPressed |= hold_key_impulse(DIR_RIGHT, IMPULSE_TIME, FIRST_KEYPRESS, FIRST_IMPULSE_TIME);
