@@ -92,7 +92,10 @@ static inline void safeFree(void* ptr, const char *func, const char *file, int l
 #ifdef DMALLOC_MODE
     size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
     __mi[hash].active = 0;
-    if (--dmalloc_count < 0) dmalloc_count = 0;
+    if (ptr != NULL)
+    {
+        if (--dmalloc_count < 0) dmalloc_count = 0;
+    }
 #endif
     free(ptr);
 }
