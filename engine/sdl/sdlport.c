@@ -69,6 +69,10 @@ void borExit(int reset)
 	SDL_Quit(); // Call this instead of atexit(SDL_Quit); It's best practice!
 #endif
 
+#ifdef DMALLOC_MODE
+PRINT_DMALLOC_INFO;
+#endif
+
     exit(reset);
 }
 
