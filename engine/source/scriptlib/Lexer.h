@@ -48,7 +48,7 @@ typedef struct Token
     MY_TOKEN_TYPE theType;
     CHAR theSource[MAX_TOKEN_LENGTH + 1];
     TEXTPOS theTextPosition;
-    ULONG charOffset;
+    //ULONG charOffset;
 } Token;
 
 /******************************************************************************

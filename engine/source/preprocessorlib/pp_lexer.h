@@ -26,8 +26,6 @@
 #define MAX_LEXER_LENGTH 1024
 #define TABSIZE 4
 
-#pragma pack(4)
-
 //enumerate the possible token types.  Some tokens here, such as LBRACKET, are
 //never used.
 typedef enum PP_TOKEN_TYPE
@@ -57,6 +55,8 @@ typedef enum PP_TOKEN_TYPE
     PP_TOKEN_DEFINED, PP_TOKEN_WARNING, PP_TOKEN_ERROR_TEXT, PP_TOKEN_EOF, PP_EPSILON,
     PP_END_OF_TOKENS
 } PP_TOKEN_TYPE;
+
+#pragma pack(4)
 
 //define a structure to contain the position of each token
 typedef struct TEXTPOS
