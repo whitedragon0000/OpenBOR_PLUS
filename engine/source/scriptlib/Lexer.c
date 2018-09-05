@@ -16,7 +16,7 @@ void Token_Init(Token *ptoken, MY_TOKEN_TYPE theType, LPCSTR theSource, TEXTPOS 
 {
     ptoken->theType = theType;
     ptoken->theTextPosition = theTextPosition;
-    ptoken->charOffset = charOffset;
+    //ptoken->charOffset = charOffset;
     strcpy(ptoken->theSource, theSource );
 }
 
@@ -24,7 +24,7 @@ void Token_Init(Token *ptoken, MY_TOKEN_TYPE theType, LPCSTR theSource, TEXTPOS 
 HRESULT Token_InitFromPreprocessor(Token *ptoken, pp_token *ppToken)
 {
     ptoken->theTextPosition = ppToken->theTextPosition;
-    ptoken->charOffset = ppToken->charOffset;
+    //ptoken->charOffset = ppToken->charOffset;
     strncpy(ptoken->theSource, ppToken->theSource, MAX_TOKEN_LENGTH + 1);
 
     switch (ppToken->theType)

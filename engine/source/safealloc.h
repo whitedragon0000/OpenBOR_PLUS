@@ -20,8 +20,9 @@
 //#define ATTR_UNUSED __attribute__((__unused__))
 
 #ifdef DMALLOC_MODE
-#define MAX_DMALLOCS sizeof(size_t)
-#define MAX_STR_BUF_LEN 128
+#define MAX_DMALLOCS        (SIZE_MAX / 100000)
+#define MAX_LOGS            100
+#define MAX_STR_BUF_LEN     128
 struct dmalloc_info
 {
     char func[MAX_STR_BUF_LEN];
@@ -30,7 +31,9 @@ struct dmalloc_info
     short active;
 };
 struct dmalloc_info __mi[MAX_DMALLOCS];
+struct dmalloc_info __om[MAX_DMALLOCS];
 long dmalloc_count;
+long om_count;
 #undef MAX_STR_BUF_LEN
 #endif
 
@@ -64,6 +67,14 @@ static inline void *safeMalloc(size_t size, const char *func, const char *file, 
     void *ptr = malloc(size);
 #ifdef DMALLOC_MODE
     size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
+    if(__mi[hash].active)
+    {
+        size_t pos = om_count % MAX_DMALLOCS;
+        __om[pos].line = line;
+        strcpy(__om[pos].func, func);
+        strcpy(__om[pos].file, file);
+        ++om_count;
+    }
     __mi[hash].line = line;
     strcpy(__mi[hash].func, func);
     strcpy(__mi[hash].file, file);
@@ -78,6 +89,14 @@ static inline void *safeCalloc(size_t nmemb, size_t size, const char *func, cons
     void *ptr = calloc(nmemb, size);
 #ifdef DMALLOC_MODE
     size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
+    if(__mi[hash].active)
+    {
+        size_t pos = om_count % MAX_DMALLOCS;
+        __om[pos].line = line;
+        strcpy(__om[pos].func, func);
+        strcpy(__om[pos].file, file);
+        ++om_count;
+    }
     __mi[hash].line = line;
     strcpy(__mi[hash].func, func);
     strcpy(__mi[hash].file, file);
@@ -109,6 +128,14 @@ static inline void *safeStrdup(const char *str, const char *func, const char *fi
     memcpy(newString, str, size);
 #ifdef DMALLOC_MODE
     size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
+    if(__mi[hash].active)
+    {
+        size_t pos = om_count % MAX_DMALLOCS;
+        __om[pos].line = line;
+        strcpy(__om[pos].func, func);
+        strcpy(__om[pos].file, file);
+        ++om_count;
+    }
     __mi[hash].line = line;
     strcpy(__mi[hash].func, func);
     strcpy(__mi[hash].file, file);
@@ -129,19 +156,34 @@ static inline void *safeStrdup(const char *str, const char *func, const char *fi
 static inline void print_dmalloc_info()
 {
     int i;
+    size_t count = 0;
     writeToLogFile("\n\n");
     writeToLogFile("////////////////////////////////////////////\n");
     writeToLogFile("///////////     DMALLOC INFO    ////////////\n");
     writeToLogFile("////////////////////////////////////////////\n");
     writeToLogFile("\n");
     writeToLogFile("Total Unfreed Mallocs: %ld\n", dmalloc_count);
+    count = 0;
+    writeToLogFile("First %d unfreed mallocs...\n", MAX_LOGS);
     for (i = 0; i < MAX_DMALLOCS; i++)
     {
         if (__mi[i].active)
         {
             writeToLogFile("Unfreed Malloc from %s:%d into function: %s\n",__mi[i].file,__mi[i].line,__mi[i].func);
+            if(++count > MAX_LOGS) break;
         }
     }
+    #ifdef DMALLOC_OVERWRITTEN
+    writeToLogFile("\n\n");
+    writeToLogFile("Total Overwritten Mallocs: %ld\n", om_count);
+    count = 0;
+    writeToLogFile("First %d overwritten mallocs...\n", MAX_LOGS);
+    for (i = 0; i < MAX_DMALLOCS; i++)
+    {
+        writeToLogFile("Overwritten Malloc from %s:%d into function: %s\n",__om[i].file,__om[i].line,__om[i].func);
+        if(++count > MAX_LOGS) break;
+    }
+    #endif
 }
 #define PRINT_DMALLOC_INFO print_dmalloc_info()
 #endif
