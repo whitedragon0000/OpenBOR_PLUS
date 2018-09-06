@@ -34,20 +34,6 @@ void Parser_Clear(Parser *pparser)
     List_Clear(&(pparser->LabelStack));
 }
 
-void Parser_Free(Parser *pparser)
-{
-    Label label;
-    Lexer_Clear(&(pparser->theLexer));
-    ParserSet_Clear(&(pparser->theParserSet));
-    while(!Stack_IsEmpty(&(pparser->LabelStack)))
-    {
-        label = (Label)Stack_Top(&(pparser->LabelStack));
-        free(label);
-        Stack_Pop(&(pparser->LabelStack));
-    }
-    List_Clear(&(pparser->LabelStack));
-}
-
 /******************************************************************************
 *  ParseText -- This method begins the recursive-descent process for each global
 *  variable and function definition.
