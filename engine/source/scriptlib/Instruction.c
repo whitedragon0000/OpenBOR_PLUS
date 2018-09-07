@@ -18,7 +18,11 @@ void Instruction_InitViaToken(Instruction *pins, OpCode code, Token *pToken )
     memset(pins->theToken, 0, sizeof(Token));
     if(pToken)
     {
-        *(pins->theToken) = *pToken;
+        //*(pins->theToken) = *pToken;
+        pins->theToken->theTextPosition.row = pToken->theTextPosition.row;
+        pins->theToken->theTextPosition.col = pToken->theTextPosition.col;
+        pins->theToken->theType = pToken->theType;
+        strncpy(pins->theToken->theSource, pToken->theSource, MAX_TOKEN_LENGTH + 1);
     }
     else
     {

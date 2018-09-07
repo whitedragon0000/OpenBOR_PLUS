@@ -781,22 +781,22 @@ void Parser_Select_stmt(Parser *pparser )
         FOREACH(cases,
                 Token *pToken = List_Retrieve(&cases);
                 if(pToken)
-    {
-        int opcode = pToken->theType == TOKEN_STRING_LITERAL ? CONSTSTR : CONSTINT;
-        Parser_AddInstructionViaToken(pparser, opcode, pToken, NULL );
-            Parser_AddInstructionViaLabel(pparser, Branch_EQUAL, List_GetName(&cases), NULL );
-            free(pToken);
-        }
-        else
-        {
-            if(defaultLabel != endLabel)
-            {
-                printf("Multiple default labels in one switch.");
-                Parser_Error(pparser, select_stmt );
-            }
-            defaultLabel = List_GetName(&cases);
-        }
-               );
+                {
+                    int opcode = pToken->theType == TOKEN_STRING_LITERAL ? CONSTSTR : CONSTINT;
+                    Parser_AddInstructionViaToken(pparser, opcode, pToken, NULL );
+                    Parser_AddInstructionViaLabel(pparser, Branch_EQUAL, List_GetName(&cases), NULL );
+                    free(pToken);
+                }
+                else
+                {
+                    if(defaultLabel != endLabel)
+                    {
+                        printf("Multiple default labels in one switch.");
+                        Parser_Error(pparser, select_stmt );
+                    }
+                    defaultLabel = List_GetName(&cases);
+                }
+        );
 
         //Add a jump to the "default" label if there is one, or to the end of
         //the switch statement if there isn't.  We use PJUMP to pop the value
