@@ -20573,9 +20573,12 @@ void check_gravity(entity *e)
                         else if((!self->animation->move[self->animpos]->base || self->animation->move[self->animpos]->base < 0) &&
                                 (!self->animation->move[self->animpos]->axis.y || self->animation->move[self->animpos]->axis.y <= 0))
                         {
-                            self->velocity.x = 0;
-                            self->velocity.z = 0;
-                            self->velocity.y = 0;
+                            if( !(self->modeldata.aimove & AIMOVE1_BOOMERANG) )
+                            {
+                                self->velocity.x = 0;
+                                self->velocity.z = 0;
+                                self->velocity.y = 0;
+                            }
                         }
                         else
                         {
