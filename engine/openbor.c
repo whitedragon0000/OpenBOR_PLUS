@@ -9314,44 +9314,56 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
 
                 tempdef(if, NORMAL)
-                    tempdef(else if, NORMAL2)
-                        tempdef(else if, NORMAL3)
-                            tempdef(else if, NORMAL4)
-                                tempdef(else if, NORMAL5)
-                                    tempdef(else if, NORMAL6)
-                                        tempdef(else if, NORMAL7)
-                                            tempdef(else if, NORMAL8)
-                                                tempdef(else if, NORMAL9)
-                                                    tempdef(else if, NORMAL10)
-                                                        tempdef(else if, BLAST)
-                                                            tempdef(else if, STEAL)
-                                                                tempdef(else if, BURN)
-                                                                    tempdef(else if, SHOCK)
-                                                                        tempdef(else if, FREEZE)
-                                                                            tempdef(else if, ITEM)
-                                                                                tempdef(else if, LAND)
-                                                                                    tempdef(else if, PIT)
-                                                                                        tempdef(else if, LIFESPAN)
-                                                                                            tempdef(else if, LOSE)
-                                                                                                tempdef(else if, TIMEOVER)
-                                                                                                    else if(starts_with(value, "normal"))
-                                                                                                    {
-                                                                                                        get_tail_number(tempInt, value, "normal");
-                                                                                                        newchar->defense[tempInt + STA_ATKS - 1] = defense;
-                                                                                                    }
-                                                                                                    else if(stricmp(value, "ALL") == 0)
-                                                                                                    {
-                                                                                                        for(i = 0; i < max_attack_types; i++)
-                                                                                                        {
-                                                                                                            /*
-                                                                                                            Skip the pit, lifespan, and time over attack types as these are for engine use. Nothing stops an author from defining defense settings for them individually.
-                                                                                                            */
-                                                                                                            if(i != ATK_PIT && i != ATK_TIMEOVER && i != ATK_LIFESPAN && i != ATK_LOSE)
-                                                                                                            {
-                                                                                                                newchar->defense[i] = defense;
-                                                                                                            }
-                                                                                                        }
-                                                                                                    }
+                tempdef(else if, NORMAL2)
+                tempdef(else if, NORMAL3)
+                tempdef(else if, NORMAL4)
+                tempdef(else if, NORMAL5)
+                tempdef(else if, NORMAL6)
+                tempdef(else if, NORMAL7)
+                tempdef(else if, NORMAL8)
+                tempdef(else if, NORMAL9)
+                tempdef(else if, NORMAL10)
+                tempdef(else if, BLAST)
+                tempdef(else if, STEAL)
+                tempdef(else if, BURN)
+                tempdef(else if, SHOCK)
+                tempdef(else if, FREEZE)
+
+                tempdef(else if, BOSS_DEATH)
+                tempdef(else if, ITEM)
+                tempdef(else if, LAND)
+                tempdef(else if, LIFESPAN)
+                tempdef(else if, LOSE)
+                tempdef(else if, PIT)
+                tempdef(else if, TIMEOVER)
+
+                else if(starts_with(value, "normal"))
+                {
+                    get_tail_number(tempInt, value, "normal");
+                    newchar->defense[tempInt + STA_ATKS - 1] = defense;
+                }
+                else if(stricmp(value, "ALL") == 0)
+                {
+                    // Loop over all attack types and apply
+                    // the value setting.
+                    for(i = 0; i < max_attack_types; i++)
+                    {
+                        // Skip types that we only intend for
+                        // engine or script logic use.
+                        if(i == ATK_BOSS_DEATH
+                           || i == ATK_ITEM
+                           || i == ATK_LIFESPAN
+                           || i == ATK_LOSE
+                           || i == ATK_TIMEOVER
+                           || i == ATK_PIT)
+                        {
+                            continue;
+                        }
+
+                        newchar->defense[i] = defense;
+
+                    }
+                }
             }
 #undef tempdef
             break;
@@ -9365,43 +9377,57 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             {
                 value = GET_ARG(1);
                 tempoff(if,         NORMAL,     offense_factors)
-                    tempoff(else if,    NORMAL2,    offense_factors)
-                        tempoff(else if,    NORMAL3,    offense_factors)
-                            tempoff(else if,    NORMAL4,    offense_factors)
-                                tempoff(else if,    NORMAL5,    offense_factors)
-                                    tempoff(else if,    NORMAL6,    offense_factors)
-                                        tempoff(else if,    NORMAL7,    offense_factors)
-                                            tempoff(else if,    NORMAL8,    offense_factors)
-                                                tempoff(else if,    NORMAL9,    offense_factors)
-                                                    tempoff(else if,    NORMAL10,   offense_factors)
-                                                        tempoff(else if,    BLAST,      offense_factors)
-                                                            tempoff(else if,    STEAL,      offense_factors)
-                                                                tempoff(else if,    BURN,       offense_factors)
-                                                                    tempoff(else if,    SHOCK,      offense_factors)
-                                                                        tempoff(else if,    FREEZE,     offense_factors)
-                                                                            tempoff(else if,    ITEM,		offense_factors)
-                                                                                tempoff(else if,    LAND,		offense_factors)
-                                                                                    tempoff(else if,    PIT,		offense_factors)
-                                                                                        tempoff(else if,    LIFESPAN,   offense_factors)
-                                                                                            tempoff(else if,    LOSE,   offense_factors)
-                                                                                                tempoff(else if,    TIMEOVER,   offense_factors)
-                                                                                                    else if(starts_with(value, "normal"))
-                                                                                                    {
-                                                                                                        get_tail_number(tempInt, value, "normal");
-                                                                                                        newchar->offense_factors[tempInt + STA_ATKS - 1] = GET_FLOAT_ARG(2);
-                                                                                                    }
-                                                                                                    else if(stricmp(value, "ALL") == 0)
-                                                                                                    {
-                                                                                                        tempFloat = GET_FLOAT_ARG(2);
-                                                                                                        for(i = 0; i < max_attack_types; i++)
-                                                                                                        {
-                                                                                                            //offense hardly need those, just in case
-                                                                                                            if(i != ATK_PIT && i != ATK_TIMEOVER && i != ATK_LIFESPAN && i != ATK_LOSE)
-                                                                                                            {
-                                                                                                                newchar->offense_factors[i] = tempFloat;
-                                                                                                            }
-                                                                                                        }
-                                                                                                    }
+                tempoff(else if,    NORMAL2,    offense_factors)
+                tempoff(else if,    NORMAL3,    offense_factors)
+                tempoff(else if,    NORMAL4,    offense_factors)
+                tempoff(else if,    NORMAL5,    offense_factors)
+                tempoff(else if,    NORMAL6,    offense_factors)
+                tempoff(else if,    NORMAL7,    offense_factors)
+                tempoff(else if,    NORMAL8,    offense_factors)
+                tempoff(else if,    NORMAL9,    offense_factors)
+                tempoff(else if,    NORMAL10,   offense_factors)
+                tempoff(else if,    BLAST,      offense_factors)
+                tempoff(else if,    STEAL,      offense_factors)
+                tempoff(else if,    BURN,       offense_factors)
+                tempoff(else if,    SHOCK,      offense_factors)
+                tempoff(else if,    FREEZE,     offense_factors)
+
+                tempoff(else if,    BOSS_DEATH, offense_factors)
+                tempoff(else if,    ITEM,       offense_factors)
+                tempoff(else if,    LAND,       offense_factors)
+                tempoff(else if,    LIFESPAN,   offense_factors)
+                tempoff(else if,    LOSE,       offense_factors)
+                tempoff(else if,    PIT,        offense_factors)
+                tempoff(else if,    TIMEOVER,   offense_factors)
+
+                else if(starts_with(value, "normal"))
+                {
+                    get_tail_number(tempInt, value, "normal");
+                    newchar->offense_factors[tempInt + STA_ATKS - 1] = GET_FLOAT_ARG(2);
+                }
+                else if(stricmp(value, "ALL") == 0)
+                {
+                    tempFloat = GET_FLOAT_ARG(2);
+
+                    // Loop over all attack types and apply
+                    // the value setting.
+                    for(i = 0; i < max_attack_types; i++)
+                    {
+                        // Skip types that we only intend for
+                        // engine or script logic use.
+                        if(i == ATK_BOSS_DEATH
+                           || i == ATK_ITEM
+                           || i == ATK_LIFESPAN
+                           || i == ATK_LOSE
+                           || i == ATK_TIMEOVER
+                           || i == ATK_PIT)
+                        {
+                            continue;
+                        }
+
+                        newchar->offense_factors[i] = tempFloat;
+                    }
+                }
             }
 #undef tempoff
             break;
@@ -20280,6 +20306,13 @@ bool check_landframe(entity *ent)
     {
         return 0;
     }
+
+    // Can't be bound with a landframe override.
+    if(check_bind_override(ent, BINDING_OVERRIDING_LANDFRAME))
+    {
+        return 0;
+    }
+
     // Can't be passed over current animation's frame count.
     if(ent->animation->landframe->frame > ent->animation->numframes)
     {
@@ -20486,74 +20519,84 @@ void check_gravity(entity *e)
 
             // UTunnels: tossv <= 0 means land, while >0 means still rising, so
             // you wont be stopped if you are passing the edge of a wall
-            if( (self->position.y <= self->base || !inair(self)) && self->velocity.y <= 0 )
+            if( self->position.y <= self->base || !inair(self))
             {
-                self->position.y = self->base;
-                self->falling = 0;
-
-                if ( self->hitwall ) self->hitwall = 0;
-
-                //self->projectile = 0;
-                // cust dust entity
-                if(self->modeldata.dust.fall_land >= 0 && self->velocity.y < -1 && self->drop)
+                // 0+ means still rising. We need to be falling.
+                if(self->velocity.y <=0)
                 {
-                    dust = spawn(self->position.x, self->position.z, self->position.y, self->direction, NULL, self->modeldata.dust.fall_land, NULL);
-                    if(dust)
+                    // No bind target, or binding set to ignore fall lands.
+                    if(!check_bind_override(self, BINDING_OVERRIDING_FALL_LAND))
                     {
-                        dust->spawntype = SPAWN_TYPE_DUST_FALL;
-                        dust->base = self->position.y;
-                        dust->autokill = 2;
-                        execute_onspawn_script(dust);
+                        self->position.y = self->base;
+                        self->falling = 0;
+
+                        if ( self->hitwall ) self->hitwall = 0;
+
+                        //self->projectile = 0;
+                        // cust dust entity
+                        if(self->modeldata.dust.fall_land >= 0 && self->velocity.y < -1 && self->drop)
+                        {
+                            dust = spawn(self->position.x, self->position.z, self->position.y, self->direction, NULL, self->modeldata.dust.fall_land, NULL);
+                            if(dust)
+                            {
+                                dust->spawntype = SPAWN_TYPE_DUST_FALL;
+                                dust->base = self->position.y;
+                                dust->autokill = 2;
+                                execute_onspawn_script(dust);
+                            }
+                        }
+
+                        // bounce/quake
+                        if(tobounce(self) && self->modeldata.bounce)
+                        {
+                            int i;
+                            self->velocity.x /= self->animation->bounce;
+                            self->velocity.z /= self->animation->bounce;
+                            toss(self, (-self->velocity.y) / self->animation->bounce);
+                            if(level && !(self->modeldata.noquake & NO_QUAKE))
+                            {
+                                level->quake = 4;    // Don't shake if specified
+                            }
+                            if(SAMPLE_FALL >= 0)
+                            {
+                                sound_play_sample(SAMPLE_FALL, 0, savedata.effectvol, savedata.effectvol, 100);
+                            }
+                            if(self->modeldata.type & TYPE_PLAYER)
+                            {
+                                if (savedata.joyrumble[self->playerindex]) control_rumble(self->playerindex, 1, 100 * (int)self->velocity.y / 2);
+                            }
+                            for(i = 0; i < MAX_PLAYERS; i++)
+                            {
+                                if (savedata.joyrumble[i]) control_rumble(i, 1, 75 * (int)self->velocity.y / 2);
+                            }
+                        }
+                        else if((!self->animation->move[self->animpos]->base || self->animation->move[self->animpos]->base < 0) &&
+                                (!self->animation->move[self->animpos]->axis.y || self->animation->move[self->animpos]->axis.y <= 0))
+                        {
+                            self->velocity.x = 0;
+                            self->velocity.z = 0;
+                            self->velocity.y = 0;
+                        }
+                        else
+                        {
+                            self->velocity.y = 0;
+                        }
+
+                        if(plat && !self->landed_on_platform && self->position.y <= plat->position.y + plat->animation->platform[plat->animpos][PLATFORM_HEIGHT])
+                        {
+                            self->landed_on_platform = plat;
+                        }
+
+                        // Set landing frame if we have one.
+                        check_landframe(self);
+
+                        // Taking damage on a landing?
+                        checkdamageonlanding();
+
+                        // in case landing, set hithead to NULL
+                        self->hithead = NULL;
                     }
                 }
-
-                // bounce/quake
-                if(tobounce(self) && self->modeldata.bounce)
-                {
-                    int i;
-                    self->velocity.x /= self->animation->bounce;
-                    self->velocity.z /= self->animation->bounce;
-                    toss(self, (-self->velocity.y) / self->animation->bounce);
-                    if(level && !(self->modeldata.noquake & NO_QUAKE))
-                    {
-                        level->quake = 4;    // Don't shake if specified
-                    }
-                    if(SAMPLE_FALL >= 0)
-                    {
-                        sound_play_sample(SAMPLE_FALL, 0, savedata.effectvol, savedata.effectvol, 100);
-                    }
-                    if(self->modeldata.type & TYPE_PLAYER)
-                    {
-                        if (savedata.joyrumble[self->playerindex]) control_rumble(self->playerindex, 1, 100 * (int)self->velocity.y / 2);
-                    }
-                    for(i = 0; i < MAX_PLAYERS; i++)
-                    {
-                        if (savedata.joyrumble[i]) control_rumble(i, 1, 75 * (int)self->velocity.y / 2);
-                    }
-                }
-                else if((!self->animation->move[self->animpos]->base || self->animation->move[self->animpos]->base < 0) &&
-                        (!self->animation->move[self->animpos]->axis.y || self->animation->move[self->animpos]->axis.y <= 0))
-                {
-                    if( !(self->modeldata.aimove & AIMOVE1_BOOMERANG) ) self->velocity.x = self->velocity.z = self->velocity.y = 0;
-                }
-                else
-                {
-                    self->velocity.y = 0;
-                }
-
-                if(plat && !self->landed_on_platform && self->position.y <= plat->position.y + plat->animation->platform[plat->animpos][PLATFORM_HEIGHT])
-                {
-                    self->landed_on_platform = plat;
-                }
-
-                // Set landing frame if we have one.
-                check_landframe(self);
-
-                // Taking damage on a landing?
-                checkdamageonlanding();
-
-                // in case landing, set hithead to NULL
-                self->hithead = NULL;
             }// end of if - land checking
         }// end of if  - in-air checking
         if(self->toss_time <= _time)
@@ -21466,6 +21509,7 @@ void damage_recursive(entity *target)
 void adjust_bind(entity *e)
 {
     #define ADJUST_BIND_SET_ANIM_RESETABLE 1
+    #define ADJUST_BIND_NO_FRAME_MATCH -1
 
     // If there is no binding
     // target, just get out.
@@ -21483,13 +21527,28 @@ void adjust_bind(entity *e)
     // Animation match flag in use?
     if(e->binding.matching)
     {
+        e_animations    animation;
+        int             frame;
+
+        // If a defined value is requested,
+        // use the binding member value.
+        // Otherwise use target's current value.
+        if(e->binding.matching & BINDING_MATCHING_ANIMATION_DEFINED)
+        {
+            animation = e->binding.animation;
+        }
+        else
+        {
+            animation = e->binding.ent->animnum;
+        }
+
         // Are we NOT currently playing the target animation?
-        if(e->animnum != e->binding.ent->animnum)
+        if(e->animnum != animation)
         {
             // If we don't have the target animation
             // and animation kill flag is set, then
             // we kill ourselves and exit the function.
-            if(!validanim(e, e->binding.ent->animnum))
+            if(!validanim(e, animation))
             {
                 // Don't have the animation? Kill ourself.
                 if(e->binding.matching & BINDING_MATCHING_ANIMATION_REMOVE)
@@ -21504,18 +21563,38 @@ void adjust_bind(entity *e)
 
             // Made it this far, we must have the target
             // animation, so let's apply it.
-            ent_set_anim(e, e->binding.ent->animnum, ADJUST_BIND_SET_ANIM_RESETABLE);
+            ent_set_anim(e, animation, ADJUST_BIND_SET_ANIM_RESETABLE);
         }
 
-        // Frame match flag set?
-        if(e->binding.matching & BINDING_MATCHING_FRAME_TARGET)
+        // If a defined value is requested,
+        // use the binding member value.
+        // If target value is requested use
+        // target's current value (duh).
+        // if no frame match at all requested
+        // then set ADJUST_BIND_NO_FRAME_MATCH
+        // so frame matching logic is skipped.
+        if(e->binding.matching & BINDING_MATCHING_FRAME_DEFINED)
+        {
+            frame = e->binding.animation;
+        }
+        else if(e->binding.matching & BINDING_MATCHING_FRAME_TARGET)
+        {
+            frame = e->binding.ent->animpos;
+        }
+        else
+        {
+            frame = ADJUST_BIND_NO_FRAME_MATCH;
+        }
+
+        // Any frame match flag set?
+        if(frame != ADJUST_BIND_NO_FRAME_MATCH)
         {
             // Are we NOT currently playing the target frame?
-            if(e->animpos != e->binding.ent->animpos)
+            if(e->animpos != frame)
             {
                 // If we don't have the frame and frame kill flag is
                 // set, kill ourselves.
-                if(e->animation[e->animnum].numframes < e->binding.ent->animpos)
+                if(e->animation[e->animnum].numframes < frame)
                 {
                     if(e->binding.matching & BINDING_MATCHING_FRAME_REMOVE)
                     {
@@ -21529,7 +21608,7 @@ void adjust_bind(entity *e)
 
                 // Made it this far, we must have the target
                 // frame, so let's apply it.
-                update_frame(e, e->binding.ent->animpos);
+                update_frame(e, frame);
             }
         }
     }
@@ -21537,87 +21616,137 @@ void adjust_bind(entity *e)
     // Apply sort ID adjustment.
     e->sortid = e->binding.ent->sortid + e->binding.sortid;
 
+    // Apply direction adjustment.
+    switch(e->binding.direction)
+    {
+        default:
+        case DIRECTION_ADJUST_NONE:
+
+            break;
+
+        case DIRECTION_ADJUST_SAME:
+
+            e->direction = e->binding.ent->direction;
+
+            break;
+
+        case DIRECTION_ADJUST_OPPOSITE:
+
+            e->direction = !e->binding.ent->direction;
+
+            break;
+
+        case DIRECTION_ADJUST_RIGHT:
+
+            e->direction = DIRECTION_RIGHT;
+
+            break;
+
+        case DIRECTION_ADJUST_LEFT:
+
+            e->direction = DIRECTION_LEFT;
+
+            break;
+    }
+
+
     // If binding is enabled on a given axis, then
     // apply offset and set position accordingly.
-    if (e->binding.enable.z){ e->position.z = e->binding.ent->position.z + e->binding.offset.z; }
-    if (e->binding.enable.y){ e->position.y = e->binding.ent->position.y + e->binding.offset.y; }
 
-    if(e->binding.enable.x)
+    switch(e->binding.positioning.z)
     {
-        // For X axis, we'll need to adjust differently based
-        // on the binding direction flag and relationship
-        // with binding target.
-        //
-        // Note the logic is mostly the same for each, but
-        // in each case we adjust our own current direction
-        // to affect how the logic will be evaluated.
-        switch(e->binding.direction)
-        {
-            default:
-            case DIRECTION_ADJUST_NONE:
+        case BINDING_POSITIONING_TARGET:
 
-                if(e->binding.ent->direction == DIRECTION_RIGHT)
-                {
-                    e->position.x = e->binding.ent->position.x + e->binding.offset.x;
-                }
-                else
-                {
-                    e->position.x = e->binding.ent->position.x - e->binding.offset.x;
-                }
+            e->position.z = e->binding.ent->position.z + e->binding.offset.z;
 
-                break;
+            break;
 
-            case DIRECTION_ADJUST_SAME:
+        case BINDING_POSITIONING_LEVEL:
 
-                e->direction = e->binding.ent->direction;
+            e->position.z = e->binding.offset.z;
 
-                if(e->binding.ent->direction == DIRECTION_RIGHT)
-                {
-                    e->position.x = e->binding.ent->position.x + e->binding.offset.x;
-                }
-                else
-                {
-                    e->position.x = e->binding.ent->position.x - e->binding.offset.x;
-                }
+            break;
 
-                break;
+        case BINDING_POSITIONING_NONE:
+        default:
 
-            case DIRECTION_ADJUST_OPPOSITE:
+            // Leave position as-is.
+            break;
+    }
 
-                e->direction = !e->binding.ent->direction;
+    switch(e->binding.positioning.y)
+    {
+        case BINDING_POSITIONING_TARGET:
 
-                if(e->binding.ent->direction == DIRECTION_RIGHT)
-                {
-                    e->position.x = e->binding.ent->position.x + e->binding.offset.x;
-                }
-                else
-                {
-                    e->position.x = e->binding.ent->position.x - e->binding.offset.x;
-                }
+            e->position.y = e->binding.ent->position.y + e->binding.offset.y;
 
-                break;
+            break;
 
-            case DIRECTION_ADJUST_RIGHT:
+        case BINDING_POSITIONING_LEVEL:
 
-                e->direction = DIRECTION_RIGHT;
+            e->position.y = e->binding.offset.y;
 
+            break;
+
+        case BINDING_POSITIONING_NONE:
+        default:
+
+            // Leave position as-is.
+            break;
+    }
+
+    switch(e->binding.positioning.x)
+    {
+        case BINDING_POSITIONING_TARGET:
+
+            // For X axis, we'll need to adjust differently based
+            // on the position relationship with binding target.
+
+            if(e->binding.ent->direction == DIRECTION_RIGHT)
+            {
                 e->position.x = e->binding.ent->position.x + e->binding.offset.x;
+            }
+            else
+            {
+                e->position.x = e->binding.ent->position.x - e->binding.offset.x;
+            }
 
-                break;
+            break;
 
-            case DIRECTION_ADJUST_LEFT:
+        case BINDING_POSITIONING_LEVEL:
 
-                e->direction = DIRECTION_LEFT;
+            e->position.x = e->binding.offset.x;
 
-                e->position.x = e->binding.ent->position.x + e->binding.offset.x;
+            break;
 
-                break;
-        }
+        case BINDING_POSITIONING_NONE:
+        default:
+
+            // Leave position as-is.
+            break;
     }
 
     #undef ADJUST_BIND_SET_ANIM_RESETABLE
+    #undef ADJUST_BIND_NO_FRAME_MATCH
 }
 
+// Caskey, Damon V.
+// 2018-09-08
+//
+// Return true if the target entity has a valid
+// bind target and match for the override argument.
+int check_bind_override(entity *ent, e_binding_overriding overriding)
+{
+    if(ent->binding.ent)
+    {
+        if(ent->binding.overriding & overriding)
+        {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
 
 void check_move(entity *e)
 {
@@ -29596,13 +29725,28 @@ int check_energy(e_cost_check which, int ani)
         energycost = *self->modeldata.animation[ani]->energycost;
     }
 
-    //if (!self->modeldata.animation[ani]->energycost) return TRUE;
+    // Get entity type.
+    type	   = self->modeldata.type;
+
+    // If we're bind and special is overridden, then
+    // return false.
+    if(type & (TYPE_ENEMY  | TYPE_NPC))
+    {
+        if(check_bind_override(self, BINDING_OVERRIDING_SPECIAL_AI))
+        {
+            return FALSE;
+        }
+    }
+    else if(type & TYPE_PLAYER)
+    {
+        if(check_bind_override(self, BINDING_OVERRIDING_SPECIAL_PLAYER))
+        {
+            return FALSE;
+        }
+    }
 
     if(self->modeldata.animation[ani])
     {
-        // Get entity type.
-        type	   = self->modeldata.type;
-
         // Caskey, Damon V.
         // 2010-05-08
         //
@@ -32074,7 +32218,7 @@ void kill_all_enemies()
     entity *tmpself = NULL;
 
     attack = emptyattack;
-	attack.attack_type = ATK_NORMAL;
+	attack.attack_type = ATK_BOSS_DEATH;
     //attack.attack_type = max_attack_types - 1;
     attack.dropv.y = default_model_dropv.y;
     attack.dropv.x = default_model_dropv.x;
