@@ -21,19 +21,23 @@
 
 #ifdef DMALLOC_MODE
 #define MAX_DMALLOCS        (SIZE_MAX / 100000)
-#define MAX_LOGS            100
+#define MAX_DMALLOC_LOGS            100
 #define MAX_STR_BUF_LEN     128
+typedef size_t DMADDR;
 struct dmalloc_info
 {
     char func[MAX_STR_BUF_LEN];
     char file[MAX_STR_BUF_LEN];
     int line;
     short active;
+    DMADDR addr;
 };
-struct dmalloc_info __mi[MAX_DMALLOCS];
-struct dmalloc_info __om[MAX_DMALLOCS];
-long dmalloc_count;
-long om_count;
+struct dmalloc_info __um[MAX_DMALLOCS];     // unfreed mallocs
+struct dmalloc_info __um_ol[MAX_DMALLOCS];  // overflow list for unfreed mallocs
+struct dmalloc_info __om[MAX_DMALLOCS];     // overwritten mallocs
+long __um_count;
+long __om_count;
+int __is_um_full;
 #undef MAX_STR_BUF_LEN
 #endif
 
@@ -45,19 +49,16 @@ static inline void safeFree(void* ptr, const char *func, const char *file, int l
 static inline void *safeStrdup(const char *str, const char *func, const char *file, int line) MALLOCLIKE;
 #ifdef DMALLOC_MODE
 static inline void print_dmalloc_info();
+static int __dmalloc_add(void *ptr, const char *func, const char *file, int line);
+static int __dmalloc_remove(void *ptr, const char *func, const char *file, int line);
 #endif
 
 static inline void *safeRealloc(void *ptr, size_t size, const char *func, const char *file, int line)
 {
     void *rptr = realloc(ptr, size);
 #ifdef DMALLOC_MODE
-    size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
-    __mi[hash].active = 0;
-    hash = ((size_t)rptr) % MAX_DMALLOCS;
-    __mi[hash].line = line;
-    strcpy(__mi[hash].func, func);
-    strcpy(__mi[hash].file, file);
-    __mi[hash].active = 1;
+    __dmalloc_remove(ptr, func, file, line);
+    __dmalloc_add(rptr, func, file, line);
 #endif
     return checkAlloc(rptr, size, func, file, line);
 }
@@ -66,20 +67,7 @@ static inline void *safeMalloc(size_t size, const char *func, const char *file, 
 {
     void *ptr = malloc(size);
 #ifdef DMALLOC_MODE
-    size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
-    if(__mi[hash].active)
-    {
-        size_t pos = om_count % MAX_DMALLOCS;
-        __om[pos].line = line;
-        strcpy(__om[pos].func, func);
-        strcpy(__om[pos].file, file);
-        ++om_count;
-    }
-    __mi[hash].line = line;
-    strcpy(__mi[hash].func, func);
-    strcpy(__mi[hash].file, file);
-    __mi[hash].active = 1;
-    ++dmalloc_count;
+    __dmalloc_add(ptr, func, file, line);
 #endif
     return checkAlloc(ptr, size, func, file, line);
 }
@@ -88,20 +76,7 @@ static inline void *safeCalloc(size_t nmemb, size_t size, const char *func, cons
 {
     void *ptr = calloc(nmemb, size);
 #ifdef DMALLOC_MODE
-    size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
-    if(__mi[hash].active)
-    {
-        size_t pos = om_count % MAX_DMALLOCS;
-        __om[pos].line = line;
-        strcpy(__om[pos].func, func);
-        strcpy(__om[pos].file, file);
-        ++om_count;
-    }
-    __mi[hash].line = line;
-    strcpy(__mi[hash].func, func);
-    strcpy(__mi[hash].file, file);
-    __mi[hash].active = 1;
-    ++dmalloc_count;
+    __dmalloc_add(ptr, func, file, line);
 #endif
     return checkAlloc(ptr, size, func, file, line);
 }
@@ -109,12 +84,7 @@ static inline void *safeCalloc(size_t nmemb, size_t size, const char *func, cons
 static inline void safeFree(void* ptr, const char *func, const char *file, int line)
 {
 #ifdef DMALLOC_MODE
-    size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
-    __mi[hash].active = 0;
-    if (ptr != NULL)
-    {
-        if (--dmalloc_count < 0) dmalloc_count = 0;
-    }
+    __dmalloc_remove(ptr, func, file, line);
 #endif
     free(ptr);
 }
@@ -127,20 +97,7 @@ static inline void *safeStrdup(const char *str, const char *func, const char *fi
     char *newString = (char *) checkAlloc(ptr, size, func, file, line);
     memcpy(newString, str, size);
 #ifdef DMALLOC_MODE
-    size_t hash = ((size_t)ptr) % MAX_DMALLOCS;
-    if(__mi[hash].active)
-    {
-        size_t pos = om_count % MAX_DMALLOCS;
-        __om[pos].line = line;
-        strcpy(__om[pos].func, func);
-        strcpy(__om[pos].file, file);
-        ++om_count;
-    }
-    __mi[hash].line = line;
-    strcpy(__mi[hash].func, func);
-    strcpy(__mi[hash].file, file);
-    __mi[hash].active = 1;
-    ++dmalloc_count;
+    __dmalloc_add(ptr, func, file, line);
 #endif
 
     return newString;
@@ -153,6 +110,122 @@ static inline void *safeStrdup(const char *str, const char *func, const char *fi
 #define strdup(str) safeStrdup(str, __func__, __FILE__, __LINE__)
 
 #ifdef DMALLOC_MODE
+static DMADDR __dmalloc_hash(void *ptr)
+{
+    DMADDR hash = ((DMADDR)ptr) % MAX_DMALLOCS;
+    return hash;
+}
+
+static int __dmalloc_add_overwritten_malloc(void *ptr, const char *func, const char *file, int line)
+{
+    DMADDR pos;
+
+    if (__om_count >= MAX_DMALLOCS) return 0;
+    pos = __om_count % MAX_DMALLOCS;
+    __om[pos].line = line;
+    __om[pos].addr = (DMADDR)ptr;
+    strcpy(__om[pos].func, func);
+    strcpy(__om[pos].file, file);
+    ++__om_count;
+
+    return 1;
+}
+
+static int __dmalloc_remove(void *ptr, const char *func, const char *file, int line)
+{
+    DMADDR hash;
+    int i, ok = 0;
+
+
+    hash = __dmalloc_hash(ptr);
+    if(__um[hash].active && __um[hash].addr == (DMADDR)ptr)
+    {
+        if (__is_um_full) __is_um_full = 0;
+        __um[hash].active = 0;
+        if (ptr != NULL)
+        {
+            if (--__um_count < 0) __um_count = 0;
+        }
+    }
+    else if (__um[hash].active) // use overflow list
+    {
+        for(i = 0; i < MAX_DMALLOCS; i++)
+        {
+            if(__um_ol[i].active && __um[i].addr == (DMADDR)ptr)
+            {
+                if (__is_um_full) __is_um_full = 0;
+                __um_ol[i].active = 0;
+                if (ptr != NULL)
+                {
+                    if (--__um_count < 0) __um_count = 0;
+                }
+                ok = 1;
+                break;
+            }
+        }
+        if(!ok) return 0;
+    }
+    else
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+static int __dmalloc_add(void *ptr, const char *func, const char *file, int line)
+{
+    DMADDR hash;
+    int i, ok = 0;
+
+    if (__is_um_full) return 0;
+
+    hash = __dmalloc_hash(ptr);
+    if(__um[hash].active && __um[hash].addr == (DMADDR)ptr) // use overflow list
+    {
+        if (__um[hash].addr == (DMADDR)ptr)
+        {
+            __dmalloc_add_overwritten_malloc(ptr, func, file, line);
+        }
+
+        for(i = 0; i < MAX_DMALLOCS; i++)
+        {
+            if(!__um_ol[i].active)
+            {
+                __um_ol[i].line = line;
+                __um_ol[i].addr = (DMADDR)ptr;
+                strcpy(__um_ol[i].func, func);
+                strcpy(__um_ol[i].file, file);
+                __um_ol[i].active = 1;
+                ok = 1;
+                break;
+            }
+        }
+        if(!ok)
+        {
+            __is_um_full = 1;
+            return 0;
+        }
+
+    }
+    else if(!__um[hash].active)
+    {
+        __um[hash].line = line;
+        __um[hash].addr = (DMADDR)ptr;
+        strcpy(__um[hash].func, func);
+        strcpy(__um[hash].file, file);
+        __um[hash].active = 1;
+
+        ++__um_count;
+    }
+    else
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
 static inline void print_dmalloc_info()
 {
     int i;
@@ -162,26 +235,37 @@ static inline void print_dmalloc_info()
     writeToLogFile("///////////     DMALLOC INFO    ////////////\n");
     writeToLogFile("////////////////////////////////////////////\n");
     writeToLogFile("\n");
-    writeToLogFile("Total Unfreed Mallocs: %ld\n", dmalloc_count);
+    writeToLogFile("Total Unfreed Mallocs: %ld\n", __um_count);
     count = 0;
-    writeToLogFile("First %d unfreed mallocs...\n", MAX_LOGS);
+    if (__um_count > 0) writeToLogFile("First %d unfreed mallocs...\n", MAX_DMALLOC_LOGS);
     for (i = 0; i < MAX_DMALLOCS; i++)
     {
-        if (__mi[i].active)
+        if (__um[i].active)
         {
-            writeToLogFile("Unfreed Malloc from %s:%d into function: %s\n",__mi[i].file,__mi[i].line,__mi[i].func);
-            if(++count > MAX_LOGS) break;
+            writeToLogFile("Unfreed Malloc from %s:%d into function: %s at address: 0x%X\n",__um[i].file,__um[i].line,__um[i].func,__um[i].addr);
+            if(++count > MAX_DMALLOC_LOGS) break;
+        }
+    }
+    if(count < MAX_DMALLOC_LOGS)
+    {
+        for (i = 0; i < MAX_DMALLOCS; i++)
+        {
+            if (__um_ol[i].active)
+            {
+                writeToLogFile("Unfreed Malloc from %s:%d into function: %s at address: 0x%X\n",__um_ol[i].file,__um_ol[i].line,__um_ol[i].func,__um_ol[i].addr);
+                if(++count > MAX_DMALLOC_LOGS) break;
+            }
         }
     }
     #ifdef DMALLOC_OVERWRITTEN
     writeToLogFile("\n\n");
-    writeToLogFile("Total Overwritten Mallocs: %ld\n", om_count);
+    writeToLogFile("Total Overwritten Mallocs: %ld\n", __om_count);
     count = 0;
-    writeToLogFile("First %d overwritten mallocs...\n", MAX_LOGS);
+    if (__om_count > 0) writeToLogFile("First %d overwritten mallocs...\n", MAX_DMALLOC_LOGS);
     for (i = 0; i < MAX_DMALLOCS; i++)
     {
-        writeToLogFile("Overwritten Malloc from %s:%d into function: %s\n",__om[i].file,__om[i].line,__om[i].func);
-        if(++count > MAX_LOGS) break;
+        writeToLogFile("Overwritten Malloc from %s:%d into function: %s at address: 0x%X\n",__om[i].file,__om[i].line,__om[i].func,__om[i].addr);
+        if(++count > MAX_DMALLOC_LOGS) break;
     }
     #endif
 }
