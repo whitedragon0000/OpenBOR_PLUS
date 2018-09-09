@@ -254,3 +254,6 @@ all menus support more mods loading<br/>
 implemented vertical scrollbar for menus<br/>
 implemented fast forward/backward to scroll menu with many mods (left/right arrow)<br/>
 implemented hold key impulse for all menus to scroll menu with many mods more easily<br/>
+
+#### ***NEW PORTS***
+PS3 port
