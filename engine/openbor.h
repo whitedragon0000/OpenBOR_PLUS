@@ -959,13 +959,16 @@ typedef enum
     ARG_INT
 } e_arg_types;
 
+
+// Caskey, Damon V.
+// 2013-12-27
+//
+// Attack types. If more types are added,
+// don't forget to add them to script
+// access and account for them in the
+// model load logic.
 typedef enum
 {
-    /*
-    Attack type enum
-    Damon V. Caskey
-    2013-12-27
-    */
     ATK_NONE            = -1,   // When we want no attack at all, such as damage_on_landing's default.
     ATK_NORMAL,
     ATK_NORMAL1			= ATK_NORMAL,
@@ -983,14 +986,22 @@ typedef enum
     ATK_NORMAL8,
     ATK_NORMAL9,
     ATK_NORMAL10,
-    ATK_BIND,
-    ATK_ITEM,
-    ATK_LAND,
-    ATK_PIT,
-    ATK_LIFESPAN,
-    ATK_LOSE,
-    ATK_TIMEOVER,
-    MAX_ATKS,                       //Default max attack types (must be below all attack types in enum to get correct value)
+
+    // For engine and script use. These are
+    // applied automatically by various
+    // conditions or intended for script logic.
+    ATK_BOSS_DEATH, // KO leftover enemies when boss is defeated.
+    ATK_ITEM,       // Scripting item logic. Item "attacks" entity that collects it.
+    ATK_LAND,       // Touching ground during a damage on landing fall.
+    ATK_LIFESPAN,   // Entity's lifespan timer expires.
+    ATK_LOSE,       // Players (with lose animation) when level time expires.
+    ATK_PIT,        // Entity falls into a pit and reaches specified depth.
+    ATK_TIMEOVER,   // Players (without lose animation) when level time expires.
+
+    // Default max attack types (must
+    // be below all attack types in enum
+    // to get correct value)
+    MAX_ATKS,
     STA_ATKS        = (MAX_ATKS-10)
 } e_attack_types;
 
@@ -1205,12 +1216,44 @@ typedef enum
 
 typedef enum
 {
-    BINDING_MATCHING_NONE            = 0,
-    BINDING_MATCHING_ANIMATION_TARGET = 1,
-    BINDING_MATCHING_FRAME_TARGET     = 2,
-    BINDING_MATCHING_ANIMATION_REMOVE  = 4,
-    BINDING_MATCHING_FRAME_REMOVE      = 6
+    // These must be kept in the current order
+    // to ensure backward compatibility with
+    // modules that used magic numbers before
+    // constants were available.
+
+    BINDING_MATCHING_NONE               = 0,
+    BINDING_MATCHING_ANIMATION_TARGET   = 1,
+    BINDING_MATCHING_FRAME_TARGET       = 2,
+    BINDING_MATCHING_ANIMATION_REMOVE   = 4,
+    BINDING_MATCHING_FRAME_REMOVE       = 6,
+
+    BINDING_MATCHING_ANIMATION_DEFINED  = 8,
+    BINDING_MATCHING_FRAME_DEFINED      = 10
 } e_binding_animation;
+
+typedef enum
+{
+    // These must be kept in the current order
+    // to ensure backward compatibility with
+    // modules that used magic numbers before
+    // constants were available.
+
+    BINDING_POSITIONING_NONE,
+    BINDING_POSITIONING_TARGET,
+    BINDING_POSITIONING_LEVEL
+} e_binding_positioning;
+
+typedef enum
+{
+    // Double each value so we can use
+    // bitwise logic (0, 1, 2, 4, 8...).
+
+    BINDING_OVERRIDING_NONE             = 0,
+    BINDING_OVERRIDING_FALL_LAND        = 1,
+    BINDING_OVERRIDING_LANDFRAME        = 2,
+    BINDING_OVERRIDING_SPECIAL_AI       = 4,
+    BINDING_OVERRIDING_SPECIAL_PLAYER   = 8
+} e_binding_overriding;
 
 typedef enum
 {
@@ -2360,13 +2403,16 @@ typedef struct
 // of entity to a target entity.
 typedef struct
 {
-    unsigned int            matching;   // Animation binding type.
-    int                     tag;        // User data.
-    int                     sortid;     // Relative binding sortid. Default = -1
-    s_axis_principal_int    enable;     // Toggle binding on X, Y and Z axis.
-    s_axis_principal_int    offset;     // x,y,z offset.
-    e_direction_adjust      direction;  // Direction force.
-    struct entity           *ent;       // Entity subject will bind itself to.
+    unsigned int            matching;       // Animation binding type.
+    int                     tag;            // User data.
+    int                     sortid;         // Relative binding sortid. Default = -1
+    int                     frame;          // Frame to match (only if requested in matching).
+    e_binding_overriding    overriding;     // Override specific AI behaviors while in bind (fall land, drop frame, specials, etc).
+    e_animations            animation;      // Animation to match (only if requested in matching).
+    s_axis_principal_int    positioning;    // Toggle binding on X, Y and Z axis.
+    s_axis_principal_int    offset;         // x,y,z offset.
+    e_direction_adjust      direction;      // Direction force.
+    struct entity           *ent;           // Entity subject will bind itself to.
 } s_bind;
 
 typedef struct
@@ -2843,6 +2889,8 @@ typedef struct ArgList
 
 int is_frozen(entity *e);
 void unfrozen(entity *e);
+void    adjust_bind(entity *e);
+int     check_bind_override(entity *ent, e_binding_overriding overriding);
 int     buffer_pakfile(char *filename, char **pbuffer, size_t *psize);
 size_t  ParseArgs(ArgList *list, char *input, char *output);
 int     getsyspropertybyindex(ScriptVariant *var, int index);
