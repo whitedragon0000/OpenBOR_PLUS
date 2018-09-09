@@ -20530,41 +20530,7 @@ void check_gravity(entity *e)
                         self->position.y = self->base;
                         self->falling = 0;
 
-                if ( self->hitwall ) self->hitwall = 0;
-				
-				// bounce/quake
-                if(tobounce(self) && self->modeldata.bounce)
-                {
-                    int i;
-                    self->velocity.x /= self->animation->bounce;
-                    self->velocity.z /= self->animation->bounce;
-                    toss(self, (-self->velocity.y) / self->animation->bounce);
-                    if(level && !(self->modeldata.noquake & NO_QUAKE))
-                    {
-                        level->quake = 4;    // Don't shake if specified
-                    }
-                    if(SAMPLE_FALL >= 0)
-                    {
-                        sound_play_sample(SAMPLE_FALL, 0, savedata.effectvol, savedata.effectvol, 100);
-                    }
-                    if(self->modeldata.type & TYPE_PLAYER)
-                    {
-                        if (savedata.joyrumble[self->playerindex]) control_rumble(self->playerindex, 1, 100 * (int)self->velocity.y / 2);
-                    }
-                    for(i = 0; i < MAX_PLAYERS; i++)
-                    {
-                        if (savedata.joyrumble[i]) control_rumble(i, 1, 75 * (int)self->velocity.y / 2);
-                    }
-                }
-                else if((!self->animation->move[self->animpos]->base || self->animation->move[self->animpos]->base < 0) &&
-                        (!self->animation->move[self->animpos]->axis.y || self->animation->move[self->animpos]->axis.y <= 0))
-                {
-                    if( !(self->modeldata.aimove & AIMOVE1_BOOMERANG) ) self->velocity.x = self->velocity.z = self->velocity.y = 0;
-                }
-                else
-                {
-                    self->velocity.y = 0;
-                }
+                        if ( self->hitwall ) self->hitwall = 0;
 
                         //self->projectile = 0;
                         // cust dust entity
