@@ -19,6 +19,11 @@
 #define FREELIKE __attribute__((__cleanup__(free)))
 //#define ATTR_UNUSED __attribute__((__unused__))
 
+#ifdef DMALLOC_OVERFLOW_LIST
+#define DMALLOC_OL 1
+#else
+#define DMALLOC_OL 0
+#endif
 #ifdef DMALLOC_MODE
 #define MAX_DMALLOCS        (SIZE_MAX / 100000)
 #define MAX_DMALLOC_LOGS            100
@@ -147,7 +152,7 @@ static int __dmalloc_remove(void *ptr, const char *func, const char *file, int l
             if (--__um_count < 0) __um_count = 0;
         }
     }
-    else if (__um[hash].active) // use overflow list
+    else if (__um[hash].active && DMALLOC_OL) // use overflow list
     {
         for(i = 0; i < MAX_DMALLOCS; i++)
         {
@@ -181,7 +186,7 @@ static int __dmalloc_add(void *ptr, const char *func, const char *file, int line
     if (__is_um_full) return 0;
 
     hash = __dmalloc_hash(ptr);
-    if(__um[hash].active && __um[hash].addr == (DMADDR)ptr) // use overflow list
+    if(__um[hash].active && __um[hash].addr == (DMADDR)ptr && DMALLOC_OL) // use overflow list
     {
         if (__um[hash].addr == (DMADDR)ptr)
         {
@@ -246,7 +251,7 @@ static inline void print_dmalloc_info()
             if(++count > MAX_DMALLOC_LOGS) break;
         }
     }
-    if(count < MAX_DMALLOC_LOGS)
+    if(count < MAX_DMALLOC_LOGS && DMALLOC_OL)
     {
         for (i = 0; i < MAX_DMALLOCS; i++)
         {
