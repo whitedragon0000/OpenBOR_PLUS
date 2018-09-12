@@ -81,7 +81,7 @@
 #define     MAX_DOWNS           1                   // Walk down animations.
 #define		MAX_ATTACKS			4					// Total number of attacks players have
 #define     MAX_FOLLOWS         4					// For followup animations
-#define     MAX_COLLISIONS      2                   // Default max collision boxes.
+#define     MAX_COLLISIONS      1                   // Default max collision boxes.
 #define		MAX_ARG_LEN			512
 #define		MAX_ALLOWSELECT_LEN	1024
 #define		MAX_SELECT_LOADS   	512
