@@ -15,6 +15,7 @@
 #include <lv2/sysfs.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/process.h>
 #else
 #include <time.h>
 #endif
@@ -26,6 +27,22 @@
 #include <CoreFoundation/CoreFoundation.h>
 #elif WIN
 #undef main
+#endif
+
+#ifdef PS3
+#define SYS_PROCESS_PARAM_OPENBOR(prio,stacksize) \
+	sys_process_param_t __sys_process_param __attribute__((aligned(8), section(".sys_proc_param"), unused)) = { \
+		sizeof(sys_process_param_t), \
+		SYS_PROCESS_SPAWN_MAGIC, \
+		SYS_PROCESS_SPAWN_VERSION_330, \
+		SYS_PROCESS_SPAWN_FW_VERSION_330, \
+		prio, \
+		stacksize, \
+		SYS_PROCESS_SPAWN_MALLOC_PAGE_SIZE_1M, \
+		SYS_PROCESS_SPAWN_PPC_SEG_DEFAULT\
+	};
+
+//SYS_PROCESS_PARAM_OPENBOR(1001, 0xF0000000)
 #endif
 
 char packfile[MAX_FILENAME_LEN] = {"bor.pak"};
