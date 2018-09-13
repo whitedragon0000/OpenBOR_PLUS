@@ -15,6 +15,7 @@
 #include <lv2/sysfs.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/process.h>
 #else
 #include <time.h>
 #endif
