@@ -597,7 +597,12 @@ void Parser_Param_list2(Parser *pparser )
 void Parser_Stmt_list(Parser *pparser )
 {
     // Use iteration instead of recursion here to guard against stack overflows.
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    u32 LOOP_INDEX = 0;
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         if (ParserSet_First(&(pparser->theParserSet), stmt, pparser->theNextToken.theType))
         {
@@ -1088,12 +1093,20 @@ void Parser_Jump_stmt(Parser *pparser )
     }
     else if (Parser_Check(pparser, TOKEN_CONTINUE))
     {
+        #ifdef LOOP_COUNT_LIMIT
+        u32 LOOP_INDEX = 0;
+        #endif
+
         Parser_Match(pparser);
         Parser_Check(pparser, TOKEN_SEMICOLON );
         Parser_Match(pparser);
 
         //Violate the rules of a stack (treat it as a list) so we can ignore switches
+        #ifndef LOOP_COUNT_LIMIT
         while(1)
+        #else
+        for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+        #endif
         {
             List_GotoNext(&(pparser->LabelStack));
             breakTarget = List_Retrieve(&(pparser->LabelStack));
