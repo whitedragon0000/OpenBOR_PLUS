@@ -35091,9 +35091,13 @@ void update(int ingame, int usevwait)
  * error. */
 int set_color_correction(int gm, int br)
 {
+#ifndef PS3
 #if WII || SDL || VITA
     video_set_color_correction(gm, br);
     return 1;
+#else
+    return 0;
+#endif
 #else
     return 0;
 #endif
