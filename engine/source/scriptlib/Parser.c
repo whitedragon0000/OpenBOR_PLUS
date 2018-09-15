@@ -597,7 +597,7 @@ void Parser_Param_list2(Parser *pparser )
 void Parser_Stmt_list(Parser *pparser )
 {
     // Use iteration instead of recursion here to guard against stack overflows.
-    while (1)
+    while(1)
     {
         if (ParserSet_First(&(pparser->theParserSet), stmt, pparser->theNextToken.theType))
         {
@@ -842,7 +842,12 @@ void Parser_Switch_body(Parser *pparser, List *pCases )
 {
     //Using a loop here instead of recursion goes against the idea of a
     //recursive descent parser, but it keeps us from having 200 stack frames.
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    u32 LOOP_INDEX = 0;
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         if (ParserSet_First(&(pparser->theParserSet), case_label, pparser->theNextToken.theType ))
         {

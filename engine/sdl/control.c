@@ -121,7 +121,7 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
 				{
 					//SDL_PauseAudio(1);
 					SDL_PauseAudioDevice(audio_dev, 1);
-					while(true)
+					while(1)
 					{
 						if(SDL_PollEvent(&ev))
 						{

@@ -433,6 +433,9 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
 
     static short inctable[] = { 8, 8, 4, 2, 0 };
     static short startable[] = { 0, 4, 2, 1, 0 };
+    #ifdef LOOP_COUNT_LIMIT
+    u32 LOOP_INDEX = 0;
+	#endif
 
     p = q = b;
     bitsleft = 8;
@@ -449,8 +452,16 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
     linebuffer = buf + (gb->top * width);
 
     // loop until something breaks
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
+        #ifdef LOOP_COUNT_LIMIT
+        u32 LOOP_INDEX_LV2 = 0;
+        #endif
+
         if(bitsleft == 8)
         {
             if(++p >= q && (((blocksize = (unsigned char)readbyte(handle)) < 1) ||
@@ -530,7 +541,11 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
         }
 
         oldtoken = thiscode;
-        do
+        #ifndef LOOP_COUNT_LIMIT
+        while(1)
+        #else
+        for(LOOP_INDEX_LV2 = 0; LOOP_INDEX_LV2 < MAX_LOOP_COUNT; LOOP_INDEX_LV2++)
+        #endif
         {
             if(byte < width && line < (height - gb->top))
             {
@@ -561,7 +576,6 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
             }
             thiscode = *--u;
         }
-        while(1);
 
         if(nextcode < 4096 && oldcode != NO_CODE)
         {

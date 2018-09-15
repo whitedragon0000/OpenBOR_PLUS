@@ -98,9 +98,14 @@ void pp_lexer_Clear(pp_lexer *plexer)
 *  Returns: S_OK
 *           E_FAIL
 ******************************************************************************/
-HRESULT pp_lexer_GetNextToken (pp_lexer *plexer, pp_token *theNextToken)
+HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
 {
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    u32 LOOP_INDEX = 0;
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         plexer->theTokenSource[0] = plexer->theTokenLen = 0;
         plexer->theTokenPosition = plexer->theTextPosition;

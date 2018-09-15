@@ -191,6 +191,9 @@ int myfilenamecmp(const char *a, size_t asize, const char *b, size_t bsize)
 {
     char *ca;
     char *cb;
+    #ifdef LOOP_COUNT_LIMIT
+    u32 LOOP_INDEX = 0;
+	#endif
 
     if (a == b)
     {
@@ -204,7 +207,11 @@ int myfilenamecmp(const char *a, size_t asize, const char *b, size_t bsize)
     ca = (char *) a;
     cb = (char *) b;
 
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         if (!*ca)
         {
@@ -605,6 +612,9 @@ void makefilenamecache(void)
 {
     ptrdiff_t hpos;
     char target[PACKFILE_PATH_MAX];
+    #ifdef LOOP_COUNT_LIMIT
+    u32 LOOP_INDEX = 0;
+	#endif
 
     if(!filenamelist)
     {
@@ -615,7 +625,11 @@ void makefilenamecache(void)
     // look for filename in the header
 
     hpos = 0;
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         if((hpos + 12) >= pak_headersize)
         {

@@ -232,10 +232,17 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
     pp_expr *leftleaf = NULL;
     nodedata *currentdata = NULL;
     pp_token *token;
+    #ifdef LOOP_COUNT_LIMIT
+    u32 LOOP_INDEX = 0;
+	#endif
 
     memset(root, 0, sizeof(pp_expr));
 
-    do
+    #ifndef LOOP_COUNT_LIMIT
+    while(1)
+    #else
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         int type;
         token = pp_parser_emit_token(parser);
@@ -394,9 +401,9 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
             previous = current;
             current = malloc(sizeof(pp_expr));
 
-#if LEXTREE_DEBUG
+            #if LEXTREE_DEBUG
             printf("%s %s\n", previous->left->info->theToken.theSource, token->theSource);
-#endif
+            #endif
         }
         else
         {
@@ -405,7 +412,6 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
             goto error;
         }
     }
-    while(1);
 
     return root;
 

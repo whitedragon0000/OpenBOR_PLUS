@@ -321,10 +321,17 @@ int pp_parser_peek_token(pp_parser *self)
 {
     pp_lexer lexer;
     pp_token token;
+    #ifdef LOOP_COUNT_LIMIT
+    u32 LOOP_INDEX = 0;
+	#endif
 
     memcpy(&lexer, &self->lexer, sizeof(pp_lexer));
 
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         if(FAILED(pp_lexer_GetNextToken(&self->lexer, &token)))
         {
@@ -350,7 +357,12 @@ HRESULT pp_parser_lex_token_essential(pp_parser *self, bool skip_whitespace)
 {
     pp_parser *parser = self;
 
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    u32 LOOP_INDEX = 0;
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         if(FAILED(pp_parser_lex_token(parser, skip_whitespace)))
         {
@@ -456,6 +468,9 @@ pp_token *pp_parser_emit_token(pp_parser *self)
 
                 if(pp_parser_peek_token(self) == PP_TOKEN_CONCATENATE)
                 {
+                    #ifdef LOOP_COUNT_LIMIT
+                    u32 LOOP_INDEX = 0;
+                    #endif
                     memcpy(&token2, &self->token, sizeof(pp_token));
                     success = SUCCEEDED(pp_parser_lex_token(self, true)); // lex '##'
                     assert(self->token.theType == PP_TOKEN_CONCATENATE);
@@ -478,7 +493,11 @@ pp_token *pp_parser_emit_token(pp_parser *self)
                     // expand the token on the left side of the ##
                     param1 = token2.theSource;
                     p = self;
+                    #ifndef LOOP_COUNT_LIMIT
                     while(1)
+                    #else
+                    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+                    #endif
                     {
                         if(p->type == PP_FUNCTION_MACRO && List_FindByName(p->params, param1))
                         {
@@ -506,7 +525,11 @@ pp_token *pp_parser_emit_token(pp_parser *self)
 
                     param2 = self->token.theSource;
                     p = self;
+                    #ifndef LOOP_COUNT_LIMIT
                     while(1)
+                    #else
+                    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+                    #endif
                     {
                         if(p->type == PP_FUNCTION_MACRO && List_FindByName(p->params, param2))
                         {
@@ -633,6 +656,9 @@ pp_token *pp_parser_emit_token(pp_parser *self)
 HRESULT pp_parser_readline(pp_parser *self, char *buf, int bufsize)
 {
     int total_length = 1;
+    #ifdef LOOP_COUNT_LIMIT
+    u32 LOOP_INDEX = 0;
+	#endif
 
     if(FAILED(pp_parser_lex_token(self, true)))
     {
@@ -640,7 +666,11 @@ HRESULT pp_parser_readline(pp_parser *self, char *buf, int bufsize)
     }
     buf[0] = '\0';
 
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         if(self->token.theType == PP_TOKEN_EOF)
         {

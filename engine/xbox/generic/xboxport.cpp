@@ -1027,7 +1027,7 @@ DWORD WINAPI Sound_ThreadFunc( LPVOID lpParam )
 
 	QueryPerformanceCounter((union _LARGE_INTEGER *) perfPrev);
 
-	while ( 1 )
+	while(1)
 	{
 
 		do
@@ -1078,7 +1078,7 @@ void CXBoxSample::doScreenSize()
 	origw = (float)m_nScreenMaxX/m_gameVecScale.x ;
 	origh = (float)m_nScreenMaxY/m_gameVecScale.y ;
 
-	while ( 1 )
+	while(1)
 	{
 		m_pd3dDevice->Clear( 0L, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER|D3DCLEAR_STENCIL,
 							 0x00000000, 1.0f, 0L );
