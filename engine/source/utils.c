@@ -580,7 +580,12 @@ void get_now_string(char buffer[], unsigned buffer_size, char* pattern)
 
 int safe_stricmp(const char *s1, const char *s2)
 {
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    u32 LOOP_INDEX = 0;
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         if (*s1 != *s2) {
             int c1 = toupper((unsigned char)*s1);
@@ -597,11 +602,18 @@ int safe_stricmp(const char *s1, const char *s2)
         ++s1;
         ++s2;
     }
+    return 0;
 }
 
 int safe_strnicmp(const char *s1, const char *s2, size_t n)
 {
-    while(1) {
+    #ifndef LOOP_COUNT_LIMIT
+    while(1)
+    #else
+    u32 LOOP_INDEX = 0;
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
+    {
         if (n-- <= 0) {
             return 0;
         }
@@ -620,11 +632,18 @@ int safe_strnicmp(const char *s1, const char *s2, size_t n)
         ++s1;
         ++s2;
     }
+    return 0;
 }
 
 int safe_strncmp(const char *s1, const char *s2, size_t n)
 {
-    while(1) {
+    #ifndef LOOP_COUNT_LIMIT
+    while(1)
+    #else
+    u32 LOOP_INDEX = 0;
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
+    {
         if (n-- <= 0) {
             return 0;
         }
@@ -643,6 +662,7 @@ int safe_strncmp(const char *s1, const char *s2, size_t n)
         ++s1;
         ++s2;
     }
+    return 0;
 }
 
 //! Increase or Decrease an array à la \e vector

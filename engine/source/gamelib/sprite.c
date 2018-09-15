@@ -737,12 +737,20 @@ unsigned encodesprite(
 
     for(y = 0; y < h; y++, src += w)
     {
+        #ifdef LOOP_COUNT_LIMIT
+        u32 LOOP_INDEX = 0;
+        #endif
+
         if(dest)
         {
             linetab[y] = ((size_t)data) - ((size_t)(linetab + y));
         }
         x = 0;
+        #ifndef LOOP_COUNT_LIMIT
         while(1)
+        #else
+        for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+        #endif
         {
             // search for the first visible pixel
             x0 = x;

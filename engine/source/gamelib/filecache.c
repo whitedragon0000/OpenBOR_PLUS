@@ -465,6 +465,10 @@ void filecache_process(void)
 int filecache_readpakblock(unsigned char *dest, int pakblock, int startofs, int bytes, int blocking)
 {
     int cacheblock;
+    #ifdef LOOP_COUNT_LIMIT
+    u32 LOOP_INDEX = 0;
+	#endif
+
     if(pakblock < 0 || pakblock >= total_pakblocks)
     {
         return 0;
@@ -486,7 +490,11 @@ int filecache_readpakblock(unsigned char *dest, int pakblock, int startofs, int 
         bytes = filecache_blocksize - startofs;
     }
 
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         // see if we can copy from the cache
         cacheblock = where_is_this_pakblock_cached[pakblock];

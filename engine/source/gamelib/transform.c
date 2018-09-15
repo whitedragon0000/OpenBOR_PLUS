@@ -208,6 +208,9 @@ char sprite_get_pixel(s_sprite *sprite, int x, int y)
     int *linetab;
     register int lx = 0, count;
     unsigned char *data;
+    #ifdef LOOP_COUNT_LIMIT
+    u32 LOOP_INDEX = 0;
+	#endif
 
     //should we check?
     //if(y<0 || y>=sprite->height || x<0 || x>=sprite->width)
@@ -218,7 +221,11 @@ char sprite_get_pixel(s_sprite *sprite, int x, int y)
 
     data = ((unsigned char *)linetab) + (*linetab);
 
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         count = *data++;
         if(count == 0xFF)
@@ -483,12 +490,19 @@ void _sprite_seek(int x, int y)
     int *linetab;
     unsigned char *data = NULL;
     register int lx = 0, count;
+    #ifdef LOOP_COUNT_LIMIT
+    u32 LOOP_INDEX = 0;
+	#endif
 
     linetab = ((int *)ptr_src) + y;
 
     data = ((unsigned char *)linetab) + (*linetab);
 
+    #ifndef LOOP_COUNT_LIMIT
     while(1)
+    #else
+    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
+    #endif
     {
         count = *data++;
         if(count == 0xFF)
