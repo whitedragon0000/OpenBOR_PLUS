@@ -30,6 +30,7 @@ These platforms are actively supported and may be compiled with the latest OpenB
 * Mac OS X
 * Wii
 * PSP
+* PS3
 
 ### Discontinued
 
