@@ -474,11 +474,7 @@ static void mixaudio(unsigned int todo)
             }
 
             // Mix a sample
-            #ifndef PS3
             lmusic = rmusic = sptr16[FIX_TO_INT(fp_pos)];
-            #else
-            lmusic = rmusic = SwapLSB16(sptr16[FIX_TO_INT(fp_pos)]);
-            #endif
             lmusic = (lmusic * lvolume / MAXVOLUME);
             rmusic = (rmusic * rvolume / MAXVOLUME);
             mixbuf[i++] += lmusic;
