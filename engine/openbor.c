@@ -35282,8 +35282,11 @@ void display_credits()
         font_printf(col2, s + v * m, 0, 0, "uTunnels,"); ++m;
         font_printf(col2, s + v * m, 0, 0, "White Dragon"); ++m;
 
-        font_printf(col1,  s + v * m, 0, 0, "PS Vita");
+        font_printf(col1, s + v * m, 0, 0, "PS Vita");
         font_printf(col2, s + v * m, 0, 0, "Plombo"); ++m;
+
+        font_printf(col1, s + v * m, 0, 0, "PS3");
+        font_printf(col2, s + v * m, 0, 0, "White Dragon"); ++m;
 
         update(2, 0);
 
