@@ -19805,6 +19805,7 @@ void do_attack(entity *e)
                     !(self->link ||
                       inair(self) ||
                       self->frozen ||
+                      self->falling ||
                       (self->direction == e->direction && self->modeldata.blockback < 1) ||                       // Can't block an attack that is from behind unless blockback flag is enabled
                       (!self->idling && self->attacking != ATTACKING_INACTIVE)) &&                                                 // Can't block if busy, attack <0 means the character is preparing to attack, he can block during this time
                     attack->no_block <= self->defense[attack->attack_type].blockpower &&       // If unblockable, will automatically hit
