@@ -98,7 +98,7 @@ case $1 in
 ############################################################################
 11)
   if [ `echo $HOST_PLATFORM | grep -E "windows|CYGWIN"` ]; then
-     if [ ! -d "../tools/ps3-sdk" ]; then
+     if [ ! -d "../tools/ps3-sdk/ps3dev" ]; then
         echo "-------------------------------------------------------"
         echo "         PS3 SDK - Not Found, Installing SDK!"
         echo "-------------------------------------------------------"
@@ -113,13 +113,13 @@ case $1 in
   if test -e "../tools/ps3-sdk"; then
     export BASEDIR="${PWD%/*}"
 	export PS3TOOLSDIR=tools/ps3-sdk
-	
+
     export PS3SDK=$BASEDIR/$PS3TOOLSDIR
     export WIN_PS3SDK=$BASEDIR/$PS3TOOLSDIR
     export PATH="$PATH:$WIN_PS3SDK/mingw/msys/1.0/bin:$WIN_PS3SDK/mingw/bin:$WIN_PS3SDK/ps3dev/bin:$WIN_PS3SDK/ps3dev/ppu/bin:$WIN_PS3SDK/ps3dev/spu/bin:$WIN_PS3SDK/mingw/Python27"
     export PSL1GHT=$PS3SDK/psl1ght
     export PS3DEV=$WIN_PS3SDK/ps3dev
-	
+
     export PS3DEVBIN=$PS3DEV/ppu/bin
     export PREFIX=powerpc64-ps3-elf-
     export EXTENSION=.exe
