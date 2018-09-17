@@ -101,6 +101,9 @@ int main(int argc, char *argv[])
 #ifdef CUSTOM_SIGNAL_HANDLER
 	struct sigaction sigact;
 #endif
+#ifdef PS3
+    int retry = 0, dir_exists_flag = 1;
+#endif
 
 #ifdef DARWIN
 	char resourcePath[PATH_MAX] = {""};
@@ -163,16 +166,28 @@ int main(int argc, char *argv[])
     strcpy(logsDir, "/dev_hdd0/OpenBOR/Logs");
     strcpy(screenShotsDir, "/dev_hdd0/OpenBOR/ScreenShots");
 
-    //sysFsChmod("/dev_hdd0/", S_IRWXO | S_IRWXU | S_IRWXG | S_IFDIR);
-    //chdir("/dev_hdd0");
-	dirExists("/dev_hdd0/OpenBOR", 1);
-    //chdir(rootDir);
+	dirExists(rootDir, 1);
 #endif
 
 	dirExists(paksDir, 1);
 	dirExists(savesDir, 1);
 	dirExists(logsDir, 1);
 	dirExists(screenShotsDir, 1);
+
+#ifdef PS3
+	dir_exists_flag &= dirExists(paksDir, 1);
+	dir_exists_flag &= dirExists(savesDir, 1);
+	dir_exists_flag &= dirExists(logsDir, 1);
+	dir_exists_flag &= dirExists(screenShotsDir, 1);
+
+	do
+	{
+	    usleep(250000);
+	    retry++;
+	    dir_exists_flag = 1;
+	}
+	while (!dir_exists_flag && retry <= 12);
+#endif
 
 	Menu();
 #ifndef SKIP_CODE
