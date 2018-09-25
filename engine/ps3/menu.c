@@ -727,10 +727,10 @@ static void drawBGMPlayer()
 
 	printText((isWide ? 26 : 5), (isWide ? 11 : 4), WHITE, 0, 0, "OpenBoR %s", VERSION);
 	printText((isWide ? 392 : 261),(isWide ? 11 : 4), WHITE, 0, 0, __DATE__);
-	printText((isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "%s: %s", control_getkeyname(savedata.keys[0][SDID_ATTACK]), bgmPlay ? "Stop" : "Play");
-	printText((isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "%s: %s", control_getkeyname(savedata.keys[0][SDID_ATTACK2]), bgmLoop ? "Repeat On" : "Repeat Off");
-	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "%s: %s", control_getkeyname(savedata.keys[0][SDID_JUMP]), bgmCycle ? "Cycle On" : "Cycle Off");
-	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Exit Player", control_getkeyname(savedata.keys[0][SDID_SPECIAL]));
+	printText((isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "%s", bgmPlay ? "Stop" : "Play");
+	printText((isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "%s", bgmLoop ? "Repeat On" : "Repeat Off");
+	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "%s", bgmCycle ? "Cycle On" : "Cycle Off");
+	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "Exit Player");
     printText((isWide ? 320 : 188),(isWide ? 175 : 158), BLACK, 0, 0, "www.chronocrash.com");
 	printText((isWide ? 322 : 190),(isWide ? 185 : 168), BLACK, 0, 0, "www.SenileTeam.com");
 
@@ -854,8 +854,6 @@ void Menu()
 
 		while(!done)
 		{
-		    drawMenu();
-
 			sound_update_music();
 			bgmStatus = sound_query_music(NULL, NULL);
 			if(bgmPlay && !bgmStatus)
