@@ -1,6 +1,11 @@
- # OpenBOR
+ # OpenBOR PLUS
+OpenBOR PLUS is an advanced version of official OpenBOR.<br>
 OpenBOR is a continuation of the Beats Of Rage 2D game engine, which was originally
-created by the wonderful folks over at [Senile Team](http://www.senileteam.com). 
+created by the wonderful folks over at [Senile Team](http://www.senileteam.com).
+The plus version is based on official version and it has all official features plus
+new features!
+
+__*EXPRESSLY FORBIDDEN THE COPY OF THE "PLUS" CODE WITHOUT MY CONSENT.*__
 
 ## History
 In 2004, [Senile Team](http://www.senileteam.com) released Beats of Rage, a free beat-'em-up for DOS inspired
@@ -25,6 +30,7 @@ These platforms are actively supported and may be compiled with the latest OpenB
 * Mac OS X
 * Wii
 * PSP
+* PS3
 
 ### Discontinued
 
@@ -39,21 +45,27 @@ The following platforms are still available as legacy binaries, but are no longe
 
 ### Current Members
 
-#### [Damon Caskey](https://github.com/DCurrent) (2007-)
-OpenBOR project manager and site owner of the OpenBOR community. Primary
-contributions are core engine and scripting development, code cleanup, and organization. Main focus is keeping OpenBOR future proof and modular by replacing specialized hardcoding and overlap with generalized features that allow for more author creativity.
-
-#### [Plombo](https://github.com/plombo) (2009-)
-A developer who prefers to work on OpenBOR's supporting libraries and
-platform-specific backends.  Known for maintaining the Wii port, writing the
-GPU-accelerated video code for Wii and OpenGL, and a few engine features.
-
 #### [White Dragon](https://github.com/whitedragon0000) (2016-)
 A long time module author and extremely knowledgeable coder who joined the development team in 2016 and immediately began making an impact. White Dragon generally focuses on level and menu properties, but has branched out into various other facets of the engine over time.
 
 ### Former members and contributors
 
-#### uTunnels (2007-2014)
+#### [Damon Caskey](https://github.com/DCurrent) (2007-)
+OpenBOR project manager and site owner of the OpenBOR community. Primary contributions are core engine and scripting development, code cleanup, and organization. Main focus is keeping OpenBOR future proof and modular by replacing specialized hardcoding and overlap with generalized features that allow for more author creativity.
+
+#### [Plombo](https://github.com/plombo) (2009-)
+A developer who prefers to work on OpenBOR's supporting libraries and platform-specific backends.  Known for maintaining the Wii port, writing the GPU-accelerated video code for Wii and OpenGL, and a few engine features.
+
+#### [Douglas Baldan](https://github.com/dbaldan) (2018-)
+Known as O'Ilusionista, Douglas is a highly respected administrator of the OpenBOR community and also a prolific member of the Mugen scene. Douglas is new to coding but brings a plethoera of graphic and game design experience to the team. We look for exciting things from Mr. Baldan soon!
+
+#### [Malik](https://github.com/msmalik681) (2018-)
+Malik comes to the team with a good scripting background. He is still learning his way around application development, but shows a lot of promise and a great willingness to learn. As his skills progress, he will no doubt be a an invaluable asset to the team!
+
+#### [crxtrdude](https://github.com/crxtrdude) (2016-2018)
+crxtrdude focused on the android port in particular on the module Activity, Manifest and on the virtual gamepad.
+
+#### [uTunnels](https://github.com/utunnels) (2007-2014)
 Among many other powerful additions, contributed the original scripting engine to OpenBOR, single handedly
 breaking nearly every limitation module authors faced. While not officially retired, uTunnels' presence became gradually more infrequent before stopping altogether in early 2014.
 
@@ -113,3 +125,136 @@ Home of the OpenBOR community and OpenBOR team. This is the place to go if you w
 ### [Senile Team](http://www.senileteam.com)
 
 Senile Team is not responsible for OpenBOR, and has also dropped all support for the original Beats of Rage. Instead you should stop in to see their latest projects - you’ll no doubt find something interesting!
+
+## New Features
+* added "movex", "movez" to entityproperty: the potential entity directions
+* added "collidedentity" to script: it returns the collided entity handler
+* opened animation platform properties to script
+
+#### ***NEW OPERATORS***
+bitwise not (~)<br/>
+
+#### ***ENTITY COLLISION***
+accessible in debug mode too.<br/>
+
+constants:<br/>
+ANI_PROP_ENTITY_COLLISION<br/>
+ENTITY_COLLISION_PROP_COORDINATES<br/>
+ENTITY_COLLISION_PROP_TAG<br/>
+ENTITY_COLLISION_PROP_INDEX<br/>
+
+animation commands:<br/>
+ebox {x} {y} {width} {height} {z1} {z2}<br/>
+ebox.x {value}<br/>
+ebox.y {value}<br/>
+ebox.width {value}<br/>
+ebox.height {value}<br/>
+ebox.z1 {value}<br/>
+ebox.z2 {value}<br/>
+eboxz {z1} {z2}<br/>
+
+model commands:<br/>
+entitypushing {int}: if 1 entity pushing target on collision<br/>
+pushingfactor {float}: pushing factor on collision. Default: 1.0<br/>
+
+openborscript functions:
+get_entity_collision_collection(void handle, int frame);<br/>
+get_entity_collision_instance(void handle, int index);<br/>
+get_entity_collision_property(void handle, int property);<br/>
+set_entity_collision_property(void handle, int property, value);<br/>
+
+openborscript:<br/>
+added "entitypushing", "pushingfactor" to entityproperty<br/>
+added "collidedentity" to entityproperty<br/>
+added "maxcollisions" to openborvariants<br/>
+
+events:<br/>
+onentitycollisionscript<br/>
+localvars:<br/>
+"self": entity<br/>
+"target": entity<br/>
+"self_ebox_handler": the handler for ebox of self to use with openborscript functions<br/>
+"target_ebox_handler": the handler for ebox of target to use with openborscript functions<br/>
+
+
+#### ***MULTPLE COLLISION BOXES***
+opened multiple collision boxes to openbor:<br/>
+you establish the max collision boxes into model.txt file with<br/>
+maxcollisions {int} (default: 2)<br/>
+then you can change into animation the index of boxes:<br/>
+setaboxindex {int} for attack collision boxes (default: 0)<br/>
+setbboxindex {int} for body collision boxes (default: 0)<br/>
+seteboxindex {int} for entity collision boxes (default: 0)<br/>
+
+by default the index relative to a box is set to 0 of course.<br/>
+
+example:<br/>
+```
+ANIM IDLE
+bbox 1 2 3 4 5
+setbboxindex 1
+bbox 5 6 7 8 9
+```
+
+in this example you set 2 bboxes.
+
+see this example too:
+
+```
+ANIM IDLE
+bbox 1 2 3 4 5
+setbboxindex 1
+bbox 5 6 7 8 9
+bbox 1 2 3 4 5
+```
+
+in this example you set 2 bboxes both: bbox 1 2 3 4 5<br/>
+because bbox 1 2 3 4 5 at index 1 overrides bbox 5 6 7 8 9 at index 1<br/>
+
+#### ***BOOMERANG***
+
+model keys:<br/>
+subtype boomerang<br/>
+aimove boomerang<br/>
+
+model commands:<br/>
+boomerang {name}<br/>
+boomerangvalues {acceleration} {horizontal_distance}<br/>
+
+animation commands:<br/>
+custboomerang {name}<br/>
+
+animations:<br/>
+getboomerang<br/>
+getboomeranginair<br/>
+_use range {min} {max} to get the boomerang by range_
+
+openbor script:<br/>
+changed access to boomerang props in openbor script:<br/>
+get/change entityproperty "boomerang" "acceleration" {val}<br/>
+get/change entityproperty "boomerang" "hdistance" {val}<br/>
+
+using subentity and spawnframe example:<br/>
+for player set type npc, for enemies set type enemy<br/>
+```
+subentity boomerang
+spawnframe 0 5 0 30
+```
+
+using custboomerang example:
+```
+custboomerang boomerang
+throwframe 0 30
+```
+#### ***IMPROVED MENUS***
+
+all ports menu now support image previews<br/>
+but into PSP/Wii port is disabled by default for less memory usage<br/>
+
+all menus support more mods loading<br/>
+implemented vertical scrollbar for menus<br/>
+implemented fast forward/backward to scroll menu with many mods (left/right arrow)<br/>
+implemented hold key impulse for all menus to scroll menu with many mods more easily<br/>
+
+#### ***NEW PORTS***
+PS3 port
