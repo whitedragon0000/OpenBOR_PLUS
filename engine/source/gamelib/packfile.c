@@ -1440,12 +1440,16 @@ void packfile_music_read(fileliststruct *filelist, int dListTotal)
             {
                 goto closepak;
             }
+            off = SwapLSB32(off);
             if(fseek(fd, off, SEEK_SET) < 0)
             {
                 goto closepak;
             }
             while((len = fread(&pn, 1, sizeof(pn), fd)) > 12)
             {
+                pn.filesize = SwapLSB32(pn.filesize);
+                pn.filestart = SwapLSB32(pn.filestart);
+                pn.pns_len = SwapLSB32(pn.pns_len);
                 p = strrchr(pn.namebuf, '.');
                 if((p && (!stricmp(p, ".bor") || !stricmp(p, ".ogg"))) || (stristr(pn.namebuf, "music")))
                 {
