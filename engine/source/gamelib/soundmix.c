@@ -474,7 +474,7 @@ static void mixaudio(unsigned int todo)
             }
 
             // Mix a sample
-            lmusic = rmusic = sptr16[FIX_TO_INT(fp_pos)]; // White Dragon: Maybe (int)(short)SwapLSB16() too?
+            lmusic = rmusic = sptr16[FIX_TO_INT(fp_pos)]; // White Dragon: Maybe (int)(short)SwapLSB16() too? From Wii test for now no...
             lmusic = (lmusic * lvolume / MAXVOLUME);
             rmusic = (rmusic * rvolume / MAXVOLUME);
             mixbuf[i++] += lmusic;
@@ -543,11 +543,7 @@ static void mixaudio(unsigned int todo)
                 sptr16 = soundcache[snum].sample.sampleptr;
                 for(i = 0; i < (int)todo;)
                 {
-                    #ifndef PS3
-                    lmusic = rmusic = sptr16[FIX_TO_INT(fp_pos)];
-                    #else
                     lmusic = rmusic = (int)(short)SwapLSB16(sptr16[FIX_TO_INT(fp_pos)]);
-                    #endif
                     mixbuf[i++] += (lmusic * lvolume / MAXVOLUME);
                     if(vchannel[chan].channels == SOUND_MONO)
                     {
