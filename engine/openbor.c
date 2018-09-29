@@ -29668,12 +29668,12 @@ void player_die()
 
             for(i = 0; i < MAX_PLAYERS; i++)
             {
-                if (player[i].credits < 1) ++all_p_nocredits;
+                if (player[i].credits <= 0) ++all_p_nocredits;
             }
             all_p_nocredits = (all_p_nocredits >= MAX_PLAYERS) ? 1 : 0;
 
             timeleft = 10 * COUNTER_SPEED;
-            if(all_p_nojoin && ((!noshare && credits < 1) || all_p_nocredits) )
+            if(all_p_nojoin && ((!noshare && credits <= 0) || all_p_nocredits) )
             {
                 timeleft = COUNTER_SPEED / 2;
             }
@@ -33499,6 +33499,7 @@ void kill_all_players_by_timeover()
     {
         entity* tmp = self;
         self = player[i].ent;
+        ///CAZZO
         if(self && !validanim(self, ANI_LOSE))
         {
             endgame = 0;
@@ -34911,12 +34912,22 @@ void update(int ingame, int usevwait)
                 if(!freezeall)
                 {
                     int all_p_alive = 0;
+                    int almost_one_player_lives = 0;
 
                     for(i = 0; i < MAX_PLAYERS; i++)
                     {
                         if (!player[i].ent) ++all_p_alive;
                     }
                     all_p_alive = (all_p_alive >= MAX_PLAYERS) ? 1 : 0;
+
+                    for(i = 0; i < MAX_PLAYERS; i++)
+                    {
+                        if (player[i].ent)
+                        {
+                            almost_one_player_lives = 1;
+                            break;
+                        }
+                    }
 
                     if(level->settime > 0 || (level->type != 2 && all_p_alive))
                     //if(level->settime > 0 || (level->type != 2 && !player[0].ent && !player[1].ent && !player[2].ent && !player[3].ent))
@@ -34931,7 +34942,7 @@ void update(int ingame, int usevwait)
 
                         for(i = 0; i < MAX_PLAYERS; i++)
                         {
-                            if (player[i].credits < 1) ++all_p_nocredits;
+                            if (player[i].credits <= 0) ++all_p_nocredits;
                         }
                         all_p_nocredits = (all_p_nocredits >= MAX_PLAYERS) ? 1 : 0;
 
@@ -34939,12 +34950,11 @@ void update(int ingame, int usevwait)
                         {
                             --timeleft;
                         }
-                        else if((level->settime > 0 && all_p_nojoin) ||
-                                ( ((!noshare && credits < 1) || (noshare && all_p_nocredits))
-                                 && all_p_nojoin )
+                        else if( (level->settime > 0 && all_p_nojoin && almost_one_player_lives) ||
+                                ( ((!noshare && credits <= 0) || (noshare && all_p_nocredits)) && all_p_nojoin )
                                )
                         {
-                            time_over();
+                            time_over(); // check game over
                         }
                     }
                 }
