@@ -29668,12 +29668,12 @@ void player_die()
 
             for(i = 0; i < MAX_PLAYERS; i++)
             {
-                if (player[i].credits < 1) ++all_p_nocredits;
+                if (player[i].credits <= 0) ++all_p_nocredits;
             }
             all_p_nocredits = (all_p_nocredits >= MAX_PLAYERS) ? 1 : 0;
 
             timeleft = 10 * COUNTER_SPEED;
-            if(all_p_nojoin && ((!noshare && credits < 1) || all_p_nocredits) )
+            if(all_p_nojoin && ((!noshare && credits <= 0) || all_p_nocredits) )
             {
                 timeleft = COUNTER_SPEED / 2;
             }
@@ -34931,7 +34931,7 @@ void update(int ingame, int usevwait)
 
                         for(i = 0; i < MAX_PLAYERS; i++)
                         {
-                            if (player[i].credits < 1) ++all_p_nocredits;
+                            if (player[i].credits <= 0) ++all_p_nocredits;
                         }
                         all_p_nocredits = (all_p_nocredits >= MAX_PLAYERS) ? 1 : 0;
 
@@ -34939,12 +34939,11 @@ void update(int ingame, int usevwait)
                         {
                             --timeleft;
                         }
-                        else if((level->settime > 0 && all_p_nojoin) ||
-                                ( ((!noshare && credits < 1) || (noshare && all_p_nocredits))
-                                 && all_p_nojoin )
+                        else if( /*(level->settime > 0 && all_p_nojoin) ||*/
+                                ( ((!noshare && credits <= 0) || (noshare && all_p_nocredits)) && all_p_nojoin )
                                )
                         {
-                            time_over();
+                            time_over(); // game over
                         }
                     }
                 }
