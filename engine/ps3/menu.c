@@ -531,7 +531,7 @@ static int ControlBGM()
 			}
 			break;
 
-		case PS3_CROSS:
+		case PS3_CIRCLE:
 			if(!bgmPlay)
 			{
 				if(bgmCycle) bgmCycle = 0;
@@ -539,7 +539,7 @@ static int ControlBGM()
 			}
 			break;
 
-		case PS3_CIRCLE:
+		case PS3_CROSS:
 			pControl = ControlMenu;
 			status = -1;
 			break;
