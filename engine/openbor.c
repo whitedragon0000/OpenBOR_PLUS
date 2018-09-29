@@ -33499,7 +33499,6 @@ void kill_all_players_by_timeover()
     {
         entity* tmp = self;
         self = player[i].ent;
-        ///CAZZO
         if(self && !validanim(self, ANI_LOSE))
         {
             endgame = 0;
