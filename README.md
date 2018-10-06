@@ -5,7 +5,7 @@ created by the wonderful folks over at [Senile Team](http://www.senileteam.com).
 The plus version is based on official version and it has all official features plus
 new features!
 
-__*EXPRESSLY FORBIDDEN THE COPY OF THE "PLUS" CODE WITHOUT MY CONSENT.*__
+__*PLEASE DON'T COPY THE "PLUS" CODE WITHOUT MY CONSENT.*__
 
 ## Overview
  
