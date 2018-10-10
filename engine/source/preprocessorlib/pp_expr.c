@@ -232,17 +232,11 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
     pp_expr *leftleaf = NULL;
     nodedata *currentdata = NULL;
     pp_token *token;
-    #ifdef LOOP_COUNT_LIMIT
-    u32 LOOP_INDEX = 0;
-	#endif
+    short loop_break = 1;
 
     memset(root, 0, sizeof(pp_expr));
 
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    while(loop_break)
     {
         int type;
         token = pp_parser_emit_token(parser);
@@ -283,6 +277,7 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
                 {
                     pp_error(parser, "')' without matching '('");
                 }
+                loop_break = 0;
                 goto error;
             }
             else if (token->theType == PP_TOKEN_EOF && (paren || !leftleaf))
@@ -295,6 +290,7 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
                 {
                     pp_error(parser, "#if with no expression");
                 }
+                loop_break = 0;
                 goto error;
             }
 
@@ -304,6 +300,7 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
                 previous->right = current;
             }
             currentdata = NULL;
+            loop_break = 0;
             break;
         }
         else if(token->theType == PP_TOKEN_WHITESPACE ||
@@ -328,6 +325,7 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
             if(leftleaf && bottomnode->info->type != UNARY)
             {
                 pp_error(parser, "expected an operator, got '%s'", token->theSource);
+                loop_break = 0;
                 goto error;
             }
 
@@ -336,6 +334,7 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
                 subtree = pp_expr_parse(parser, true);
                 if(subtree == NULL)
                 {
+                    loop_break = 0;
                     goto error;
                 }
             }
@@ -351,6 +350,7 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
                 if(parser->token.theType != PP_TOKEN_IDENTIFIER)
                 {
                     pp_error(parser, "bad 'defined' syntax");
+                    loop_break = 0;
                     goto error;
                 }
                 currentdata->theToken.theType = PP_TOKEN_INTCONSTANT;
@@ -362,6 +362,7 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
                     if(parser->token.theType != PP_TOKEN_RPAREN)
                     {
                         pp_error(parser, "bad 'defined' syntax");
+                        loop_break = 0;
                         goto error;
                     }
                 }
@@ -386,6 +387,7 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
             if(!leftleaf)
             {
                 pp_error(parser, "expected an operand, got '%s'", token->theSource);
+                loop_break = 0;
                 goto error;
             }
 
@@ -409,6 +411,7 @@ pp_expr *pp_expr_parse(pp_parser *parser, bool paren)
         {
             pp_error(parser, "'%s' is not a valid token in an #if/#elif condition\n",
                      token->theSource);
+            loop_break = 0;
             goto error;
         }
     }

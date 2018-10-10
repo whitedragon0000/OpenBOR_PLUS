@@ -321,25 +321,21 @@ int pp_parser_peek_token(pp_parser *self)
 {
     pp_lexer lexer;
     pp_token token;
-    #ifdef LOOP_COUNT_LIMIT
-    u32 LOOP_INDEX = 0;
-	#endif
+    short loop_break = 1;
 
     memcpy(&lexer, &self->lexer, sizeof(pp_lexer));
 
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    while(loop_break)
     {
         if(FAILED(pp_lexer_GetNextToken(&self->lexer, &token)))
         {
             memcpy(&self->lexer, &lexer, sizeof(pp_lexer));
+            loop_break = 0;
             return -1;
         }
         if(token.theType != PP_TOKEN_WHITESPACE)
         {
+            loop_break = 0;
             break;
         }
     }
@@ -356,16 +352,13 @@ int pp_parser_peek_token(pp_parser *self)
 HRESULT pp_parser_lex_token_essential(pp_parser *self, bool skip_whitespace)
 {
     pp_parser *parser = self;
+    short loop_break = 1;
 
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    u32 LOOP_INDEX = 0;
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    while(loop_break)
     {
         if(FAILED(pp_parser_lex_token(parser, skip_whitespace)))
         {
+            loop_break = 0;
             return E_FAIL;
         }
 
@@ -377,6 +370,7 @@ HRESULT pp_parser_lex_token_essential(pp_parser *self, bool skip_whitespace)
         }
         else
         {
+            loop_break = 0;
             break;
         }
     }
@@ -468,9 +462,7 @@ pp_token *pp_parser_emit_token(pp_parser *self)
 
                 if(pp_parser_peek_token(self) == PP_TOKEN_CONCATENATE)
                 {
-                    #ifdef LOOP_COUNT_LIMIT
-                    u32 LOOP_INDEX = 0;
-                    #endif
+                    short loop_break = 1;
                     memcpy(&token2, &self->token, sizeof(pp_token));
                     success = SUCCEEDED(pp_parser_lex_token(self, true)); // lex '##'
                     assert(self->token.theType == PP_TOKEN_CONCATENATE);
@@ -493,11 +485,7 @@ pp_token *pp_parser_emit_token(pp_parser *self)
                     // expand the token on the left side of the ##
                     param1 = token2.theSource;
                     p = self;
-                    #ifndef LOOP_COUNT_LIMIT
-                    while(1)
-                    #else
-                    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-                    #endif
+                    while(loop_break)
                     {
                         if(p->type == PP_FUNCTION_MACRO && List_FindByName(p->params, param1))
                         {
@@ -505,8 +493,14 @@ pp_token *pp_parser_emit_token(pp_parser *self)
                             p = p->parent;
                         }
                         else if(List_FindByName(&self->ctx->macros, param1))
+                        {
                             param1 = (char*)List_Retrieve(&self->ctx->macros);
-                        else break;
+                        }
+                        else
+                        {
+                            loop_break = 0;
+                            break;
+                        }
 
                         // if the expanded form has >1 token, the concatenation is only
                         // applied to the last token, so only expand it for now
@@ -525,11 +519,8 @@ pp_token *pp_parser_emit_token(pp_parser *self)
 
                     param2 = self->token.theSource;
                     p = self;
-                    #ifndef LOOP_COUNT_LIMIT
-                    while(1)
-                    #else
-                    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-                    #endif
+                    loop_break = 1;
+                    while(loop_break)
                     {
                         if(p->type == PP_FUNCTION_MACRO && List_FindByName(p->params, param2))
                         {
@@ -537,8 +528,14 @@ pp_token *pp_parser_emit_token(pp_parser *self)
                             p = p->parent;
                         }
                         else if(List_FindByName(&self->ctx->macros, param2))
+                        {
                             param2 = (char*)List_Retrieve(&self->ctx->macros);
-                        else break;
+                        }
+                        else
+                        {
+                            loop_break = 0;
+                            break;
+                        }
 
                         // this is ugly but works as long as buf2 doesn't overflow
                         pp_lexer_Init(&tmpLexer, param2, start);
@@ -656,9 +653,7 @@ pp_token *pp_parser_emit_token(pp_parser *self)
 HRESULT pp_parser_readline(pp_parser *self, char *buf, int bufsize)
 {
     int total_length = 1;
-    #ifdef LOOP_COUNT_LIMIT
-    u32 LOOP_INDEX = 0;
-	#endif
+    short loop_break = 1;
 
     if(FAILED(pp_parser_lex_token(self, true)))
     {
@@ -666,19 +661,17 @@ HRESULT pp_parser_readline(pp_parser *self, char *buf, int bufsize)
     }
     buf[0] = '\0';
 
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    while(loop_break)
     {
         if(self->token.theType == PP_TOKEN_EOF)
         {
             self->overread = true;
+            loop_break = 0;
             break;
         }
         else if(self->token.theType == PP_TOKEN_NEWLINE)
         {
+            loop_break = 0;
             break;
         }
 
@@ -686,6 +679,7 @@ HRESULT pp_parser_readline(pp_parser *self, char *buf, int bufsize)
         {
             // Prevent buffer overflow
             pp_error(self, "length of macro or message contents is too long; must be <= %i characters", bufsize);
+            loop_break = 0;
             return E_FAIL;
         }
 
@@ -693,6 +687,7 @@ HRESULT pp_parser_readline(pp_parser *self, char *buf, int bufsize)
         total_length += strlen(self->token.theSource);
         if(FAILED(pp_parser_lex_token(self, false)))
         {
+            loop_break = 0;
             return E_FAIL;
         }
     }

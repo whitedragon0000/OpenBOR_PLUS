@@ -100,12 +100,8 @@ void pp_lexer_Clear(pp_lexer *plexer)
 ******************************************************************************/
 HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
 {
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    u32 LOOP_INDEX = 0;
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    short loop_break = 1;
+    while(loop_break)
     {
         plexer->theTokenSource[0] = plexer->theTokenLen = 0;
         plexer->theTokenPosition = plexer->theTextPosition;
@@ -116,6 +112,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
         if ( !strncmp( plexer->pcurChar, "\0", 1))    //A null character marks the end of the stream
         {
             MAKETOKEN( PP_TOKEN_EOF );
+            loop_break = 0;
             return S_OK;
         }
 
@@ -130,6 +127,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
             plexer->pcurChar += 2;
             plexer->offset += 2;
             MAKETOKEN( PP_TOKEN_NEWLINE );
+            loop_break = 0;
             return S_OK;
         }
 
@@ -145,6 +143,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
             plexer->pcurChar++;
             plexer->offset++;
             MAKETOKEN( PP_TOKEN_NEWLINE );
+            loop_break = 0;
             return S_OK;
         }
 
@@ -159,6 +158,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
             plexer->pcurChar += 3;
             plexer->offset += 3;
             MAKETOKEN( PP_TOKEN_WHITESPACE );
+            loop_break = 0;
             return S_OK;
         }
 
@@ -174,6 +174,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
             plexer->pcurChar += 2;
             plexer->offset += 2;
             MAKETOKEN( PP_TOKEN_WHITESPACE );
+            loop_break = 0;
             return S_OK;
         }
 
@@ -189,6 +190,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
             plexer->pcurChar++;
             plexer->offset++;
             MAKETOKEN( PP_TOKEN_WHITESPACE );
+            loop_break = 0;
             return S_OK;
         }
 
@@ -198,6 +200,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
             //increment the offset counter
             CONSUMECHARACTER;
             MAKETOKEN( PP_TOKEN_WHITESPACE );
+            loop_break = 0;
             return S_OK;
         }
 
@@ -211,6 +214,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
             plexer->offset++;
             plexer->theTextPosition.col++;
             MAKETOKEN( PP_TOKEN_WHITESPACE );
+            loop_break = 0;
             return S_OK;
         }
 
@@ -224,11 +228,13 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
         //a Number starts with a numerical character
         else if ((*plexer->pcurChar >= '0' && *plexer->pcurChar <= '9') )
         {
+            loop_break = 0;
             return pp_lexer_GetTokenNumber(plexer, theNextToken );
         }
         //string
         else if (!strncmp( plexer->pcurChar, "\"", 1))
         {
+            loop_break = 0;
             return pp_lexer_GetTokenStringLiteral(plexer, theNextToken );
         }
         //character
@@ -251,6 +257,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
                 CONSUMECHARACTER;
                 CONSUMECHARACTER;
                 MAKETOKEN( PP_TOKEN_ERROR );
+                loop_break = 0;
                 return S_OK;
             }
             if (!strncmp( plexer->pcurChar, "'", 1))
@@ -258,6 +265,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
                 CONSUMECHARACTER;
 
                 MAKETOKEN( PP_TOKEN_STRING_LITERAL );
+                loop_break = 0;
                 return S_OK;
             }
             else
@@ -265,6 +273,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
                 CONSUMECHARACTER;
                 CONSUMECHARACTER;
                 MAKETOKEN( PP_TOKEN_ERROR );
+                loop_break = 0;
                 return S_OK;
             }
         }
@@ -293,11 +302,13 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
             {
                 CONSUMECHARACTER;
                 MAKETOKEN( PP_TOKEN_DIV_ASSIGN );
+                loop_break = 0;
                 return S_OK;
             }
             else
             {
                 MAKETOKEN( PP_TOKEN_DIV );
+                loop_break = 0;
                 return S_OK;
             }
         }
@@ -308,6 +319,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
             CONSUMECHARACTER;
             CONSUMECHARACTER;
             MAKETOKEN( PP_TOKEN_CONCATENATE );
+            loop_break = 0;
             return S_OK;
         }
 
@@ -316,6 +328,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
         {
             CONSUMECHARACTER;
             MAKETOKEN( PP_TOKEN_DIRECTIVE );
+            loop_break = 0;
             return S_OK;
         }
 
@@ -333,6 +346,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
                  || ( !strncmp( plexer->pcurChar, "]", 1)) || ( !strncmp( plexer->pcurChar, ".", 1))
                  || ( !strncmp( plexer->pcurChar, "~", 1)) || ( !strncmp( plexer->pcurChar, "?", 1)))
         {
+            loop_break = 0;
             return pp_lexer_GetTokenSymbol(plexer, theNextToken );
         }
 
@@ -347,6 +361,7 @@ HRESULT pp_lexer_GetNextToken(pp_lexer *plexer, pp_token *theNextToken)
              * deal with them if necessary. */
             MAKETOKEN( PP_TOKEN_ERROR );
             //HandleCompileError( *theNextToken, UNRECOGNIZED_CHARACTER );
+            loop_break = 0;
             return S_OK;
         }
     }
