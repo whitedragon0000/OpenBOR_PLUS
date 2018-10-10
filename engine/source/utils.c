@@ -580,22 +580,24 @@ void get_now_string(char buffer[], unsigned buffer_size, char* pattern)
 
 int safe_stricmp(const char *s1, const char *s2)
 {
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    u32 LOOP_INDEX = 0;
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    short loop_break = 1;
+    while(loop_break)
     {
-        if (*s1 != *s2) {
+        if (*s1 != *s2)
+        {
             int c1 = toupper((unsigned char)*s1);
             int c2 = toupper((unsigned char)*s2);
 
             if (c2 != c1) {
+                loop_break = 0;
                 return c2 > c1 ? -1 : 1;
             }
-        } else {
-            if (*s1 == '\0') {
+        }
+        else
+        {
+            if (*s1 == '\0')
+            {
+                loop_break = 0;
                 return 0;
             }
         }
@@ -607,25 +609,28 @@ int safe_stricmp(const char *s1, const char *s2)
 
 int safe_strnicmp(const char *s1, const char *s2, size_t n)
 {
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    u32 LOOP_INDEX = 0;
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    short loop_break = 1;
+    while(loop_break)
     {
-        if (n-- <= 0) {
+        if (n-- <= 0)
+        {
+            loop_break = 0;
             return 0;
         }
-        if (*s1 != *s2) {
+        if (*s1 != *s2)
+        {
             int c1 = toupper((unsigned char)*s1);
             int c2 = toupper((unsigned char)*s2);
 
-            if (c2 != c1) {
+            if (c2 != c1)
+            {
+                loop_break = 0;
                 return c2 > c1 ? -1 : 1;
             }
         } else {
-            if (*s1 == '\0') {
+            if (*s1 == '\0')
+            {
+                loop_break = 0;
                 return 0;
             }
         }
@@ -637,25 +642,28 @@ int safe_strnicmp(const char *s1, const char *s2, size_t n)
 
 int safe_strncmp(const char *s1, const char *s2, size_t n)
 {
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    u32 LOOP_INDEX = 0;
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    short loop_break = 1;
+    while(loop_break)
     {
-        if (n-- <= 0) {
+        if (n-- <= 0)
+        {
+            loop_break = 0;
             return 0;
         }
-        if (*s1 != *s2) {
+        if (*s1 != *s2)
+        {
             int c1 = (unsigned char)*s1;
             int c2 = (unsigned char)*s2;
 
-            if (c2 != c1) {
+            if (c2 != c1)
+            {
+                loop_break = 0;
                 return c2 > c1 ? -1 : 1;
             }
         } else {
-            if (*s1 == '\0') {
+            if (*s1 == '\0')
+            {
+                loop_break = 0;
                 return 0;
             }
         }

@@ -208,9 +208,7 @@ char sprite_get_pixel(s_sprite *sprite, int x, int y)
     int *linetab;
     register int lx = 0, count;
     unsigned char *data;
-    #ifdef LOOP_COUNT_LIMIT
-    u32 LOOP_INDEX = 0;
-	#endif
+    short loop_break = 1;
 
     //should we check?
     //if(y<0 || y>=sprite->height || x<0 || x>=sprite->width)
@@ -221,19 +219,17 @@ char sprite_get_pixel(s_sprite *sprite, int x, int y)
 
     data = ((unsigned char *)linetab) + (*linetab);
 
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    while(loop_break)
     {
         count = *data++;
         if(count == 0xFF)
         {
+            loop_break = 0;
             return 0;
         }
         if(lx + count > x)
         {
+            loop_break = 0;
             return 0;    // transparent pixel
         }
         lx += count;
@@ -244,6 +240,7 @@ char sprite_get_pixel(s_sprite *sprite, int x, int y)
         }
         if(lx + count > x)
         {
+            loop_break = 0;
             return data[x - lx]; // not transparent pixel
         }
         lx += count;
@@ -490,29 +487,25 @@ void _sprite_seek(int x, int y)
     int *linetab;
     unsigned char *data = NULL;
     register int lx = 0, count;
-    #ifdef LOOP_COUNT_LIMIT
-    u32 LOOP_INDEX = 0;
-	#endif
+    short loop_break = 1;
 
     linetab = ((int *)ptr_src) + y;
 
     data = ((unsigned char *)linetab) + (*linetab);
 
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    while(loop_break)
     {
         count = *data++;
         if(count == 0xFF)
         {
             cur_src = dummyptrs;
+            loop_break = 0;
             goto quit;
         }
         if(lx + count > x) // transparent pixel
         {
             cur_src = dummyptrs;
+            loop_break = 0;
             goto quit;
         }
         lx += count;
@@ -524,6 +517,7 @@ void _sprite_seek(int x, int y)
         if(lx + count > x)
         {
             cur_src = data + x - lx;
+            loop_break = 0;
             goto quit;
         }
         lx += count;

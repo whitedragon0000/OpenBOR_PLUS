@@ -32,12 +32,6 @@
 #define		MAX_PAGE_MODS_FAST_FORWARD      10
 #define     MAX_MODS_NUM                    100
 
-#ifdef LOOP_COUNT_LIMIT
-#ifndef MAX_LOOP_COUNT
-#define MAX_LOOP_COUNT 1000000
-#endif
-#endif
-
 #ifdef PSP
 #include <stdarg.h>
 #include <psppower.h>

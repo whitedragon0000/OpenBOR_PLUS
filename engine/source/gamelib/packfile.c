@@ -191,9 +191,7 @@ int myfilenamecmp(const char *a, size_t asize, const char *b, size_t bsize)
 {
     char *ca;
     char *cb;
-    #ifdef LOOP_COUNT_LIMIT
-    u32 LOOP_INDEX = 0;
-	#endif
+    short loop_break = 1;
 
     if (a == b)
     {
@@ -207,33 +205,34 @@ int myfilenamecmp(const char *a, size_t asize, const char *b, size_t bsize)
     ca = (char *) a;
     cb = (char *) b;
 
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    while(loop_break)
     {
         if (!*ca)
         {
             if (*cb)
             {
+                loop_break = 0;
                 return -1;
             }
             else
             {
+                loop_break = 0;
                 return 0;    // default exit on match
             }
         }
         if (!*cb)
         {
+            loop_break = 0;
             return 1;
         }
         if (*ca == *cb)
         {
+            loop_break = 0;
             goto cont;
         }
         if (tolowerOneChar(ca) != tolowerOneChar(cb))
         {
+            loop_break = 0;
             return 1;
         }
 cont:
@@ -612,9 +611,7 @@ void makefilenamecache(void)
 {
     ptrdiff_t hpos;
     char target[PACKFILE_PATH_MAX];
-    #ifdef LOOP_COUNT_LIMIT
-    u32 LOOP_INDEX = 0;
-	#endif
+    short loop_break = 1;
 
     if(!filenamelist)
     {
@@ -625,14 +622,11 @@ void makefilenamecache(void)
     // look for filename in the header
 
     hpos = 0;
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    while(loop_break)
     {
         if((hpos + 12) >= pak_headersize)
         {
+            loop_break = 0;
             return;
         }
         strncpy(target, (char *)pak_header + hpos + 12, PACKFILE_PATH_MAX - 1);

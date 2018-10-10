@@ -433,9 +433,7 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
 
     static short inctable[] = { 8, 8, 4, 2, 0 };
     static short startable[] = { 0, 4, 2, 1, 0 };
-    #ifdef LOOP_COUNT_LIMIT
-    u32 LOOP_INDEX = 0;
-	#endif
+    short loop_break_lv1 = 1;
 
     p = q = b;
     bitsleft = 8;
@@ -452,21 +450,16 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
     linebuffer = buf + (gb->top * width);
 
     // loop until something breaks
-    #ifndef LOOP_COUNT_LIMIT
-    while(1)
-    #else
-    for(LOOP_INDEX = 0; LOOP_INDEX < MAX_LOOP_COUNT; LOOP_INDEX++)
-    #endif
+    while(loop_break_lv1)
     {
-        #ifdef LOOP_COUNT_LIMIT
-        u32 LOOP_INDEX_LV2 = 0;
-        #endif
+        short loop_break_lv2 = 1;
 
         if(bitsleft == 8)
         {
             if(++p >= q && (((blocksize = (unsigned char)readbyte(handle)) < 1) ||
                             (q = (p = b) + readpackfile(handle, b, blocksize)) < (b + blocksize)))
             {
+                loop_break_lv1 = 0;
                 return 0;        // Unexpected EOF
             }
             bitsleft = 0;
@@ -482,6 +475,7 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
             if(++p >= q && (((blocksize = (unsigned char)readbyte(handle)) < 1) ||
                             (q = (p = b) + readpackfile(handle, b, blocksize)) < (b + blocksize)))
             {
+                loop_break_lv1 = 0;
                 return 0;        // Unexpected EOF
             }
 
@@ -495,6 +489,7 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
                 if(++p >= q && (((blocksize = (unsigned char)readbyte(handle)) < 1) ||
                                 (q = (p = b) + readpackfile(handle, b, blocksize)) < (b + blocksize)))
                 {
+                    loop_break_lv1 = 0;
                     return 0;    // Unexpected EOF
                 }
 
@@ -507,10 +502,12 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
 
         if(thiscode == (bits2 + 1))
         {
+            loop_break_lv1 = 0;
             break;
         }
         if(thiscode > nextcode)
         {
+            loop_break_lv1 = 0;
             return 0;    // Bad code
         }
 
@@ -528,6 +525,7 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
         {
             if(oldcode == NO_CODE)
             {
+                loop_break_lv1 = 0;
                 return 0;    // Bad code
             }
             *u++ = oldtoken;
@@ -541,11 +539,7 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
         }
 
         oldtoken = thiscode;
-        #ifndef LOOP_COUNT_LIMIT
-        while(1)
-        #else
-        for(LOOP_INDEX_LV2 = 0; LOOP_INDEX_LV2 < MAX_LOOP_COUNT; LOOP_INDEX_LV2++)
-        #endif
+        while(loop_break_lv2)
         {
             if(byte < width && line < (height - gb->top))
             {
@@ -572,6 +566,7 @@ static int decodegifblock(int handle, unsigned char *buf, int width, int height,
             }
             if (u <= firstcodestack)
             {
+                loop_break_lv2 = 0;
                 break;
             }
             thiscode = *--u;
