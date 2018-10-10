@@ -610,10 +610,10 @@ static void blit_video_menu(s_screen* vscreen)
 }
 
 static void draw_vscrollbar() {
-    int offset_x = (isWide ? 30 : 7)    - 3;
-    int offset_y = (isWide ? 33 : 22)   + 4;
+    int offset_x = (isWide ? 110 : 7)   - 3;
+    int offset_y = (isWide ? 33 : 22)   + 2;
     int box_width = 144;
-    int box_height = 194;
+    int box_height = 200;
     int min_vscrollbar_height = 2;
     int vbar_height = box_height;
     int vbar_width = 4;
