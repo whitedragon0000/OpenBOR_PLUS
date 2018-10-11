@@ -483,6 +483,15 @@ void blit()
         float aspectRatio = (float)textureWidth / (float)textureHeight;
         float newWidth = nativeHeight * aspectRatio;
 
+        if (newWidth > nativeWidth) {
+          float newHeight;
+
+          newWidth = nativeWidth;
+          newHeight = newWidth / aspectRatio;
+          scaledWidth  = (unsigned)newWidth;
+          scaledHeight = (unsigned)newHeight;
+        }
+
         //SDL_Log("aspect: from %d/%d con %f, orig: %d/%d -> %d",textureWidth,textureHeight,aspectRatio,nativeWidth,nativeHeight,(int)newWidth);
         SDL_Rect d_rect = {(int)(nativeWidth/2.0f - newWidth/2.0f), 0, (int)newWidth, nativeHeight};
         SDL_RenderCopy(renderer, texture, NULL, &d_rect);
