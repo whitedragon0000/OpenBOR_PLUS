@@ -461,6 +461,7 @@ void blit()
     int i, h;
     int hide_touch;
     extern int hide_t;
+    unsigned resMargin = 0;
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
@@ -482,18 +483,20 @@ void blit()
         //SDL_RenderSetLogicalSize(renderer, textureWidth, textureHeight);
         float aspectRatio = (float)textureWidth / (float)textureHeight;
         float newWidth = nativeHeight * aspectRatio;
+        unsigned scaledWidth  = newWidth  - resMargin;
+        unsigned scaledHeight = (scaledWidth * nativeHeight) / newWidth;
 
         if (newWidth > nativeWidth) {
           float newHeight;
 
-          newWidth = nativeWidth;
+          newWidth = nativeWidth - resMargin;
           newHeight = newWidth / aspectRatio;
           scaledWidth  = (unsigned)newWidth;
           scaledHeight = (unsigned)newHeight;
         }
 
         //SDL_Log("aspect: from %d/%d con %f, orig: %d/%d -> %d",textureWidth,textureHeight,aspectRatio,nativeWidth,nativeHeight,(int)newWidth);
-        SDL_Rect d_rect = {(int)(nativeWidth/2.0f - newWidth/2.0f), 0, (int)newWidth, nativeHeight};
+        SDL_Rect d_rect = {(int)(nativeWidth/2.0f - scaledWidth/2.0f), (int)(nativeHeight/2.0f - scaledHeight/2.0f), scaledWidth, scaledHeight};
         SDL_RenderCopy(renderer, texture, NULL, &d_rect);
     }
 
