@@ -223,6 +223,10 @@ const char *Script_GetFunctionName(void *functionRef)
     {
         return "set_binding_property";
     }
+	else if (functionRef == ((void *)openbor_update_binding))
+	{
+		return "update_binding";
+	}
 
     else if (functionRef == ((void *)openbor_getplayerproperty))
     {
@@ -972,7 +976,7 @@ void *Script_GetStringMapFunction(void *functionRef)
     {
         return (void *)mapstrings_binding;
     }
-
+	
     else if (functionRef == ((void *)openbor_setspawnentry))
     {
         return (void *)mapstrings_setspawnentry;
@@ -1139,6 +1143,8 @@ void Script_LoadSystemFunctions()
                      (void *)openbor_get_binding_property, "get_binding_property");
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_set_binding_property, "set_binding_property");
+	List_InsertAfter(&theFunctionList,
+					(void *)openbor_update_binding, "update_binding");
 
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_getplayerproperty, "getplayerproperty");
