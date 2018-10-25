@@ -8370,7 +8370,8 @@ int getsyspropertybyindex(ScriptVariant *var, int index)
         break;
     case _sv_sample_play_id:
         ScriptVariant_ChangeType(var, VT_INTEGER);
-        var->lVal = sample_play_id;
+		var->lVal = sample_play_id;
+		break;
     case _sv_effectvol:
         ScriptVariant_ChangeType(var, VT_INTEGER);
         var->lVal = savedata.effectvol;
@@ -11497,6 +11498,8 @@ HRESULT openbor_querychannel(ScriptVariant **varlist , ScriptVariant **pretvar, 
     ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
     (*pretvar)->lVal = sound_query_channel((LONG)ltemp);
 
+	return S_OK;
+
     query_error:
     *pretvar = NULL;
     return E_FAIL;
@@ -11512,6 +11515,8 @@ HRESULT openbor_stopchannel(ScriptVariant **varlist , ScriptVariant **pretvar, i
     }
     sound_stop_sample((LONG)ltemp);
 
+	return S_OK;
+
     sc_error:
     return E_FAIL;
 }
@@ -11526,6 +11531,8 @@ HRESULT openbor_isactivesample(ScriptVariant **varlist , ScriptVariant **pretvar
     }
     ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
     (*pretvar)->lVal = sound_is_active((LONG)ltemp);
+	
+	return S_OK;
 
     error:
     *pretvar = NULL;
@@ -11542,6 +11549,8 @@ HRESULT openbor_sampleid(ScriptVariant **varlist , ScriptVariant **pretvar, int 
     }
     ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
     (*pretvar)->lVal = sound_id((LONG)ltemp);
+
+	return S_OK;
 
     error:
     *pretvar = NULL;

@@ -1225,10 +1225,10 @@ typedef enum
     BINDING_MATCHING_ANIMATION_TARGET   = 1,
     BINDING_MATCHING_FRAME_TARGET       = 2,
     BINDING_MATCHING_ANIMATION_REMOVE   = 4,
-    BINDING_MATCHING_FRAME_REMOVE       = 6,
+    BINDING_MATCHING_FRAME_REMOVE       = 8,
 
-    BINDING_MATCHING_ANIMATION_DEFINED  = 8,
-    BINDING_MATCHING_FRAME_DEFINED      = 10
+    BINDING_MATCHING_ANIMATION_DEFINED  = 16,
+    BINDING_MATCHING_FRAME_DEFINED      = 32
 } e_binding_animation;
 
 typedef enum
@@ -2535,6 +2535,7 @@ typedef struct entity
     int turning;
     bool charging;
     unsigned int blocking;
+    int blocking_pain;
     int falling;
     int running; // Flag to determine if a player is running
     int ducking; // in duck stance
@@ -2890,12 +2891,24 @@ typedef struct ArgList
 int is_frozen(entity *e);
 void unfrozen(entity *e);
 void    adjust_bind(entity *e);
+float	binding_position(float position_default, float position_target, int offset, e_binding_positioning positioning);
+
+// Blocking logic.
 int     check_bind_override(entity *ent, e_binding_overriding overriding);
-int     buffer_pakfile(char *filename, char **pbuffer, size_t *psize);
-size_t  ParseArgs(ArgList *list, char *input, char *output);
-int     getsyspropertybyindex(ScriptVariant *var, int index);
-int     changesyspropertybyindex(int index, ScriptVariant *value);
-int     load_script(Script *script, char *path);
+int     check_blocking_decision(entity *ent);
+int     check_blocking_eligible(entity *ent, entity *other, s_collision_attack *attack);
+int     check_blocking_master(entity *ent, entity *other, s_collision_attack *attack);
+int     check_blocking_rules(entity *ent);
+int     check_blocking_pain(entity *ent, s_collision_attack *attack);
+void    set_blocking_action(entity *ent, entity *other, s_collision_attack *attack);
+void    set_blocking_animation(entity *ent, s_collision_attack *attack);
+
+int     buffer_pakfile							(char *filename, char **pbuffer, size_t *psize);
+size_t  ParseArgs								(ArgList *list, char *input, char *output);
+int     getsyspropertybyindex					(ScriptVariant *var, int index);
+int     changesyspropertybyindex				(int index, ScriptVariant *value);
+e_direction	direction_adjustment				(e_direction direction_default, e_direction direction_target, e_direction_adjust adjustment);
+int     load_script								(Script *script, char *path);
 void    init_scripts();
 void    load_scripts();
 void    execute_animation_script                (entity *ent);
@@ -3062,7 +3075,8 @@ void ent_summon_ent(entity *ent);
 void ent_set_anim(entity *ent, int aninum, int resetable);
 void ent_set_colourmap(entity *ent, unsigned int which);
 void ent_set_model(entity *ent, char *modelname, int syncAnim);
-entity *spawn(float x, float z, float a, int direction, char *name, int index, s_model *model);
+entity *spawn_attack_flash(entity *ent, s_collision_attack *attack, int attack_flash, int model_flash);
+entity *spawn(float x, float z, float a, e_direction direction, char *name, int index, s_model *model);
 void ent_unlink(entity *e);
 void ents_link(entity *e1, entity *e2);
 void kill_entity(entity *victim);

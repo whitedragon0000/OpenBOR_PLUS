@@ -18360,7 +18360,7 @@ void ent_set_model(entity *ent, char *modelname, int syncAnim)
 }
 
 
-entity *spawn(float x, float z, float a, int direction, char *name, int index, s_model *model)
+entity *spawn(float x, float z, float a, e_direction direction, char *name, int index, s_model *model)
 {
     entity *e = NULL;
     int i, id;
@@ -19542,6 +19542,383 @@ void set_opponent(entity *ent, entity *other)
 
 }
 
+// Caskey, Damon V.
+// 2018-09-16
+//
+// Find out if attack can be blocked by entity.
+// This function is concerned with the attack
+// vs. entity in terms of game mechanics like
+// guard break, attack type vs. defense, and
+// so on. It does not handle rules for AI blocking.
+int check_blocking_eligible(entity *ent, entity *other, s_collision_attack *attack)
+{
+    // If guardpoints are set, then find out if they've been depleted.
+    if(ent->modeldata.guardpoints.max)
+    {
+        if(ent->modeldata.guardpoints.current <= 0)
+        {
+            return 0;
+        }
+    }
+
+    // Attack block breaking exceeds block power?
+    if(ent->defense[attack->attack_type].blockpower)
+    {
+        if(attack->no_block >= ent->defense[attack->attack_type].blockpower)
+        {
+            return 0;
+        }
+    }
+
+    // Attack from behind? Can't block that if
+    // we don't have blockback flag enabled.
+    if(ent->direction == other->direction)
+    {
+        if(!ent->modeldata.blockback)
+        {
+            return 0;
+        }
+    }
+
+    // if there is a blocking threshold? Verify it vs. attack force.
+    if(ent->modeldata.thold)
+    {
+        // Threshold value vs. attack.
+        if(attack->attack_force >= ent->modeldata.thold)
+        {
+            return 0;
+        }
+    }
+
+    // Is there a blocking threshhold for the attack type?
+    // Verify it vs. attack force.
+    if(ent->defense[attack->attack_type].blockthreshold)
+    {
+        if(ent->defense[attack->attack_type].blockthreshold > attack->attack_force)
+        {
+            return 0;
+        }
+    }
+
+    // If we made it through all that, then
+    // attack can be blocked. Return true.
+    return 1;
+}
+
+// Caskey, Damon V.
+// 2018-09-19
+//
+// Mandatory conditions the AI must pass before it
+// can decide to block. These are not rules for
+// blocking in general.
+int check_blocking_rules(entity *ent)
+{
+
+    // If already blocking we can
+    // forget the rest and return
+    // true right away.
+    if(ent->blocking)
+    {
+        return 1;
+    }
+
+    // No blocking animation?
+    if(!validanim(ent, ANI_BLOCK))
+    {
+        return 0;
+    }
+
+    // Have to be idle.
+    if(!ent->idling)
+    {
+        return 0;
+    }
+
+    // AI can't be attacking.
+    if(ent->attacking == ATTACKING_ACTIVE)
+    {
+        return 0;
+    }
+
+    // Grappling?
+    if(ent->link)
+    {
+        return 0;
+    }
+
+    //  Airborne?
+    if(inair(ent))
+    {
+        return 0;
+    }
+
+    // Frozen?
+    if(ent->frozen)
+    {
+        return 0;
+    }
+
+    // Falling?
+    if(ent->falling)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+// Caskey, Damon V.
+// 2018-09-17
+//
+// AI blocking decision. Handles AI's chances
+// to block assuming it is allowed. Returns true
+// if AI chooses to attempt a block.
+int check_blocking_decision(entity *ent)
+{
+    // If we have nopassiveblock enabled and we're
+    // already blocking, then we want the AI to
+    // keep blocking (like most players would).
+    if(ent->modeldata.nopassiveblock)
+    {
+        if(ent->blocking)
+        {
+           return 1;
+        }
+    }
+
+    // Run random chance against blockodds. If it
+    // passes, AI will block.
+    if((rand32()&ent->modeldata.blockodds) == 1)
+    {
+        return 1;
+    }
+
+    // If we got this far, we never decided to
+    // block, so return false.
+    return 0;
+}
+
+// Caskey, Damon V.
+// 2018-09-17
+//
+// Runs all blocking conditions and returns true
+// if the attack is to be blocked.
+int check_blocking_master(entity *ent, entity *other, s_collision_attack *attack)
+{
+    e_entity_type entity_type;
+
+    entity_type = ent->modeldata.type;
+
+    // 2018-09-17, we only distinguish between
+    // players and everything else, but let's use
+    // a Switch instead of an IF in case we ever
+    // need to be more nuanced.
+    switch(entity_type)
+    {
+        case TYPE_PLAYER:
+
+            // For players, all we need to know is if they
+            // are in a blocking state. If not we exit.
+            if(!ent->blocking)
+            {
+                return 0;
+            }
+
+            // Verify we can block the attack.
+            if(!check_blocking_eligible(ent, other, attack))
+            {
+                return 0;
+            }
+
+            break;
+
+        default:
+
+            // AI must pass a series of conditions
+            // before it may block attacks.
+            if(!check_blocking_rules(ent))
+            {
+                return 0;
+            }
+
+            // Now that we know AI is allowed
+            // to block let's find out if it
+            // wants to.
+            if(!check_blocking_decision(ent))
+            {
+                return 0;
+            }
+
+            // Verify the attack can be blocked.
+            if(!check_blocking_eligible(ent, other, attack))
+            {
+                return 0;
+            }
+
+            break;
+    }
+
+    // Looks like we made it through
+    // all the verifications. Return true.
+    return 1;
+}
+
+// Caskey, Damon V.
+// 2018-09-18
+//
+// Apply primary block settings, animations,
+// actions, and scripts.
+void set_blocking_action(entity *ent, entity *other, s_collision_attack *attack)
+{
+    // Execute the attacker's didhit script with blocked flag.
+    execute_didhit_script(other, ent, attack, 1);
+
+    // Set up blocking action and flag.
+    ent->takeaction = common_block;
+    set_blocking(ent);
+
+    // Stop movement.
+    ent->velocity.x = ent->velocity.z = 0;
+
+    // Execute our block script.
+    execute_didblock_script(ent, other, attack);
+
+    // If we have guardpoints, then reduce them here.
+    if(ent->modeldata.guardpoints.max > 0)
+    {
+        ent->modeldata.guardpoints.current -= attack->guardcost;
+    }
+
+    // Blocked hit is still a hit, so
+    // increment the attacker's hit counter.
+    ++other->animation->animhits;
+}
+
+// Caskey, Damon V.
+// 2018-09-18
+//
+// Verify entity has blockpain and that attack
+// should trigger it.
+int check_blocking_pain(entity *ent, s_collision_attack *attack)
+{
+    // If we don't have blockpain,
+    // nothing else to do!
+    if(!self->modeldata.blockpain)
+    {
+        return 0;
+    }
+
+    // If blockpain is greater than attack
+    // force, we don't apply it.
+    if(self->modeldata.blockpain > attack->attack_force)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+// Caskey, Damon V.
+// 2018-09-21
+//
+// Place entity into appropriate blocking animation.
+void set_blocking_animation(entity *ent, s_collision_attack *attack)
+{
+    // If we have an appropriate blockpain, lets
+    // apply it here.
+    if(check_blocking_pain(ent, attack))
+    {
+        set_blockpain(self, attack->attack_type, 1);
+    }
+    else
+    {
+        ent_set_anim(ent, ANI_BLOCK, 0);
+    }
+}
+
+// Caskey, Damon V.
+// 2018-09-21
+//
+// Perform a block.
+void do_blocking(entity *ent, entity *other, s_collision_attack *attack)
+{
+    // Place entity in blocking animation.
+    set_blocking_animation(ent, attack);
+
+    // Run blocking actions and scripts.
+    set_blocking_action(ent, other, attack);
+
+    // Spawn the blocking flash.
+    spawn_attack_flash(ent, attack, attack->blockflash, ent->modeldata.bflash);
+}
+
+// Caskey, Damon V.
+// 2018-09-18
+//
+// Handle flash spawning for hits. Will spawn and prepare an appropriate
+// flash effect entity if conditions are met.
+entity *spawn_attack_flash(entity *ent, s_collision_attack *attack, int attack_flash, int model_flash)
+{
+    int to_spawn;
+    entity *flash;
+
+    // Flash disabled by attack?
+    // We're done. Do nothing and exit.
+    if(attack->no_flash)
+    {
+       return NULL;
+    }
+
+    // If the model has custom flash disabled,
+    // then default to the model's global flash.
+    //
+    // Otherwise we need to see if the custom
+    // attack flash index is valid. If it is, then
+    // we will use it to spawn a flash effect.
+    if(!ent->modeldata.noatflash)
+    {
+        // Valid custom flash index?
+        if(attack->blockflash >= 0)
+        {
+            to_spawn = attack_flash;
+        }
+        else
+        {
+            to_spawn = model_flash;
+        }
+    }
+    else
+    {
+        to_spawn = model_flash;
+    }
+
+    // Spawn the flash at last hit position.
+    flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, DIRECTION_LEFT, NULL, to_spawn, NULL);
+
+    // One last check to make sure we
+    // were able to spawn to flash entity.
+    if(flash)
+    {
+        // Set up basic properties.
+        flash->spawntype    = SPAWN_TYPE_FLASH;
+        flash->base         = lasthit.position.y;
+        flash->autokill     = 1;
+
+        // If flipping enabled, flip the flash based on which
+        // side of entity the hit came from.
+        if(flash->modeldata.toflip)
+        {
+            flash->direction = (lasthit.position.x > ent->position.x);
+        }
+
+        // Run flash's spawn script.
+        execute_onspawn_script(flash);
+
+        return flash;
+    }
+
+    return NULL;
+}
 
 void do_attack(entity *e)
 {
@@ -19550,7 +19927,6 @@ void do_attack(entity *e)
     int force = 0;
     e_blocktype blocktype;
     entity *temp            = NULL;
-    entity *flash           = NULL;    // Used so new flashes can be used
     entity *def             = NULL;
     entity *topowner        = NULL;
     entity *otherowner      = NULL;
@@ -19566,7 +19942,6 @@ void do_attack(entity *e)
 
 #define followed (current_anim!=e->animation)
     static unsigned int new_attack_id = 1;
-    int fdefense_blockthreshold; //max damage that can be blocked for attack type.
 
     // Can't get hit after this
     if(level_completed)
@@ -19626,7 +20001,6 @@ void do_attack(entity *e)
         }
 
         attack = lasthit.attack;
-        fdefense_blockthreshold = (int)self->defense[attack->attack_type].blockthreshold; //max damage that can be blocked for attack type.
         force = attack->attack_force;
 
         // Verify target is alive.
@@ -19798,119 +20172,15 @@ void do_attack(entity *e)
                 self->modeldata.jugglepoints.current = self->modeldata.jugglepoints.current - attack->jugglecost;    //reduce available juggle points.
             }
 
-            //if #053
-            if( !self->modeldata.nopassiveblock && // cant block by itself
-                    validanim(self, ANI_BLOCK) && // of course, move it here to avoid some useless checking
-                    ((self->modeldata.guardpoints.max == 0) || (self->modeldata.guardpoints.max > 0 && self->modeldata.guardpoints.current > 0)) &&
-                    !(self->link ||
-                      inair(self) ||
-                      self->frozen ||
-                      self->falling ||
-                      (self->direction == e->direction && self->modeldata.blockback < 1) ||                       // Can't block an attack that is from behind unless blockback flag is enabled
-                      (!self->idling && self->attacking != ATTACKING_INACTIVE)) &&                                                 // Can't block if busy, attack <0 means the character is preparing to attack, he can block during this time
-                    attack->no_block <= self->defense[attack->attack_type].blockpower &&       // If unblockable, will automatically hit
-                    (rand32()&self->modeldata.blockodds) == 1 && // Randomly blocks depending on blockodds (1 : blockodds ratio)
-                    (!self->modeldata.thold || (self->modeldata.thold > 0 && self->modeldata.thold > force)) &&
-                    (!fdefense_blockthreshold ||                                                                //Specific attack type threshold.
-                     (fdefense_blockthreshold > force)))
+            didblock = check_blocking_master(self, e, attack);
+
+            // Blocking the attack?
+            if(didblock)
             {
-                //execute the didhit script
-                execute_didhit_script(e, self, attack, 1);
-                self->takeaction = common_block;
-                set_blocking(self);
-                self->velocity.x = self->velocity.z = 0;
-                ent_set_anim(self, ANI_BLOCK, 0);
-
-                execute_didblock_script(self, e, attack);
-
-                if(self->modeldata.guardpoints.max > 0)
-                {
-                    self->modeldata.guardpoints.current = self->modeldata.guardpoints.current - attack->guardcost;
-                }
-                ++current_anim->animhits;
-                didblock = 1;    // Used for when playing the block.wav sound
-                // Spawn a flash
-                //if #0531
-                if(!attack->no_flash)
-                {
-                    if(!self->modeldata.noatflash)
-                    {
-                        if(attack->blockflash >= 0)
-                        {
-                            flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, attack->blockflash, NULL);    // custom bflash
-                        }
-                        else
-                        {
-                            flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, ent_list[i]->modeldata.bflash, NULL);    // New block flash that can be smaller
-                        }
-                    }
-                    else
-                    {
-                        flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, self->modeldata.bflash, NULL);
-                    }
-                    //ent_default_init(flash); // initiliaze this because there're no default values now
-
-                    if(flash)
-                    {
-                        flash->spawntype = SPAWN_TYPE_FLASH;
-                        execute_onspawn_script(flash);
-                    }
-                }
-                //end of if #0531
+                // Perform the blocking actions.
+                do_blocking(self, e, attack);
             }
-            else if((self->modeldata.nopassiveblock || self->modeldata.type == TYPE_PLAYER) &&  // can block by itself
-                    self->blocking &&  // of course he must be blocking
-                    ((self->modeldata.guardpoints.max == 0) || (self->modeldata.guardpoints.max > 0 && self->modeldata.guardpoints.current > 0)) &&
-                    !((self->direction == e->direction && self->modeldata.blockback < 1) || self->frozen) &&   // Can't block if facing the wrong direction (unless blockback flag is enabled) or frozen in the block animation or opponent is a projectile
-                    attack->no_block <= self->defense[attack->attack_type].blockpower &&    // Make sure you are actually blocking and that the attack is blockable
-                    (!self->modeldata.thold ||
-                     (self->modeldata.thold > 0 &&
-                      self->modeldata.thold > force)) &&
-                    (!self->defense[attack->attack_type].blockthreshold ||                   //Specific attack type threshold.
-                     (self->defense[attack->attack_type].blockthreshold > force)))
-            {
-                // Only block if the attack is less than the players threshold
-                //execute the didhit script
-                execute_didhit_script(e, self, attack, 1);
-                if(self->modeldata.guardpoints.max > 0)
-                {
-                    self->modeldata.guardpoints.current = self->modeldata.guardpoints.current - attack->guardcost;
-                }
-                ++current_anim->animhits;
-                didblock = 1;    // Used for when playing the block.wav sound
-
-                if(self->modeldata.blockpain && self->modeldata.blockpain <= force && self->animation == self->modeldata.animation[ANI_BLOCK]) //Blockpain 1 and in block animation?
-                {
-                    set_blockpain(self, attack->attack_type, 0);
-                }
-                execute_didblock_script(self, e, attack);
-
-                // Spawn a flash
-                if(!attack->no_flash)
-                {
-                    if(!self->modeldata.noatflash)
-                    {
-                        if(attack->blockflash >= 0)
-                        {
-                            flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, attack->blockflash, NULL);    // custom bflash
-                        }
-                        else
-                        {
-                            flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, ent_list[i]->modeldata.bflash, NULL);    // New block flash that can be smaller
-                        }
-                    }
-                    else
-                    {
-                        flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, self->modeldata.bflash, NULL);
-                    }
-                    //ent_default_init(flash); // initiliaze this because there're no default values now
-                    if(flash)
-                    {
-                        flash->spawntype = SPAWN_TYPE_FLASH;
-                        execute_onspawn_script(flash);
-                    }
-                }
-            }
+            // Counter the attack?
             else if(self->animation->counterrange &&	// Has counter range?
                     (self->animpos >= self->animation->counterrange->frame.min && self->animpos <= self->animation->counterrange->frame.max) &&  // Current frame within counter range frames?
                     !self->frozen &&
@@ -19964,63 +20234,26 @@ void do_attack(entity *e)
                         self->attack_id_incoming = current_attack_id;
                     }
 
-                    if(!attack->no_flash)
-                    {
-                        if(!self->modeldata.noatflash)
-                        {
-                            if(attack->blockflash >= 0)
-                            {
-                                flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, attack->blockflash, NULL);    // custom bflash
-                            }
-                            else
-                            {
-                                flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, ent_list[i]->modeldata.bflash, NULL);    // New block flash that can be smaller
-                            }
-                        }
-                        else
-                        {
-                            flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, self->modeldata.bflash, NULL);
-                        }
-                        //ent_default_init(flash); // initiliaze this because there're no default values now
-                        if(flash)
-                        {
-                            flash->spawntype = SPAWN_TYPE_FLASH;
-                            execute_onspawn_script(flash);
-                        }
-                    }
+                    // Flash spawn.
+                    spawn_attack_flash(self, attack, attack->blockflash, self->modeldata.bflash);
             }
             else if(self->takedamage(e, attack, 0))
             {
-                // Didn't block so go ahead and take the damage
+                // This is the block for normal hits. The
+                // hit was not blocked, countered, or
+                // otherwise nullified, and this entity
+                // has takedamage() function. Let's
+                // process the hit.
+
                 execute_didhit_script(e, self, attack, 0);
                 ++e->animation->animhits;
 
                 e->lasthit = self;
 
-                // Spawn a flash
-                if(!attack->no_flash)
-                {
-                    if(!self->modeldata.noatflash)
-                    {
-                        if(attack->hitflash >= 0)
-                        {
-                            flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, attack->hitflash, NULL);
-                        }
-                        else
-                        {
-                            flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, e->modeldata.flash, NULL);
-                        }
-                    }
-                    else
-                    {
-                        flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, 0, NULL, self->modeldata.flash, NULL);
-                    }
-                    if(flash)
-                    {
-                        flash->spawntype = SPAWN_TYPE_FLASH;
-                        execute_onspawn_script(flash);
-                    }
-                }
+                // Flash spawn.
+                spawn_attack_flash(self, attack, attack->hitflash, self->modeldata.flash);
+
+
                 topowner->combotime = _time + combodelay; // well, add to its owner's combo
 
                 if(e->pausetime < _time || (inair(e) && !equalairpause))        // if equalairpause is set, inair(e) is nolonger a condition for extra pausetime
@@ -20041,22 +20274,16 @@ void do_attack(entity *e)
             }
             else
             {
+                // If we made it to this block the hit was
+                // not countered or blocked, but the entity
+                // does not have a takedamage() function. It
+                // therefore must be a type that is meant
+                // to ignore hits.
+
                 didhit = 0;
                 continue;
             }
             // end of if #053
-
-            // if #054
-            if(flash)
-            {
-                if(flash->modeldata.toflip)
-                {
-                    flash->direction = (e->position.x > self->position.x);    // Now the flash will flip depending on which side the attacker is on
-                }
-
-                flash->base = lasthit.position.y;
-                flash->autokill = 2;
-            }//end of if #054
 
             // 2007 3 24, hmm, def should be like this
             if(didblock && !def)
@@ -20134,7 +20361,7 @@ void do_attack(entity *e)
         }
 
         // New blocking checks
-        //04/27/2008 Damon Caskey: Added checks for defense property specfic blockratio and type. Could probably use some cleaning.
+        //04/27/2008 Damon Caskey: Added checks for defense property specific blockratio and type. Could probably use some cleaning.
         if(didblock && level->nohurt == DAMAGE_FROM_ENEMY_ON)
         {
             if(blockratio || def->defense[attack->attack_type].blockratio) // Is damage reduced?
@@ -21512,226 +21739,216 @@ void damage_recursive(entity *target)
 
 void adjust_bind(entity *e)
 {
-    #define ADJUST_BIND_SET_ANIM_RESETABLE 1
-    #define ADJUST_BIND_NO_FRAME_MATCH -1
+	#define ADJUST_BIND_SET_ANIM_RESETABLE 1
+	#define ADJUST_BIND_NO_FRAME_MATCH -1
 
-    // If there is no binding
-    // target, just get out.
-    if(!e->binding.ent)
-    {
-        return;
-    }
+	// Exit if there is no bind target.
+	if (!e->binding.ent)
+	{
+		return;
+	}
 
-    // Run bind update script on the bind target.
-    execute_on_bind_update_other_to_self(e->binding.ent, e, &e->binding);
+	// Run bind update script on the bind target.
+	execute_on_bind_update_other_to_self(e->binding.ent, e, &e->binding);
 
-    // Run bind update script on *e (entity performing bind).
-    execute_on_bind_update_self_to_other(e, e->binding.ent, &e->binding);
+	// Run bind update script on *e (entity performing bind).
+	execute_on_bind_update_self_to_other(e, e->binding.ent, &e->binding);
 
-    // Animation match flag in use?
-    if(e->binding.matching)
-    {
-        e_animations    animation;
-        int             frame;
+	if (e->binding.matching)
+	{
+		int				frame;
+		e_animations	animation;
 
-        // If a defined value is requested,
-        // use the binding member value.
-        // Otherwise use target's current value.
-        if(e->binding.matching & BINDING_MATCHING_ANIMATION_DEFINED)
-        {
-            animation = e->binding.animation;
-        }
-        else
-        {
-            animation = e->binding.ent->animnum;
-        }
+		// If a defined value is requested,
+		// use the binding member value.
+		// Otherwise use target's current value.
+		if (e->binding.matching & BINDING_MATCHING_ANIMATION_DEFINED)
+		{
+			animation = e->binding.animation;
+		}
+		else
+		{
+			animation = e->binding.ent->animnum;
+		}
 
-        // Are we NOT currently playing the target animation?
-        if(e->animnum != animation)
-        {
-            // If we don't have the target animation
-            // and animation kill flag is set, then
-            // we kill ourselves and exit the function.
-            if(!validanim(e, animation))
-            {
-                // Don't have the animation? Kill ourself.
-                if(e->binding.matching & BINDING_MATCHING_ANIMATION_REMOVE)
-                {
-                    kill_entity(e);
-                }
+		// Are we NOT currently playing the target animation?
+		if (e->animnum != animation)
+		{
+			// If we don't have the target animation
+			// and animation kill flag is set, then
+			// we kill ourselves and exit the function.
+			if (!validanim(e, animation))
+			{
+				// Don't have the animation? Kill ourself.
+				if (e->binding.matching & BINDING_MATCHING_ANIMATION_REMOVE)
+				{
+					kill_entity(e);
+				}
 
-                // Cancel the bind and exit.
-                e->binding.ent = NULL;
-                return;
-            }
+				// Cancel the bind and exit.
+				e->binding.ent = NULL;
+				return;
+			}
 
-            // Made it this far, we must have the target
-            // animation, so let's apply it.
-            ent_set_anim(e, animation, ADJUST_BIND_SET_ANIM_RESETABLE);
-        }
+			// Made it this far, we must have the target
+			// animation, so let's apply it.
+			ent_set_anim(e, animation, ADJUST_BIND_SET_ANIM_RESETABLE);
+		}
 
-        // If a defined value is requested,
-        // use the binding member value.
-        // If target value is requested use
-        // target's current value (duh).
-        // if no frame match at all requested
-        // then set ADJUST_BIND_NO_FRAME_MATCH
-        // so frame matching logic is skipped.
-        if(e->binding.matching & BINDING_MATCHING_FRAME_DEFINED)
-        {
-            frame = e->binding.animation;
-        }
-        else if(e->binding.matching & BINDING_MATCHING_FRAME_TARGET)
-        {
-            frame = e->binding.ent->animpos;
-        }
-        else
-        {
-            frame = ADJUST_BIND_NO_FRAME_MATCH;
-        }
+		
+		// If a defined value is requested,
+		// use the binding member value.
+		// If target value is requested use
+		// target's current value (duh).
+		// if no frame match at all requested
+		// then set ADJUST_BIND_NO_FRAME_MATCH
+		// so frame matching logic is skipped.		
+		
+		if (e->binding.matching & BINDING_MATCHING_FRAME_DEFINED)
+		{
+			frame = e->binding.frame;
+		}
+		else if (e->binding.matching & BINDING_MATCHING_FRAME_TARGET)
+		{
+			frame = e->binding.ent->animpos;
+		}
+		else
+		{
+			frame = ADJUST_BIND_NO_FRAME_MATCH;
+		}
 
-        // Any frame match flag set?
-        if(frame != ADJUST_BIND_NO_FRAME_MATCH)
-        {
-            // Are we NOT currently playing the target frame?
-            if(e->animpos != frame)
-            {
-                // If we don't have the frame and frame kill flag is
-                // set, kill ourselves.
-                if(e->animation[e->animnum].numframes < frame)
-                {
-                    if(e->binding.matching & BINDING_MATCHING_FRAME_REMOVE)
-                    {
-                        kill_entity(e);
-                    }
+		// Any frame match flag set?
+		if (frame != ADJUST_BIND_NO_FRAME_MATCH)
+		{
+			// Are we NOT currently playing the target frame?
+			if (e->animpos != frame)
+			{
+				// If we don't have the frame and frame kill flag is
+				// set, kill ourselves.
+				if (e->animation[e->animnum].numframes < frame)
+				{
 
-                    // Cancel the bind and exit.
-                    e->binding.ent = NULL;
-                    return;
-                }
+					if (e->binding.matching & BINDING_MATCHING_FRAME_REMOVE)
+					{
+						kill_entity(e);
 
-                // Made it this far, we must have the target
-                // frame, so let's apply it.
-                update_frame(e, frame);
-            }
-        }
-    }
+						// Cancel the bind and exit.
+						e->binding.ent = NULL;
+						return;
+					}					
+				}
 
-    // Apply sort ID adjustment.
-    e->sortid = e->binding.ent->sortid + e->binding.sortid;
+				// Made it this far, let's try to
+				// apply the frame.
+				update_frame(e, frame);
+			}
+		}
+	}
 
-    // Apply direction adjustment.
-    switch(e->binding.direction)
-    {
-        default:
-        case DIRECTION_ADJUST_NONE:
+	// Apply sort ID adjustment.
+	e->sortid = e->binding.ent->sortid + e->binding.sortid;
 
-            break;
+	// Get and apply direction adjustment.
+	e->direction = direction_adjustment(e->direction, e->binding.ent->direction, e->binding.direction);
 
-        case DIRECTION_ADJUST_SAME:
+	// Run bind positioning function to get an
+	// adjusted (or not) position result we apply 
+	// to each axis. For X axis, we want to adjust 
+	// relative to the bind target's direction, so 
+	// we'll send the function an inverted offset if 
+	// binding target is facing left.
+	e->position.z = binding_position(e->position.z, e->binding.ent->position.z, e->binding.offset.z, e->binding.positioning.z);
+	e->position.y = binding_position(e->position.y, e->binding.ent->position.y, e->binding.offset.y, e->binding.positioning.y);
 
-            e->direction = e->binding.ent->direction;
+	if (e->binding.ent->direction == DIRECTION_LEFT)
+	{
+		e->position.x = binding_position(e->position.x, e->binding.ent->position.x, -e->binding.offset.x, e->binding.positioning.x);
+	}
+	else
+	{
+		e->position.x = binding_position(e->position.x, e->binding.ent->position.x, e->binding.offset.x, e->binding.positioning.x);
+	}
+	
+	#undef ADJUST_BIND_SET_ANIM_RESETABLE
+	#undef ADJUST_BIND_NO_FRAME_MATCH
+}
 
-            break;
+// Caskey, Damon V.
+// 2018-10-13
+//
+// Return an adjusted position for binding based
+// on positioning settings, offset, and current position.
+float binding_position(float position_default, float position_target, int offset, e_binding_positioning positioning)
+{
+	switch (positioning)
+	{
+		case BINDING_POSITIONING_TARGET:
 
-        case DIRECTION_ADJUST_OPPOSITE:
+			return position_target + offset;
+			break;
 
-            e->direction = !e->binding.ent->direction;
+		case BINDING_POSITIONING_LEVEL:
 
-            break;
+			return offset;
+			break;
 
-        case DIRECTION_ADJUST_RIGHT:
+		case BINDING_POSITIONING_NONE:
+		default:
 
-            e->direction = DIRECTION_RIGHT;
+			// Leave position as-is.
+			return position_default;
+			break;
+	}
+}
 
-            break;
+// Caskey, Damon V.
+// 2018-10-13
+//
+// Return an adjusted entity direction based 
+// on orginal direction, target direction
+// and direction adjust setting.
+e_direction direction_adjustment(e_direction direction_default, e_direction direction_target, e_direction_adjust adjustment)
+{
+	// Apply direction adjustment.
+	switch (adjustment)
+	{
+		default:
+		case DIRECTION_ADJUST_NONE:
 
-        case DIRECTION_ADJUST_LEFT:
+			// Use original direction.
+			return direction_default;
+			break;
 
-            e->direction = DIRECTION_LEFT;
+		case DIRECTION_ADJUST_SAME:
 
-            break;
-    }
+			// Same as target direction.
+			return direction_target;
+			break;
 
+		case DIRECTION_ADJUST_OPPOSITE:
 
-    // If binding is enabled on a given axis, then
-    // apply offset and set position accordingly.
+			// Opposite of target direction.
+			if (direction_target == DIRECTION_LEFT)
+			{
+				return DIRECTION_RIGHT;
+			}
+			else
+			{
+				return DIRECTION_LEFT;
+			}
 
-    switch(e->binding.positioning.z)
-    {
-        case BINDING_POSITIONING_TARGET:
+			break;
 
-            e->position.z = e->binding.ent->position.z + e->binding.offset.z;
+		case DIRECTION_ADJUST_RIGHT:
 
-            break;
+			return DIRECTION_RIGHT;
+			break;
 
-        case BINDING_POSITIONING_LEVEL:
+		case DIRECTION_ADJUST_LEFT:
 
-            e->position.z = e->binding.offset.z;
-
-            break;
-
-        case BINDING_POSITIONING_NONE:
-        default:
-
-            // Leave position as-is.
-            break;
-    }
-
-    switch(e->binding.positioning.y)
-    {
-        case BINDING_POSITIONING_TARGET:
-
-            e->position.y = e->binding.ent->position.y + e->binding.offset.y;
-
-            break;
-
-        case BINDING_POSITIONING_LEVEL:
-
-            e->position.y = e->binding.offset.y;
-
-            break;
-
-        case BINDING_POSITIONING_NONE:
-        default:
-
-            // Leave position as-is.
-            break;
-    }
-
-    switch(e->binding.positioning.x)
-    {
-        case BINDING_POSITIONING_TARGET:
-
-            // For X axis, we'll need to adjust differently based
-            // on the position relationship with binding target.
-
-            if(e->binding.ent->direction == DIRECTION_RIGHT)
-            {
-                e->position.x = e->binding.ent->position.x + e->binding.offset.x;
-            }
-            else
-            {
-                e->position.x = e->binding.ent->position.x - e->binding.offset.x;
-            }
-
-            break;
-
-        case BINDING_POSITIONING_LEVEL:
-
-            e->position.x = e->binding.offset.x;
-
-            break;
-
-        case BINDING_POSITIONING_NONE:
-        default:
-
-            // Leave position as-is.
-            break;
-    }
-
-    #undef ADJUST_BIND_SET_ANIM_RESETABLE
-    #undef ADJUST_BIND_NO_FRAME_MATCH
+			return DIRECTION_LEFT;
+			break;
+	}
 }
 
 // Caskey, Damon V.
@@ -22612,6 +22829,7 @@ int set_idle(entity *ent)
     ent->falling = 0;
     ent->jumping = 0;
     ent->blocking = 0;
+    ent->blocking_pain = 0;
     common_idle_anim(ent);
     return 1;
 }
@@ -22630,6 +22848,7 @@ int set_death(entity *iDie, int type, int reset)
         iDie->charging = 0;
         iDie->attacking = ATTACKING_INACTIVE;
         iDie->blocking = 0;
+        iDie->blocking_pain = 0;
         iDie->inpain = 0;
         iDie->falling = 0;
         iDie->rising = 0;
@@ -22677,6 +22896,7 @@ int set_death(entity *iDie, int type, int reset)
     iDie->charging = 0;
     iDie->attacking = ATTACKING_INACTIVE;
     iDie->blocking = 0;
+    iDie->blocking_pain = 0;
     iDie->inpain = 0;
     iDie->falling = 0;
     iDie->rising = 0;
@@ -22734,6 +22954,7 @@ int set_fall(entity *ent, entity *other, s_collision_attack *attack, int reset)
     ent->charging = 0;
     ent->attacking = ATTACKING_INACTIVE;
     ent->blocking = 0;
+    ent->blocking_pain = 0;
     ent->nograb = 1;
 
     if(ent->frozen)
@@ -22852,50 +23073,67 @@ int set_riseattack(entity *iRiseattack, int type, int reset)
     return 1;
 }
 
-int set_blockpain(entity *iBlkpain, int type, int reset)
+int set_blockpain(entity *ent, e_attack_types attack_type, int reset)
 {
-    int blockpain = 0;
+    e_animations animation;
 
-    if(type < 0 || type >= max_attack_types)
+    // If attack type is out of bounds we
+    // just use normal.
+    if(attack_type < ATK_NORMAL || attack_type >= max_attack_types)
     {
-        type = 0;
+        attack_type = ATK_NORMAL;
     }
 
-    if ( iBlkpain->inbackpain ) blockpain = animbackblkpains[type];
-    else blockpain = animblkpains[type];
+    // In front or back?
+    if (ent->inbackpain)
+    {
+        animation = animbackblkpains[attack_type];
+    }
+    else
+    {
+        animation = animblkpains[attack_type];
+    }
 
-    if(validanim(iBlkpain, blockpain))
+    if(validanim(ent, animation))
     {
-        ent_set_anim(iBlkpain, blockpain, reset);
+        ent_set_anim(ent, animation, reset);
     }
-    else if( iBlkpain->inbackpain && validanim(iBlkpain, animbackblkpains[0]) )
+    else if( ent->inbackpain && validanim(ent, animbackblkpains[ATK_NORMAL]) )
     {
-        ent_set_anim(iBlkpain, animbackblkpains[0], reset);
+        ent_set_anim(ent, animbackblkpains[ATK_NORMAL], reset);
     }
-    else if( validanim(iBlkpain, animblkpains[type]) )
+    else if(validanim(ent, animblkpains[attack_type]))
     {
-        if ( iBlkpain->inbackpain ) reset_backpain(iBlkpain);
-        iBlkpain->inbackpain = 0;
-        ent_set_anim(iBlkpain, animblkpains[type], reset);
+        if (ent->inbackpain)
+        {
+            reset_backpain(ent);
+        }
+
+        ent->inbackpain = 0;
+        ent_set_anim(ent, animblkpains[attack_type], reset);
     }
-    else if(validanim(iBlkpain, animblkpains[0]))
+    else if(validanim(ent, animblkpains[ATK_NORMAL]))
     {
-        if ( iBlkpain->inbackpain ) reset_backpain(iBlkpain);
-        iBlkpain->inbackpain = 0;
-        ent_set_anim(iBlkpain, animblkpains[0], reset);
+        if (ent->inbackpain)
+        {
+            reset_backpain(ent);
+        }
+
+        ent->inbackpain = 0;
+        ent_set_anim(ent, animblkpains[ATK_NORMAL], reset);
     }
     else
     {
         return 0;
     }
 
-    iBlkpain->takeaction = common_block;
+    ent->takeaction = common_block;
     set_blocking(self);
-    iBlkpain->inpain = 1;
-    iBlkpain->rising = 0;
-    iBlkpain->riseattacking = 0;
-    iBlkpain->ducking = DUCK_INACTIVE;
-    ent_set_anim(iBlkpain, animblkpains[type], reset);
+    ent->blocking_pain = 1;
+    ent->rising = 0;
+    ent->riseattacking = 0;
+    ent->ducking = DUCK_INACTIVE;
+    ent_set_anim(ent, animblkpains[attack_type], reset);
     return 1;
 }
 
@@ -22993,6 +23231,7 @@ int set_pain(entity *iPain, int type, int reset)
 	iPain->charging = 0;
 	iPain->jumping = 0;
 	iPain->blocking = 0;
+	iPain->blocking_pain = 0;
 	iPain->inpain = 1;
 	if(iPain->frozen) unfrozen(iPain);
 
@@ -36324,6 +36563,7 @@ void savelevelinfo()
 void tryvictorypose(entity *ent)
 {
     if( ent &&
+       !ent->blocking_pain &&
        !ent->inpain &&
        !ent->falling &&
        !ent->dead &&
