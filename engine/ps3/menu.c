@@ -823,7 +823,10 @@ static void drawLogo()
 
     delay = 500;
 
-    if(savedata.logo) return;
+    if(savedata.logo) {
+        delay = 1;
+        //return;
+    }
 
 	initMenu(0);
 

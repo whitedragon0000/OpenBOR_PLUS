@@ -2935,7 +2935,7 @@ void    execute_updateentity_script             (entity *ent);
 void    execute_think_script                    (entity *ent);
 void    execute_didhit_script                   (entity *ent, entity *other, s_collision_attack *attack, int blocked);
 void    execute_onspawn_script                  (entity *ent);
-void    clearbuttonss(int player);
+void    clearbuttons(int player);
 void    clearsettings(void);
 void    savesettings(void);
 void    saveasdefault(void);
