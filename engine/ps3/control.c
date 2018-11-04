@@ -25,7 +25,7 @@ static int usejoy;
 static int lastkey[MAX_BOR_PADS];
 static padData paddata[MAX_BOR_PADS];
 
-static const char *padnames[PAD_END+1+1] = {
+static const char *padnames[PAD_END + 1 + 1] = {
 	"...",
 #define CONTROLNAMES(x) \
 	x" Up",             \
@@ -36,12 +36,12 @@ static const char *padnames[PAD_END+1+1] = {
 	x" Triangle",       \
 	x" Cross",          \
 	x" Circle",         \
-	x" L1",             \
-	x" R1",             \
-	x" Start",          \
-	x" Select",         \
 	x" L2",             \
 	x" R2",             \
+	x" Start",          \
+	x" Select",         \
+	x" L1",             \
+	x" R1",             \
 	x" L3",             \
 	x" R3",
 	CONTROLNAMES("P3 1")
