@@ -449,7 +449,7 @@ pp_token *pp_parser_emit_token(pp_parser *self)
             }
 
         if(self->token.theType == PP_TOKEN_DIRECTIVE ||
-                self->ctx->conditionals.all == (self->ctx->conditionals.all & 0x5555555555555555ll))
+                self->ctx->conditionals.all == (self->ctx->conditionals.all & DIRECTIVE_COND_CONST_STACK))
         {
             // handle token concatenation
             if(self->type == PP_FUNCTION_MACRO || self->type == PP_NORMAL_MACRO)
@@ -770,7 +770,7 @@ HRESULT pp_parser_parse_directive(pp_parser *self)
     }
 
     // most directives shouldn't be parsed if we're in the middle of a conditional false
-    if(self->ctx->conditionals.all > (self->ctx->conditionals.all & 0x5555555555555555ll))
+    if(self->ctx->conditionals.all > (self->ctx->conditionals.all & DIRECTIVE_COND_CONST_STACK))
     {
         if(self->token.theType != PP_TOKEN_IFDEF &&
                 self->token.theType != PP_TOKEN_IFNDEF &&
@@ -1124,12 +1124,12 @@ HRESULT pp_parser_conditional(pp_parser *self, PP_TOKEN_TYPE directive)
     case PP_TOKEN_IF:
     case PP_TOKEN_IFDEF:
     case PP_TOKEN_IFNDEF:
-        if(self->ctx->num_conditionals++ > 32)
+        if(self->ctx->num_conditionals++ > MAX_DIRECTIVE_COND)
         {
             return pp_error(self, "too many levels of nested conditional directives");
         }
         self->ctx->conditionals.all <<= 2; // push a new conditional state onto the stack
-        if(self->ctx->conditionals.others > (self->ctx->conditionals.others & 0x5555555555555555ll))
+        if(self->ctx->conditionals.others > (self->ctx->conditionals.others & DIRECTIVE_COND_CONST_STACK))
         {
             self->ctx->conditionals.top = cs_false;
             break;
@@ -1149,7 +1149,7 @@ HRESULT pp_parser_conditional(pp_parser *self, PP_TOKEN_TYPE directive)
         {
             self->ctx->conditionals.top = cs_done;
         }
-        else if(self->ctx->conditionals.others == (self->ctx->conditionals.others & 0x5555555555555555ll))
+        else if(self->ctx->conditionals.others == (self->ctx->conditionals.others & DIRECTIVE_COND_CONST_STACK))
         {
             // unconditionally enable parsing long enough to parse the condition
             self->ctx->conditionals.top = cs_true;

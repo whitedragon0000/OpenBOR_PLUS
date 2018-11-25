@@ -22,7 +22,9 @@
 #include "List.h"
 #include "types.h"
 
-#define MACRO_CONTENTS_SIZE		512
+#define MACRO_CONTENTS_SIZE		    512
+#define DIRECTIVE_COND_CONST_STACK  0x5555555555555555ll //0x55555555ll
+#define MAX_DIRECTIVE_COND          64 //32
 
 /*
  * The current "state" of a single conditional (#ifdef/#else/#endif) sequence:
@@ -45,8 +47,13 @@ typedef union
     u64 all;
     struct
     {
+        #ifndef SONY_REVERSE_COLOR
         u64 top: 2;
         u64 others: 62;
+        #else
+        u64 others: 62;
+        u64 top: 2;
+        #endif
     };
 } conditional_stack;
 
