@@ -4984,8 +4984,8 @@ static void load_playable_list(char *buf)
 
 void alloc_specials(s_model *newchar)
 {
-    newchar->special = realloc(newchar->special, sizeof(*newchar->special) * (newchar->specials_loaded + 1));
-    memset(newchar->special + newchar->specials_loaded, 0, sizeof(*newchar->special));
+    newchar->special = realloc(newchar->special, sizeof(s_com) * (newchar->specials_loaded + 1));
+    memset(newchar->special + newchar->specials_loaded, 0, sizeof(s_com));
 }
 
 void alloc_frames(s_anim *anim, int fcount)
@@ -8501,7 +8501,7 @@ s_model *init_model(int cacheindex, int unload)
     newchar->defense		        = calloc(max_attack_types + 1, sizeof(*newchar->defense));
     newchar->offense_factors        = calloc(max_attack_types + 1, sizeof(*newchar->offense_factors));
 
-    newchar->special                = calloc(1, sizeof(*newchar->special));
+    newchar->special                = calloc(1, sizeof(s_com));
 
     alloc_all_scripts(&newchar->scripts);
 
@@ -21795,15 +21795,15 @@ void adjust_bind(entity *e)
 			ent_set_anim(e, animation, ADJUST_BIND_SET_ANIM_RESETABLE);
 		}
 
-		
+
 		// If a defined value is requested,
 		// use the binding member value.
 		// If target value is requested use
 		// target's current value (duh).
 		// if no frame match at all requested
 		// then set ADJUST_BIND_NO_FRAME_MATCH
-		// so frame matching logic is skipped.		
-		
+		// so frame matching logic is skipped.
+
 		if (e->binding.matching & BINDING_MATCHING_FRAME_DEFINED)
 		{
 			frame = e->binding.frame;
@@ -21835,7 +21835,7 @@ void adjust_bind(entity *e)
 						// Cancel the bind and exit.
 						e->binding.ent = NULL;
 						return;
-					}					
+					}
 				}
 
 				// Made it this far, let's try to
@@ -21852,10 +21852,10 @@ void adjust_bind(entity *e)
 	e->direction = direction_adjustment(e->direction, e->binding.ent->direction, e->binding.direction);
 
 	// Run bind positioning function to get an
-	// adjusted (or not) position result we apply 
-	// to each axis. For X axis, we want to adjust 
-	// relative to the bind target's direction, so 
-	// we'll send the function an inverted offset if 
+	// adjusted (or not) position result we apply
+	// to each axis. For X axis, we want to adjust
+	// relative to the bind target's direction, so
+	// we'll send the function an inverted offset if
 	// binding target is facing left.
 	e->position.z = binding_position(e->position.z, e->binding.ent->position.z, e->binding.offset.z, e->binding.positioning.z);
 	e->position.y = binding_position(e->position.y, e->binding.ent->position.y, e->binding.offset.y, e->binding.positioning.y);
@@ -21868,7 +21868,7 @@ void adjust_bind(entity *e)
 	{
 		e->position.x = binding_position(e->position.x, e->binding.ent->position.x, e->binding.offset.x, e->binding.positioning.x);
 	}
-	
+
 	#undef ADJUST_BIND_SET_ANIM_RESETABLE
 	#undef ADJUST_BIND_NO_FRAME_MATCH
 }
@@ -21904,7 +21904,7 @@ float binding_position(float position_default, float position_target, int offset
 // Caskey, Damon V.
 // 2018-10-13
 //
-// Return an adjusted entity direction based 
+// Return an adjusted entity direction based
 // on orginal direction, target direction
 // and direction adjust setting.
 e_direction direction_adjustment(e_direction direction_default, e_direction direction_target, e_direction_adjust adjustment)
