@@ -10188,7 +10188,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->range.z.max            = (int)newchar->grabdistance / 3;		//zmax
                 newanim->range.y.min            = T_MIN_BASEMAP;						//amin
 				newanim->range.y.max			= (int)newchar->jumpheight * 20;		// Same logic as X. Good for attacks, but not terrian. Author better remember to add jump ranges.
-                newanim->range.base.min         = T_MIN_BASEMAP;						// Base min.				
+                newanim->range.base.min         = T_MIN_BASEMAP;						// Base min.
 				newanim->range.base.max			= (int)newchar->jumpheight * 20;		// Just use same logic as range Y.
                 newanim->energycost             = NULL;
                 newanim->chargetime             = 2;			// Default for backwards compatibility
@@ -10891,11 +10891,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 if(stricmp(value, "none") == 0 || value == 0)
                 {
-                    attack.blockflash = -1;
+                    attack->blockflash = -1;
                 }
                 else
                 {
-					attack.blockflash = get_cached_model_index(value);
+					attack->blockflash = get_cached_model_index(value);
                 }
                 break;
 
@@ -10919,11 +10919,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 if(stricmp(value, "none") == 0 || value == 0)
                 {
-                    attack.hitflash = -1;
+                    attack->hitflash = -1;
                 }
                 else
                 {
-                    attack.hitflash = get_cached_model_index(value);
+                    attack->hitflash = get_cached_model_index(value);
                 }
                 break;
 
@@ -29898,7 +29898,7 @@ void player_die()
 				++all_p_ko;
 			}
         }
-        
+
 		// If all players are KO'd, then KO count = 1.
 		// Otherwise, set it to 0.
 		all_p_ko = (all_p_ko >= MAX_PLAYERS) ? 1 : 0;
@@ -29910,7 +29910,7 @@ void player_die()
 			int all_p_nocredits = 0;
 
 			// All players NOT joining?
-			// Same logic as all player KO. 
+			// Same logic as all player KO.
             for(i = 0; i < MAX_PLAYERS; i++)
             {
 				if (!player[i].joining)
@@ -29929,7 +29929,7 @@ void player_die()
 				{
 					++all_p_nocredits;
 				}
-            }			
+            }
 
             all_p_nocredits = (all_p_nocredits >= MAX_PLAYERS) ? 1 : 0;
 
@@ -29940,7 +29940,7 @@ void player_die()
 				// If the player can't continue, let's set the time over
 				// to end almost instantly so they won't have to wait.
 
-				// If noshare is enabled, credit shares are not allowed. Verify all 
+				// If noshare is enabled, credit shares are not allowed. Verify all
 				// player individual credit supplies are empty. Otherwise credit
 				// shares are allowed, so verify pool of credits is empty.
 				if (noshare)
@@ -29948,7 +29948,7 @@ void player_die()
 					if (all_p_nocredits)
 					{
 						timeleft = COUNTER_SPEED / 2;
-					}					
+					}
 				}
 				else
 				{
@@ -29969,7 +29969,7 @@ void player_die()
         {
             nomaxrushreset[playerindex] = 0;
         }
-        
+
 		return;
     }
     else
