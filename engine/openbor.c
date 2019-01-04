@@ -7193,6 +7193,14 @@ static int translate_ani_id(const char *value, s_model *newchar, s_anim *newanim
         newanim->range.x.min = 1;
         newanim->range.x.max = 100;
     }
+	else if (stricmp(value, "blockrelease") == 0) 
+	{
+		ani_id = ANI_BLOCKRELEASE;
+	}
+	else if (stricmp(value, "blockstart") == 0)
+	{
+		ani_id = ANI_BLOCKSTART;
+	}
     else if(starts_with_num(value, "follow"))
     {
         get_tail_number(tempInt, value, "follow");
@@ -19454,6 +19462,40 @@ void set_opponent(entity *ent, entity *other)
 }
 
 // Caskey, Damon V.
+// 2018-12-31
+// 
+// Initialize appropriate block animation and flags. Called when 
+// entity blocks actively (blocking before attack hits). Used 
+// by all player controlled entities or AI controlled entities 
+// with nopassiveblock enabled. 
+void do_active_block(entity *ent)
+{
+	// Run blocking action.
+	ent->takeaction = common_block;
+
+	// Stop movement.
+	ent->velocity.x = 0;
+	ent->velocity.z = 0;
+
+	// Set flags.
+	set_blocking(self);
+
+	// End combo.
+	self->combostep[0] = 0;
+
+	// If we have a block tranisiton animation, use it. Otherwise
+	// go right to block.
+	if (validanim(self, ANI_BLOCKSTART))
+	{
+		ent_set_anim(self, ANI_BLOCKSTART, 0);
+	}
+	else
+	{
+		ent_set_anim(self, ANI_BLOCK, 0);
+	}
+}
+
+// Caskey, Damon V.
 // 2018-09-16
 //
 // Find out if attack can be blocked by entity.
@@ -19463,57 +19505,57 @@ void set_opponent(entity *ent, entity *other)
 // so on. It does not handle rules for AI blocking.
 int check_blocking_eligible(entity *ent, entity *other, s_collision_attack *attack)
 {
-    // If guardpoints are set, then find out if they've been depleted.
-    if(ent->modeldata.guardpoints.max)
-    {
-        if(ent->modeldata.guardpoints.current <= 0)
-        {
-            return 0;
-        }
-    }
+	// If guardpoints are set, then find out if they've been depleted.
+	if (ent->modeldata.guardpoints.max)
+	{
+		if (ent->modeldata.guardpoints.current <= 0)
+		{
+			return 0;
+		}
+	}
 
-    // Attack block breaking exceeds block power?
-    if(ent->defense[attack->attack_type].blockpower)
-    {
-        if(attack->no_block >= ent->defense[attack->attack_type].blockpower)
-        {
-            return 0;
-        }
-    }
+	// Attack block breaking exceeds block power?
+	if (ent->defense[attack->attack_type].blockpower)
+	{
+		if (attack->no_block >= ent->defense[attack->attack_type].blockpower)
+		{
+			return 0;
+		}
+	}
 
-    // Attack from behind? Can't block that if
-    // we don't have blockback flag enabled.
-    if(ent->direction == other->direction)
-    {
-        if(!ent->modeldata.blockback)
-        {
-            return 0;
-        }
-    }
+	// Attack from behind? Can't block that if
+	// we don't have blockback flag enabled.
+	if (ent->direction == other->direction)
+	{
+		if (!ent->modeldata.blockback)
+		{
+			return 0;
+		}
+	}
 
-    // if there is a blocking threshold? Verify it vs. attack force.
-    if(ent->modeldata.thold)
-    {
-        // Threshold value vs. attack.
-        if(attack->attack_force >= ent->modeldata.thold)
-        {
-            return 0;
-        }
-    }
+	// Is there a blocking threshold? Verify it vs. attack force.
+	if (ent->modeldata.thold)
+	{
+		// Threshold value vs. attack.
+		if (attack->attack_force >= ent->modeldata.thold)
+		{
+			return 0;
+		}
+	}
 
-    // Is there a blocking threshhold for the attack type?
-    // Verify it vs. attack force.
-    if(ent->defense[attack->attack_type].blockthreshold)
-    {
-        if(ent->defense[attack->attack_type].blockthreshold > attack->attack_force)
-        {
-            return 0;
-        }
-    }
+	// Is there a blocking threshhold for the attack type?
+	// Verify it vs. attack force.
+	if (ent->defense[attack->attack_type].blockthreshold)
+	{
+		if (ent->defense[attack->attack_type].blockthreshold > attack->attack_force)
+		{
+			return 0;
+		}
+	}
 
-    // If we made it through all that, then
-    // attack can be blocked. Return true.
-    return 1;
+	// If we made it through all that, then
+	// attack can be blocked. Return true.
+	return 1;
 }
 
 // Caskey, Damon V.
@@ -19524,154 +19566,144 @@ int check_blocking_eligible(entity *ent, entity *other, s_collision_attack *atta
 // blocking in general.
 int check_blocking_rules(entity *ent)
 {
+	// If already blocking we can
+	// forget the rest and return
+	// true right away.
+	if (ent->blocking)
+	{
+		return 1;
+	}
 
-    // If already blocking we can
-    // forget the rest and return
-    // true right away.
-    if(ent->blocking)
-    {
-        return 1;
-    }
+	// No blocking animation?
+	if (!validanim(ent, ANI_BLOCK))
+	{
+		return 0;
+	}
 
-    // No blocking animation?
-    if(!validanim(ent, ANI_BLOCK))
-    {
-        return 0;
-    }
+	// Have to be idle.
+	if (!ent->idling)
+	{
+		return 0;
+	}
 
-    // Have to be idle.
-    if(!ent->idling)
-    {
-        return 0;
-    }
+	// AI can't be attacking.
+	if (ent->attacking == ATTACKING_ACTIVE)
+	{
+		return 0;
+	}
 
-    // AI can't be attacking.
-    if(ent->attacking == ATTACKING_ACTIVE)
-    {
-        return 0;
-    }
+	// Grappling?
+	if (ent->link)
+	{
+		return 0;
+	}
 
-    // Grappling?
-    if(ent->link)
-    {
-        return 0;
-    }
+	//  Airborne?
+	if (inair(ent))
+	{
+		return 0;
+	}
 
-    //  Airborne?
-    if(inair(ent))
-    {
-        return 0;
-    }
+	// Frozen?
+	if (ent->frozen)
+	{
+		return 0;
+	}
 
-    // Frozen?
-    if(ent->frozen)
-    {
-        return 0;
-    }
+	// Falling?
+	if (ent->falling)
+	{
+		return 0;
+	}
 
-    // Falling?
-    if(ent->falling)
-    {
-        return 0;
-    }
-
-    return 1;
+	return 1;
 }
 
 // Caskey, Damon V.
 // 2018-09-17
 //
 // AI blocking decision. Handles AI's chances
-// to block assuming it is allowed. Returns true
-// if AI chooses to attempt a block.
+// to block. Returns true if AI chooses to attempt 
+// a block.
 int check_blocking_decision(entity *ent)
 {
-    // If we have nopassiveblock enabled and we're
-    // already blocking, then we want the AI to
-    // keep blocking (like most players would).
-    if(ent->modeldata.nopassiveblock)
-    {
-        if(ent->blocking)
-        {
-           return 1;
-        }
-    }
+	// If we have nopassiveblock enabled and we're
+	// already blocking, then we want the AI to
+	// keep blocking (like most players would).
+	if (ent->modeldata.nopassiveblock)
+	{
+		if (ent->blocking)
+		{
+			return 1;
+		}
+	}
 
-    // Run random chance against blockodds. If it
-    // passes, AI will block.
-    if((rand32()&ent->modeldata.blockodds) == 1)
-    {
-        return 1;
-    }
+	// Run random chance against blockodds. If it
+	// passes, AI will block.
+	if ((rand32()&ent->modeldata.blockodds) == 1)
+	{
+		return 1;
+	}
 
-    // If we got this far, we never decided to
-    // block, so return false.
-    return 0;
+	// If we got this far, we never decided to
+	// block, so return false.
+	return 0;
 }
 
 // Caskey, Damon V.
 // 2018-09-17
 //
 // Runs all blocking conditions and returns true
-// if the attack is to be blocked.
+// if the attack should be blocked.
 int check_blocking_master(entity *ent, entity *other, s_collision_attack *attack)
 {
-    e_entity_type entity_type;
+	e_entity_type entity_type;
 
-    entity_type = ent->modeldata.type;
+	entity_type = ent->modeldata.type;
 
-    // 2018-09-17, we only distinguish between
-    // players and everything else, but let's use
-    // a Switch instead of an IF in case we ever
-    // need to be more nuanced.
-    switch(entity_type)
-    {
-        case TYPE_PLAYER:
+	// Check AI or player blocking rules.
+	if (entity_type & TYPE_PLAYER)
+	{
+		// For players, all we need to know is if they
+		// are in a blocking state. If not we exit.
+		if (!ent->blocking)
+		{
+			return 0;
+		}
 
-            // For players, all we need to know is if they
-            // are in a blocking state. If not we exit.
-            if(!ent->blocking)
-            {
-                return 0;
-            }
+		// Verify entity can block the attack at all.
+		if (!check_blocking_eligible(ent, other, attack))
+		{
+			return 0;
+		}
+	}
+	else
+	{
+		// AI must pass a series of conditions
+		// before it may block attacks.
+		if (!check_blocking_rules(ent))
+		{
+			return 0;
+		}
 
-            // Verify we can block the attack.
-            if(!check_blocking_eligible(ent, other, attack))
-            {
-                return 0;
-            }
+		// Now that we know AI is allowed
+		// to block let's find out if it
+		// wants to.
+		if (!check_blocking_decision(ent))
+		{
+			return 0;
+		}
 
-            break;
+		// Verify entity can block the attack at all.
+		if (!check_blocking_eligible(ent, other, attack))
+		{
+			return 0;
+		}
+	}
 
-        default:
-
-            // AI must pass a series of conditions
-            // before it may block attacks.
-            if(!check_blocking_rules(ent))
-            {
-                return 0;
-            }
-
-            // Now that we know AI is allowed
-            // to block let's find out if it
-            // wants to.
-            if(!check_blocking_decision(ent))
-            {
-                return 0;
-            }
-
-            // Verify the attack can be blocked.
-            if(!check_blocking_eligible(ent, other, attack))
-            {
-                return 0;
-            }
-
-            break;
-    }
-
-    // Looks like we made it through
-    // all the verifications. Return true.
-    return 1;
+	// Looks like we made it through
+	// all the verifications. Return true.
+	return 1;
 }
 
 // Caskey, Damon V.
@@ -19681,28 +19713,28 @@ int check_blocking_master(entity *ent, entity *other, s_collision_attack *attack
 // actions, and scripts.
 void set_blocking_action(entity *ent, entity *other, s_collision_attack *attack)
 {
-    // Execute the attacker's didhit script with blocked flag.
-    execute_didhit_script(other, ent, attack, 1);
+	// Execute the attacker's didhit script with blocked flag.
+	execute_didhit_script(other, ent, attack, 1);
 
-    // Set up blocking action and flag.
-    ent->takeaction = common_block;
-    set_blocking(ent);
+	// Set up blocking action and flag.
+	ent->takeaction = common_block;
+	set_blocking(ent);	
 
-    // Stop movement.
-    ent->velocity.x = ent->velocity.z = 0;
+	// Stop movement.
+	ent->velocity.x = ent->velocity.z = 0;
 
-    // Execute our block script.
-    execute_didblock_script(ent, other, attack);
+	// If we have guardpoints, then reduce them here.
+	if (ent->modeldata.guardpoints.max > 0)
+	{
+		ent->modeldata.guardpoints.current -= attack->guardcost;
+	}
 
-    // If we have guardpoints, then reduce them here.
-    if(ent->modeldata.guardpoints.max > 0)
-    {
-        ent->modeldata.guardpoints.current -= attack->guardcost;
-    }
+	// Blocked hit is still a hit, so
+	// increment the attacker's hit counter.
+	++other->animation->animhits;
 
-    // Blocked hit is still a hit, so
-    // increment the attacker's hit counter.
-    ++other->animation->animhits;
+	// Execute our block script.
+	execute_didblock_script(ent, other, attack);
 }
 
 // Caskey, Damon V.
@@ -19712,21 +19744,21 @@ void set_blocking_action(entity *ent, entity *other, s_collision_attack *attack)
 // should trigger it.
 int check_blocking_pain(entity *ent, s_collision_attack *attack)
 {
-    // If we don't have blockpain,
-    // nothing else to do!
-    if(!self->modeldata.blockpain)
-    {
-        return 0;
-    }
+	// If we don't have blockpain,
+	// nothing else to do!
+	if (!self->modeldata.blockpain)
+	{
+		return 0;
+	}
 
-    // If blockpain is greater than attack
-    // force, we don't apply it.
-    if(self->modeldata.blockpain > attack->attack_force)
-    {
-        return 0;
-    }
+	// If blockpain is greater than attack
+	// force, we don't apply it.
+	if (self->modeldata.blockpain > attack->attack_force)
+	{
+		return 0;
+	}
 
-    return 1;
+	return 1;
 }
 
 // Caskey, Damon V.
@@ -19735,32 +19767,32 @@ int check_blocking_pain(entity *ent, s_collision_attack *attack)
 // Place entity into appropriate blocking animation.
 void set_blocking_animation(entity *ent, s_collision_attack *attack)
 {
-    // If we have an appropriate blockpain, lets
-    // apply it here.
-    if(check_blocking_pain(ent, attack))
-    {
-        set_blockpain(self, attack->attack_type, 1);
-    }
-    else
-    {
-        ent_set_anim(ent, ANI_BLOCK, 0);
-    }
+	// If we have an appropriate blockpain, lets
+	// apply it here.
+	if (check_blocking_pain(ent, attack))
+	{
+		set_blockpain(self, attack->attack_type, 1);
+	}
+	else
+	{
+		ent_set_anim(ent, ANI_BLOCK, 0);
+	}
 }
 
 // Caskey, Damon V.
 // 2018-09-21
 //
 // Perform a block.
-void do_blocking(entity *ent, entity *other, s_collision_attack *attack)
-{
-    // Place entity in blocking animation.
-    set_blocking_animation(ent, attack);
+void do_passive_block(entity *ent, entity *other, s_collision_attack *attack)
+{	
+	// Place entity in blocking animation.
+	set_blocking_animation(ent, attack);
+	
+	// Spawn the blocking flash.
+	spawn_attack_flash(ent, attack, attack->blockflash, ent->modeldata.bflash);	
 
-    // Run blocking actions and scripts.
-    set_blocking_action(ent, other, attack);
-
-    // Spawn the blocking flash.
-    spawn_attack_flash(ent, attack, attack->blockflash, ent->modeldata.bflash);
+	// Run blocking actions and scripts.
+	set_blocking_action(ent, other, attack);
 }
 
 // Caskey, Damon V.
@@ -19770,65 +19802,65 @@ void do_blocking(entity *ent, entity *other, s_collision_attack *attack)
 // flash effect entity if conditions are met.
 entity *spawn_attack_flash(entity *ent, s_collision_attack *attack, int attack_flash, int model_flash)
 {
-    int to_spawn;
-    entity *flash;
+	int to_spawn;
+	entity *flash;
 
-    // Flash disabled by attack?
-    // We're done. Do nothing and exit.
-    if(attack->no_flash)
-    {
-       return NULL;
-    }
+	// Flash disabled by attack?
+	// We're done. Do nothing and exit.
+	if (attack->no_flash)
+	{
+		return NULL;
+	}
 
-    // If the model has custom flash disabled,
-    // then default to the model's global flash.
-    //
-    // Otherwise we need to see if the custom
-    // attack flash index is valid. If it is, then
-    // we will use it to spawn a flash effect.
-    if(!ent->modeldata.noatflash)
-    {
-        // Valid custom flash index?
-        if(attack->blockflash >= 0)
-        {
-            to_spawn = attack_flash;
-        }
-        else
-        {
-            to_spawn = model_flash;
-        }
-    }
-    else
-    {
-        to_spawn = model_flash;
-    }
+	// If the model has custom flash disabled,
+	// then default to the model's global flash.
+	//
+	// Otherwise we need to see if the custom
+	// attack flash index is valid. If it is, then
+	// we will use it to spawn a flash effect.
+	if (!ent->modeldata.noatflash)
+	{
+		// Valid custom flash index?
+		if (attack->blockflash >= 0)
+		{
+			to_spawn = attack_flash;
+		}
+		else
+		{
+			to_spawn = model_flash;
+		}
+	}
+	else
+	{
+		to_spawn = model_flash;
+	}
 
-    // Spawn the flash at last hit position.
-    flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, DIRECTION_LEFT, NULL, to_spawn, NULL);
+	// Spawn the flash at last hit position.
+	flash = spawn(lasthit.position.x, lasthit.position.z, lasthit.position.y, DIRECTION_LEFT, NULL, to_spawn, NULL);
 
-    // One last check to make sure we
-    // were able to spawn to flash entity.
-    if(flash)
-    {
-        // Set up basic properties.
-        flash->spawntype    = SPAWN_TYPE_FLASH;
-        flash->base         = lasthit.position.y;
-        flash->autokill     = 1;
+	// One last check to make sure we
+	// were able to spawn to flash entity.
+	if (flash)
+	{
+		// Set up basic properties.
+		flash->spawntype = SPAWN_TYPE_FLASH;
+		flash->base = lasthit.position.y;
+		flash->autokill = 1;
 
-        // If flipping enabled, flip the flash based on which
-        // side of entity the hit came from.
-        if(flash->modeldata.toflip)
-        {
-            flash->direction = (lasthit.position.x > ent->position.x);
-        }
+		// If flipping enabled, flip the flash based on which
+		// side of entity the hit came from.
+		if (flash->modeldata.toflip)
+		{
+			flash->direction = (lasthit.position.x > ent->position.x);
+		}
 
-        // Run flash's spawn script.
-        execute_onspawn_script(flash);
+		// Run flash's spawn script.
+		execute_onspawn_script(flash);
 
-        return flash;
-    }
+		return flash;
+	}
 
-    return NULL;
+	return NULL;
 }
 
 void do_attack(entity *e)
@@ -19979,8 +20011,10 @@ void do_attack(entity *e)
             continue;
         }
 
-        // Target laying down? Exit if
+		// Target laying down? Exit if
         // attack only hits standing targets.
+		// Otherwise exit if attack only hits 
+		// grounded targets.
         if(target->takeaction == common_lie)
         {
             if(attack->otg == OTG_NONE)
@@ -19988,11 +20022,8 @@ void do_attack(entity *e)
                 continue;
             }
         }
-
-        // Target NOT laying down? Exit if
-        // attack only hits grounded targets.
-        if(target->takeaction != common_lie)
-        {
+		else
+		{
             if(attack->otg == OTG_GROUND_ONLY)
             {
                 continue;
@@ -20089,7 +20120,7 @@ void do_attack(entity *e)
             if(didblock)
             {
                 // Perform the blocking actions.
-                do_blocking(self, e, attack);
+                do_passive_block(self, e, attack);
             }
             // Counter the attack?
             else if(self->animation->counterrange &&	// Has counter range?
@@ -20201,7 +20232,8 @@ void do_attack(entity *e)
             {
                 def = self;
             }
-            //if #055
+            
+			// Follow animations.
             if((e->animation->followup.animation) && // follow up?
                     (!e->animation->counterrange) && // This isn't suppossed to be a counter, right?
                     ((e->animation->followup.condition < FOLLOW_CONDITION_HOSTILE) || (self->modeldata.type & e->modeldata.hostile)) &&                                // Does type matter?
@@ -20220,12 +20252,14 @@ void do_attack(entity *e)
                     ent_set_anim(e, current_follow_id, 1);          // Then go to it!
                 }
                 //followed = 1; // quit loop, animation is changed
-            }//end of if #055
+            }
 
             self->attack_id_incoming = current_attack_id;
-            if(self == def)
+            
+			// If hit, stop blocking.
+			if(self == def)
             {
-                self->blocking = didblock;    // yeah, if get hit, stop blocking
+                self->blocking = didblock;   
             }
 
             //2011/11/24 UT: move the pain_time logic here,
@@ -22234,12 +22268,9 @@ void display_ents()
                         z = HOLE_Z + e->modeldata.setlayer;    // Setlayer takes precedence
                     }
 
-                    //UT: commented this out, it seems to be some legacy code, ==2 doesn't make sense anymore
-                    //if(checkhole(e->position.x, e->position.z)==2) z = PANEL_Z-1;        // place behind panels
-
                     drawmethod = e->animation->drawmethods ? getDrawMethod(e->animation, e->animpos) : NULL;
-                    //drawmethod = e->animation->drawmethods?e->animation->drawmethods[e->animpos]:NULL;
-                    if(e->drawmethod.flag)
+                    
+					if(e->drawmethod.flag)
                     {
                         drawmethod = &(e->drawmethod);
                     }
@@ -22261,27 +22292,51 @@ void display_ents()
                         }
                     }
 
+					// Color selection. If drawmethod does not yet have a color table pointer, then
+					// we need to find one here.
                     if(!drawmethod->table)
                     {
-
-                        if(drawmethod->remap >= 1 && drawmethod->remap <= e->modeldata.maps_loaded)
+						// Drawmethod remap by index. Is there a value?
+                        if(drawmethod->remap >= 1)
                         {
-                            drawmethod->table = model_get_colourmap(&(e->modeldata), drawmethod->remap);
+							// Does the value fall within range of tables loaded? If so, use 
+							// value to locate the color table by index, and then populate
+							// drawmethod table value with the color table pointer.
+							if (drawmethod->remap <= e->modeldata.maps_loaded)
+							{
+								drawmethod->table = model_get_colourmap(&(e->modeldata), drawmethod->remap);
+							}                            
                         }
 
+						// Color selection by entity property. Does it have a value? Note that script functions
+						// and most text values in OpenBOR give the appearance this property is an integer index. 
+						// In actuality those functions accept an index, but immediately use it to locate a color 
+						// table pointer to populate this property. See ent_set_colourmap.
                         if(e->colourmap)
                         {
+							// We don't want to override drawmethods, so first check drawmethod 
+							// remap to make sure it is disabled (0 = force default, 1+ force alternates).
+							// If it is (dsiabled) then use property value to populate drawmethod table.
                             if(drawmethod->remap < 0)
                             {
                                 drawmethod->table = e->colourmap;
                             }
                         }
+
+						// If we haven't populated the drawmethod table yet, use
+						// model's default color table.
                         if(!drawmethod->table)
                         {
                             drawmethod->table = e->modeldata.palette;
                         }
+
+						// If globalmap is true, then author wants entity to use the current
+						// global color table.
                         if(e->modeldata.globalmap)
                         {
+							// If we are in a level and the level has a palette index specified,
+							// then use that index to find the color table pointer and populate
+							// drawmethod table. Otherwise, just get the global color table pointer.
                             if(level && current_palette)
                             {
                                 drawmethod->table = level->palettes[current_palette - 1];
@@ -22296,7 +22351,7 @@ void display_ents()
 					// If we have a dying remap, let's check for the dying flash effect.
                     if(e->dying)
                     {
-						// This checks against both drying percentage thresholds and their assciated 
+						// This checks against both dying percentage thresholds and their associated 
 						// timing. If any pass, then we can move on and apply a flash.
                         if((e->energy_status.health_current <= e->per1 && e->energy_status.health_current > e->per2 && (_time % (GAME_SPEED / 5)) < (GAME_SPEED / 10)) ||
                                 (e->energy_status.health_current <= e->per2 && (_time % (GAME_SPEED / 10)) < (GAME_SPEED / 20)))
@@ -22757,7 +22812,6 @@ int set_idle(entity *ent)
     ent->falling = 0;
     ent->jumping = 0;
     ent->blocking = 0;
-    ent->blocking_pain = 0;
     common_idle_anim(ent);
     return 1;
 }
@@ -22776,7 +22830,6 @@ int set_death(entity *iDie, int type, int reset)
         iDie->charging = 0;
         iDie->attacking = ATTACKING_INACTIVE;
         iDie->blocking = 0;
-        iDie->blocking_pain = 0;
         iDie->inpain = 0;
         iDie->falling = 0;
         iDie->rising = 0;
@@ -22824,7 +22877,6 @@ int set_death(entity *iDie, int type, int reset)
     iDie->charging = 0;
     iDie->attacking = ATTACKING_INACTIVE;
     iDie->blocking = 0;
-    iDie->blocking_pain = 0;
     iDie->inpain = 0;
     iDie->falling = 0;
     iDie->rising = 0;
@@ -22882,7 +22934,6 @@ int set_fall(entity *ent, entity *other, s_collision_attack *attack, int reset)
     ent->charging = 0;
     ent->attacking = ATTACKING_INACTIVE;
     ent->blocking = 0;
-    ent->blocking_pain = 0;
     ent->nograb = 1;
 
     if(ent->frozen)
@@ -23057,7 +23108,7 @@ int set_blockpain(entity *ent, e_attack_types attack_type, int reset)
 
     ent->takeaction = common_block;
     set_blocking(self);
-    ent->blocking_pain = 1;
+    ent->inpain = 1;
     ent->rising = 0;
     ent->riseattacking = 0;
     ent->ducking = DUCK_INACTIVE;
@@ -23159,7 +23210,6 @@ int set_pain(entity *iPain, int type, int reset)
 	iPain->charging = 0;
 	iPain->jumping = 0;
 	iPain->blocking = 0;
-	iPain->blocking_pain = 0;
 	iPain->inpain = 1;
 	if(iPain->frozen) unfrozen(iPain);
 
@@ -24348,29 +24398,74 @@ void common_get()
     set_idle(self);
 }
 
-// A.I. characters do the block
+// Continue or release block.
 void common_block()
 {
-    int hb1 = self->modeldata.holdblock && (self->modeldata.type & TYPE_PLAYER) &&
-              (!self->inpain || (self->modeldata.holdblock & 2)); //inpain = blockpain
-    int hb2 = ((player + self->playerindex)->keys & FLAG_SPECIAL) ;
+	// Player type with holdblock, also not in pain 
+	// or has post blockpain holdblock ability.
+    int hb1 = self->modeldata.holdblock 
+		&& (self->modeldata.type & TYPE_PLAYER) 
+		&& (!self->inpain || (self->modeldata.holdblock & 2));
+    
+	// Controlling player is holding special key.
+	int hb2 = ((player + self->playerindex)->keys & FLAG_SPECIAL);
 
-    if(self->inpain && (self->modeldata.holdblock & 2) && !self->animating && validanim(self, ANI_BLOCK))
+	// If we are in a block transition, let's see if it is finished.
+	// If it is, apply block animation.
+	if (self->animnum == ANI_BLOCKSTART && !self->animating)
+	{
+		ent_set_anim(self, ANI_BLOCK, 0);
+	}
+	
+	// In "Blockstun", at last frame of animation, and have holdblock
+	// after blockpain ability? Then we return to block.
+	//
+	// Otherwise, entity is a player with various other flags (see bh1) but
+	// not holding special key, or the entity has finihsed animation and 
+	// doesn't match any of the player/holdblock criteria (could be another 
+	// entity type, doesn't have holdblock ability, or controlling 
+	// player isn't holding special key). In any of those cases, we disable
+	// blocking flag and return to idle.
+    if(self->inpain 
+		&& (self->modeldata.holdblock & 2) 
+		&& !self->animating 
+		&& validanim(self, ANI_BLOCK))
     {
-        self->inpain = 0;
-        self->rising = 0;
-        self->riseattacking = 0;
-        self->inbackpain = 0;
-        ent_set_anim(self, ANI_BLOCK, 0);
+		self->inpain = 0;
+		self->rising = 0;
+		self->riseattacking = 0;
+		self->inbackpain = 0;
+		ent_set_anim(self, ANI_BLOCK, 0);
     }
-    else if(
-        (hb1 && !hb2) ||
-        (!self->animating && (!hb1 || !hb2))
-    )
+    else if((hb1 && !hb2) 
+		|| (!self->animating && (!hb1 || !hb2)))
     {
-        self->blocking = 0;
-        self->takeaction = NULL;
-        set_idle(self);
+		// Can't release block until pain flag
+		// disables or the animation is complete. This 
+		// forces blockpain animations to finish before
+		// entity can act again.
+		if (!self->inpain || !self->animating)
+		{
+			if (self->animnum == ANI_BLOCKRELEASE && !self->animating)
+			{
+				self->blocking = 0;
+				self->takeaction = NULL;
+				set_idle(self);
+			}
+			else
+			{
+				if (validanim(self, ANI_BLOCKRELEASE))
+				{
+					ent_set_anim(self, ANI_BLOCKRELEASE, 0);
+				}
+				else
+				{
+					self->blocking = 0;
+					self->takeaction = NULL;
+					set_idle(self);
+				}				
+			}			
+		}
     }
 }
 
@@ -25237,29 +25332,55 @@ int common_try_runattack(entity *target)
     return 0;
 }
 
+// Active blocking (nopassiveblock enabled). 
+//
+// AI can behave more like players when blocking. Normally AI
+// blocking is passive. IOW, it can only choose to block attacks
+// as they hit. This function allows the AI to initiate blocking 
+// preemptively the way players have to.
+// 
+// AI blocks if following conditions are met:
+//
+// 1. Entity has nopassiveblock enabled.
+// 2. Target is within range of BLOCK animation.
+// 3. Target is actively attacking.
+// 4. Blocking chance passes (same rules as passive blocking).
 int common_try_block(entity *target)
 {
-    if(self->modeldata.nopassiveblock == 0 ||
-            (rand32()&self->modeldata.blockodds) != 1 ||
-            !validanim(self, ANI_BLOCK))
-    {
-        return 0;
-    }
+	// Must have block animation.
+	if (!validanim(self, ANI_BLOCK))
+	{
+		return 0;
+	}
 
+	// Exit if we choose not to block. This function includes 
+	// the check for passive blocking flag.
+	if (!check_blocking_decision(self))
+	{	
+		return 0;
+	}
+
+	// If no current target, use block range.
     if(!target)
     {
-        target = block_find_target(ANI_BLOCK, 0);    // temporary fix, other wise ranges never work
+        target = block_find_target(ANI_BLOCK, 0);
     }
 
-    // no passive block, so block by himself :)
-    if(target && target->attacking != ATTACKING_INACTIVE)
+	// Still no target? Nothing to do, so exit.
+	if (!target)
+	{
+		return 0;
+	}
+
+    // If target is attacking, let's block and return true.
+    if(target->attacking != ATTACKING_INACTIVE)
     {
-        self->takeaction = common_block;
-        set_blocking(self);
-        self->velocity.z = self->velocity.x = 0;
-        ent_set_anim(self, ANI_BLOCK, 0);
+		// Set up flags, action, and blocking animations.
+		do_active_block(self);
+
         return 1;
     }
+
     return 0;
 }
 
@@ -31134,15 +31255,15 @@ void player_think()
             }
         }
 
-        if(validanim(self, ANI_BLOCK) && notinair)   // New block code for players
+		// Blocking.
+        if(validanim(self, ANI_BLOCK) && notinair)
         {
             pl->playkeys &= ~FLAG_SPECIAL;
-            self->takeaction = common_block;
-            self->velocity.x = self->velocity.z = 0;
-            set_blocking(self);
-            self->combostep[0] = 0;
-            ent_set_anim(self, ANI_BLOCK, 0);
-            goto endthinkcheck;
+
+			// Set up flags, action, and block animations.
+			do_active_block(self);
+
+			goto endthinkcheck;
         }
     }
 
@@ -35861,7 +35982,6 @@ void savelevelinfo()
 void tryvictorypose(entity *ent)
 {
     if( ent &&
-       !ent->blocking_pain &&
        !ent->inpain &&
        !ent->falling &&
        !ent->dead &&
