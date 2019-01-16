@@ -265,9 +265,10 @@ typedef enum
 	DEBUG_DISPLAY_NONE				= (1 << 0),
 	DEBUG_DISPLAY_COLLISION_ATTACK	= (1 << 1),
 	DEBUG_DISPLAY_COLLISION_BODY	= (1 << 2),
-	DEBUG_DISPLAY_PERFORMANCE		= (1 << 3),
-	DEBUG_DISPLAY_PROPERTIES		= (1 << 4),
-	DEBUG_DISPLAY_RANGE				= (1 << 5)
+	DEBUG_DISPLAY_COLLISION_ENTITY	= (1 << 3),
+	DEBUG_DISPLAY_PERFORMANCE		= (1 << 4),
+	DEBUG_DISPLAY_PROPERTIES		= (1 << 5),
+	DEBUG_DISPLAY_RANGE				= (1 << 6)
 } e_debug_display;
 
 typedef enum
@@ -2936,7 +2937,7 @@ int		is_map_hidden							(s_model *model, int map_index);
 int		nextcolourmap							(s_model *model, int map_index);
 int		nextcolourmapn							(s_model *model, int map_index, int player_index);
 int		prevcolourmap							(s_model *model, int map_index);
-int		prevcolourmapn							(s_model *model, int map_index, int player_index);	
+int		prevcolourmapn							(s_model *model, int map_index, int player_index);
 
 int     buffer_pakfile							(char *filename, char **pbuffer, size_t *psize);
 size_t  ParseArgs								(ArgList *list, char *input, char *output);
