@@ -255,6 +255,20 @@ typedef enum
     PORTING_VITA
 } e_porting;
 
+// Caskey, Damon V.
+// 2019-01-08
+//
+// Debugging display options for end user.
+typedef enum
+{
+	DEBUG_DISPLAY_NONE				= (1 << 0),
+	DEBUG_DISPLAY_COLLISION_ATTACK	= (1 << 1),
+	DEBUG_DISPLAY_COLLISION_BODY	= (1 << 2),
+	DEBUG_DISPLAY_PERFORMANCE		= (1 << 3),
+	DEBUG_DISPLAY_PROPERTIES		= (1 << 4),
+	DEBUG_DISPLAY_RANGE				= (1 << 5)
+} e_debug_display;
+
 typedef enum
 {
     SPAWN_TYPE_UNDEFINED,
@@ -531,7 +545,9 @@ typedef enum //Animations
     ANI_GRABDOWN2,			// Attack when a player has grabbed an opponent and presses down/attack
     ANI_GRABUP,				// Attack when a player has grabbed an opponent and presses up/attack
     ANI_GRABUP2,			// Attack when a player has grabbed an opponent and presses up/attack
-    ANI_SELECT,				// Animation that is displayed at the select screen
+    ANI_SELECT,				// Animation that is displayed at the select screen in place of idle.
+	ANI_SELECTIN,			// Animation that is displayed at the select screen, when first highlighted.
+	ANI_SELECTOUT,			// Animation that is displayed at the select screen, when moving to another character.
     ANI_DUCK,				// Animation that is played when pressing down in "platform" type levels
     ANI_FAINT,  			// Faint animations for players/enemys by tails
     ANI_CANT,  				// Can't animation for players(animation when mp is less than mpcost) by tails.
@@ -2809,14 +2825,31 @@ float	binding_position(float position_default, float position_target, int offset
 int     check_bind_override(entity *ent, e_binding_overriding overriding);
 
 // Blocking logic.
-void	do_active_block(entity *ent);
 int     check_blocking_decision(entity *ent);
 int     check_blocking_eligible(entity *ent, entity *other, s_collision_attack *attack);
 int     check_blocking_master(entity *ent, entity *other, s_collision_attack *attack);
 int     check_blocking_rules(entity *ent);
 int     check_blocking_pain(entity *ent, s_collision_attack *attack);
+void	do_active_block(entity *ent);
+void	do_passive_block(entity *ent, entity *other, s_collision_attack *attack);
 void    set_blocking_action(entity *ent, entity *other, s_collision_attack *attack);
 void    set_blocking_animation(entity *ent, s_collision_attack *attack);
+
+// Select player models.
+int		find_selectable_model_count				();
+int		is_model_cache_index_selectable			(int cache_index);
+int		is_model_selectable						(s_model *model);
+s_model *nextplayermodel						(s_model *current);
+s_model *nextplayermodeln						(s_model *current, int player_index);
+s_model *prevplayermodel						(s_model *current);
+s_model *prevplayermodeln						(s_model *current, int player_index);
+
+// Select player maps (colors).
+int		is_map_hidden							(s_model *model, int map_index);
+int		nextcolourmap							(s_model *model, int map_index);
+int		nextcolourmapn							(s_model *model, int map_index, int player_index);
+int		prevcolourmap							(s_model *model, int map_index);
+int		prevcolourmapn							(s_model *model, int map_index, int player_index);	
 
 int     buffer_pakfile							(char *filename, char **pbuffer, size_t *psize);
 size_t  ParseArgs								(ArgList *list, char *input, char *output);
@@ -3124,7 +3157,7 @@ int common_try_wandercompletely(int dox, int doz);
 int common_try_wander(entity *target, int dox, int doz);
 void common_pickupitem(entity *other);
 int common_backwalk_anim(entity *ent);
-void draw_position_entity(entity *entity, int offset_z, int color, s_drawmethod *drawmethod);
+void draw_properties_entity(entity *entity, int offset_z, int color, s_drawmethod *drawmethod);
 void draw_box_on_entity(entity *entity, int pos_x, int pos_y, int pos_z, int size_w, int size_h, int offset_z, int color, s_drawmethod *drawmethod);
 void draw_visual_debug();
 int bomb_move(void);
