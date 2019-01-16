@@ -261,7 +261,7 @@ unsigned long getPad(int port)
 	unsigned short gcbtns;
 	WPADData *wpad;
 	struct WUPCData *wupc;
-	
+
 	// necessary to detect GC controllers plugged in while OpenBOR is running
 	PAD_Init();
 
@@ -327,19 +327,19 @@ unsigned long getPad(int port)
 		if(wupc->button & WPAD_CLASSIC_BUTTON_FULL_L)     btns |= WII_Z_L;
 		if(wupc->button & WPAD_CLASSIC_BUTTON_ZL)         btns |= WII_ZL;
 		if(wupc->button & WPAD_CLASSIC_BUTTON_ZR)         btns |= WII_ZR;
-		
-		//analog sticks  
+
+		//analog sticks
 		if(wupc->yAxisL > 200)							  btns |= WII_UP;
 		if(wupc->yAxisL < -200)							  btns |= WII_DOWN;
 		if(wupc->xAxisL > 200)							  btns |= WII_RIGHT;
 		if(wupc->xAxisL < -200)							  btns |= WII_LEFT;
-		
+
 		if(wupc->yAxisR > 200)							  btns |= WII_SUB_UP;
 		if(wupc->yAxisR < -200)							  btns |= WII_SUB_DOWN;
 		if(wupc->xAxisR > 200)							  btns |= WII_SUB_RIGHT;
 		if(wupc->xAxisR < -200)							  btns |= WII_SUB_LEFT;
-		
-			
+
+
 	}
 	else if((wpad->exp.type == WPAD_EXP_NUNCHUK) && usejoy) // Nunchuck
 	{
@@ -387,7 +387,7 @@ unsigned long getPad(int port)
 		if(wpad->btns_h & WPAD_CLASSIC_BUTTON_FULL_L)     btns |= WII_Z_L;
 		if(wpad->btns_h & WPAD_CLASSIC_BUTTON_ZL)         btns |= WII_ZL;
 		if(wpad->btns_h & WPAD_CLASSIC_BUTTON_ZR)         btns |= WII_ZR;
-		
+
 	}
 	else // Wiimote or Wiimote + Nunchuk
 	{

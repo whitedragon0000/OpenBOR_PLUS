@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) OpenBOR Team
+ * Copyright (c) 2004 - 2013 OpenBOR Team
  */
 
 /////////////////////////////////////////////////////////////////////////////
@@ -2513,7 +2513,6 @@ void clearsettings()
     savedata.uselog = 1;
     savedata.debuginfo = 0;
     savedata.fullscreen = 0;
-
 	#if WII
     savedata.stretch = 1;
 	#else
@@ -4641,375 +4640,128 @@ int load_special_sounds()
     return 1;
 }
 
-// Caskey, Damon V.
-// 2019-01-02
-//
-// Return true if map_index matches a special purpose
-// map or falls within author defined hidden map range, 
-// unless any of the above are same as default map (0).
-int is_map_hidden(s_model *model, int map_index)
+int nextcolourmap(s_model *model, int c)
 {
-	// Have frozen map and it isn't same as default?
-	// If we do and it matches, return true.
-	if (model->maps.frozen > 0)
-	{
-		if (map_index == model->maps.frozen)
-		{
-			return 1;
-		}
-	}
-
-	// Check KO map. Same logic as frozen.
-	if (model->maps.ko > 0)
-	{
-		if (map_index == model->maps.ko)
-		{
-			return 1;
-		}
-	}
-
-	// Hidden map range. Both should be
-	// something other than default. If 
-	// they are and map index is in range
-	// we return true.
-	if (model->maps.hide_start > 0 
-		&& model->maps.hide_end > 0)
-	{
-		if (map_index >= model->maps.hide_start
-			&& map_index <= model->maps.hide_end)
-		{
-			return 1;
-		}
-	}
-
-	// If we got this far, there's no match. 
-	return 0;
-}
-
-// Return model's next selectable map index in line.
-int nextcolourmap(s_model *model, int map_index)
-{
-	// Increment to next color set, or return to 0 
-	// if we go past number of available sets. 
-	// Continue until we find an index that
-	// isn't hidden.
     do
     {
-		map_index++;
-
-        if(map_index > model->maps_loaded)
+        c++;
+        if(c > model->maps_loaded)
         {
-			map_index = 0;
+            c = 0;
         }
     }
-    while(is_map_hidden(model, map_index));
+    while(    // Keep looping until a non frozen map is found
+        (model->maps.frozen > 0 && c == model->maps.frozen) ||
+        (model->maps.hide_start > 0 && c >= model->maps.hide_start && c <= model->maps.hide_end)
+    );
 
-    return map_index;
+    return c;
 }
 
-// Increment to next map in player's (player_index) model
-// while avoiding the map another player with same 
-// is using.
-int nextcolourmapn(s_model *model, int map_index, int player_index)
+int nextcolourmapn(s_model *model, int c, int p)
 {
-	// Increment to next index.
-	map_index = nextcolourmap(model, map_index);
-
+    int color_index = nextcolourmap(model, c);
     s_set_entry *set = levelsets + current_set;
 
-	// If color selection is allowed but identical map is 
-	// not (nosame 2), then let's make sure anohter player 
-	// with same model isn't already using this map.
-	// If they are we'll find the next map available.
-    if (colourselect && (set->nosame & 2))
+    if ( colourselect && (set->nosame & 2) )
     {
-		int i = 0;
-		int j = 0;
+        int i = 0, j = 0;
         int maps_count = model->maps_loaded + 1;
         int used_colors_map[maps_count];
         int used_color_count = 0;
 
-        // Reset local used map array elements to 0.
-		for (i = 0; i < maps_count; i++)
-		{
-			used_colors_map[i] = 0;
-		}
+        // reset color map
+        for(i = 0; i < maps_count; i++) used_colors_map[i] = 0;
+        // check max color map count
+        if (model->maps.frozen > 0) --maps_count;
+        if (model->maps.hide_start > 0) maps_count -= model->maps.hide_end - model->maps.hide_start + 1;
 
-        // Deduct hidden maps from map count.
-		if (model->maps.frozen > 0)
-		{
-			--maps_count;
-		}
-
-		if (model->maps.ko > 0)
-		{
-			--maps_count;
-		}
-
-		if (model->maps.hide_start > 0)
-		{
-			maps_count -= model->maps.hide_end - model->maps.hide_start + 1;
-		}
-
-        // This logic attempts to populate used_colors_map array with
-		// every color in use by other players who picking same
-		// character. If there are aren't enough unused map indexes to
-		// go around (i.e. three players select a character that only
-		// has two maps), then we return initial map selection.
-
+        // map all used colors
         for(i = 0; i < MAX_PLAYERS; i++)
-        {			
-			// Compare every player index to player_index argument. If
-			// it's a different index but that index's model matches
-			// player_index's model, then it's another player choosing 
-			// (or about to choose) the same character.
-
-            if (player_index != i 
-				&& 
-				stricmp(player[player_index].name, player[i].name) == 0)
+        {
+            if ( p != i && stricmp(player[p].name, player[i].name) == 0 )
             {
-				// Use the map index as an array element index, and mark it true.
-				// Now we now this map index is in use.
                 used_colors_map[player[i].colourmap] = 1;
-                
-				// Increment number of used map indexes.
-				++used_color_count;
-                
-				// If all the map indexes are used, we'll just
-				// have to settle for one we already picked.
-				if (used_color_count >= maps_count)
-				{
-					return map_index;
-				}
+                ++used_color_count;
+                // all busy colors? return the next natural
+                if (used_color_count >= maps_count) return color_index;
             }
         }
 
-		// Now that we have a list of used maps, let's employ it to
-		// find the first free map.
-		//
-        // Loop to number of maps for the model. If our used_colors_map
-		// array element matching the map index doesn't have a true
-		// value, we can return the index.
-
-        for(i = map_index, j = 0; j < maps_count; j++)
+        // search the first free color
+        for(i = color_index, j = 0; j < maps_count; j++)
         {
-            if (!used_colors_map[i])
+            if ( !used_colors_map[i] )
             {
-				return i;
+                return i;
             }
-
             i = nextcolourmap(model, i);
         }
     }
 
-	// If we got here, then we couldn't find a free map index,
-	// so just return initial selection.
-    return map_index;
+    return color_index;
 }
 
-// Return model's previous selectable map index in line.
-int prevcolourmap(s_model *model, int map_index)
+int prevcolourmap(s_model *model, int c)
 {
-	// Decrement to previous color set, or return 
-	// to last set if we go below 0. Continue until
-	// we find an index that isn't hidden.
     do
     {
-		map_index--;
-        if(map_index < 0)
+        c--;
+        if(c < 0)
         {
-			map_index = model->maps_loaded;
+            c = model->maps_loaded;
         }
     }
-    while(is_map_hidden(model, map_index));
+    while(    // Keep looping until a non frozen map is found
+        (model->maps.frozen > 0 && c == model->maps.frozen) ||
+        (model->maps.hide_start > 0 && c >= model->maps.hide_start && c <= model->maps.hide_end)
+    );
 
-    return map_index;
+    return c;
 }
 
-// Decrement to previous map in player's (player_index) model
-// while avoiding the map another player with same 
-// is using.
-int prevcolourmapn(s_model *model, int map_index, int player_index)
+int prevcolourmapn(s_model *model, int c, int p)
 {
-	// Decrement to previous index.
-	map_index = prevcolourmap(model, map_index);
+    int color_index = prevcolourmap(model, c);
+    s_set_entry *set = levelsets + current_set;
 
-	s_set_entry *set = levelsets + current_set;
+    if ( colourselect && (set->nosame & 2) )
+    {
+        int i = 0, j = 0;
+        int maps_count = model->maps_loaded + 1;
+        int used_colors_map[maps_count];
+        int used_color_count = 0;
 
-	// If color selection is allowed but identical map is 
-	// not (nosame 2), then let's make sure anohter player 
-	// with same model isn't already using this map.
-	// If they are we'll find the next map available.
-	if (colourselect && (set->nosame & 2))
-	{
-		int i = 0;
-		int j = 0;
-		int maps_count = model->maps_loaded + 1;
-		int used_colors_map[maps_count];
-		int used_color_count = 0;
+        // reset color map
+        for(i = 0; i < maps_count; i++) used_colors_map[i] = 0;
+        // check max color map count
+        if (model->maps.frozen > 0) --maps_count;
+        if (model->maps.hide_start > 0) maps_count -= model->maps.hide_end - model->maps.hide_start + 1;
 
-		// Reset local used map array elements to 0.
-		for (i = 0; i < maps_count; i++)
-		{
-			used_colors_map[i] = 0;
-		}
+        // map all used colors
+        for(i = 0; i < MAX_PLAYERS; i++)
+        {
+            if ( p != i && stricmp(player[p].name, player[i].name) == 0 )
+            {
+                used_colors_map[player[i].colourmap] = 1;
+                ++used_color_count;
+                // all busy colors? return the next natural
+                if (used_color_count >= maps_count) return color_index;
+            }
+        }
 
-		// Deduct hidden maps from map count.
-		if (model->maps.frozen > 0)
-		{
-			--maps_count;
-		}
+        // search the first free color
+        for(i = color_index, j = 0; j < maps_count; j++)
+        {
+            if ( !used_colors_map[i] )
+            {
+                return i;
+            }
+            i = prevcolourmap(model, i);
+        }
+    }
 
-		if (model->maps.ko > 0)
-		{
-			--maps_count;
-		}
-
-		if (model->maps.hide_start > 0)
-		{
-			maps_count -= model->maps.hide_end - model->maps.hide_start + 1;
-		}
-
-		// This logic attempts to populate used_colors_map array with
-		// every color in use by other players who picking same
-		// character. If there are aren't enough unused map indexes to
-		// go around (i.e. three players select a character that only
-		// has two maps), then we return initial map selection.
-
-		for (i = 0; i < MAX_PLAYERS; i++)
-		{
-			// Compare every player index to player_index argument. If
-			// it's a different index but that index's model matches
-			// player_index's model, then it's another player choosing 
-			// (or about to choose) the same character.
-
-			if (player_index != i
-				&&
-				stricmp(player[player_index].name, player[i].name) == 0)
-			{
-				// Use the map index as an array element index, and mark it true.
-				// Now we now this map index is in use.
-				used_colors_map[player[i].colourmap] = 1;
-
-				// Increment number of used map indexes.
-				++used_color_count;
-
-				// If all the map indexes are used, we'll just
-				// have to settle for one we already picked.
-				if (used_color_count >= maps_count)
-				{
-					return map_index;
-				}
-			}
-		}
-
-		// Now that we have a list of used maps, let's employ it to
-		// find the first free map.
-		//
-		// Loop to number of maps for the model. If our used_colors_map
-		// array element matching the map index doesn't have a true
-		// value, we can return the index.
-
-		for (i = map_index, j = 0; j < maps_count; j++)
-		{
-			if (!used_colors_map[i])
-			{
-				return i;
-			}
-
-			i = prevcolourmap(model, i);
-		}
-	}
-
-	// If we got here, then we couldn't find a free map index,
-	// so just return initial selection.
-	return map_index;
-}
-
-// Caskey, Damon V.
-// 2019-01-02
-//
-// Return true if a model cache element is selectable by player.
-int is_model_cache_index_selectable(int cache_index)
-{
-	// Must have selectable flag.
-	if (!model_cache[cache_index].selectable)
-	{
-		return 0;
-	}
-
-	// Element must contain a valid model.
-	if (!model_cache[cache_index].model)
-	{
-		return 0;
-	}
-	
-	// Element's model must be selectable.
-	if (!is_model_selectable(model_cache[cache_index].model))
-	{
-		return 0;
-	}
-
-	// All checks passed. Return true.
-	return 1;
-}
-
-// Caskey, Damon V.
-// 2019-01-02
-//
-// Return true if a model is selectable by player.
-int is_model_selectable(s_model *model)
-{
-	// Must be a player type.
-	if (model->type != TYPE_PLAYER)
-	{
-		return 0;
-	}
-
-	// If model is marked secret, then secret
-	// characters must be allowed.
-	if (model->secret)
-	{
-		if (!allow_secret_chars)
-		{
-			return 0;
-		}
-	}
-
-	// 2019-01-02 DC: Not sure what this is. 
-	// TO DO - Document clearcount vs. bonus.
-	if (model->clearcount > bonus)
-	{
-		return 0;
-	}
-
-	// Got this far, we can return true.
-	return 1;
-}
-
-// Caskey, Damon V.
-// 2019-01-03
-//
-// Return current number of player selectable models.
-int find_selectable_model_count()
-{
-	int result;
-	int i;
-
-	result = 0;
-
-	// Loop over model cache and increment
-	// count each time we find a selectable
-	// model.
-	for (i = 0; i < models_cached; i++)
-	{
-		if (is_model_cache_index_selectable(i))
-		{
-			++result;
-		}
-	}
-
-	return result;
+    return color_index;
 }
 
 // Use by player select menus
@@ -5018,9 +4770,7 @@ s_model *nextplayermodel(s_model *current)
     int i;
     int curindex = -1;
     int loops;
-    
-	// Do we have a model?
-	if(current)
+    if(current)
     {
         // Find index of current player model
         for(i = 0; i < models_cached; i++)
@@ -5032,28 +4782,26 @@ s_model *nextplayermodel(s_model *current)
             }
         }
     }
-
     // Find next player model (first one after current index)
     for(i = curindex + 1, loops = 0; loops < models_cached; i++, loops++)
     {
-		// Return to 0 if we've gone past the last model.
         if(i >= models_cached)
         {
             i = 0;
         }
-
-		// If valid and selectable, return the model.
-        if(is_model_cache_index_selectable(i))
+        if(model_cache[i].model && model_cache[i].model->type == TYPE_PLAYER &&
+                (allow_secret_chars || !model_cache[i].model->secret) &&
+                model_cache[i].model->clearcount <= bonus && model_cache[i].selectable)
         {
-			//printf("next %s\n", model_cache[i].model->name);
-			return model_cache[i].model;            
+            //printf("next %s\n", model_cache[i].model->name);
+            return model_cache[i].model;
         }
     }
     borShutdown(1, "Fatal: can't find any player models!");
     return NULL;
 }
 
-s_model *nextplayermodeln(s_model *current, int player_index)
+s_model *nextplayermodeln(s_model *current, int p)
 {
     int i;
     s_set_entry *set = levelsets + current_set;
@@ -5061,31 +4809,34 @@ s_model *nextplayermodeln(s_model *current, int player_index)
 
     if(set->nosame & 1)
     {
-		int used_player_count = 0;
-		int player_count = 0;
+        int used_player_count = 0, player_count = 0;
 
-		// Get number of selectable models.
-		player_count = find_selectable_model_count();
+        // check count of selectable players
+        for(i = 0; i < models_cached; i++)
+        {
+            if(model_cache[i].model && model_cache[i].model->type == TYPE_PLAYER &&
+                    (allow_secret_chars || !model_cache[i].model->secret) &&
+                    model_cache[i].model->clearcount <= bonus && model_cache[i].selectable)
+            {
+                ++player_count;
+            }
+        }
 
         // count all used player
         for(i = 0; model && i < MAX_PLAYERS; i++)
         {
-            if(i != player_index 
-				&& stricmp(player[player_index].name, player[i].name) == 0)
+            if(i != p && stricmp(player[p].name, player[i].name) == 0)
             {
                 ++used_player_count;
                 // all busy players? return the next natural
-				if (used_player_count >= player_count)
-				{
-					return model;
-				}
+                if (used_player_count >= player_count) return model;
             }
         }
 
         // search the first free player
         for(i = 0; model && i < MAX_PLAYERS; i++)
         {
-            if(i != player_index && stricmp(model->name, player[i].name) == 0)
+            if(i != p && stricmp(model->name, player[i].name) == 0)
             {
                 i = -1;
                 model = nextplayermodel(model);
@@ -5121,9 +4872,9 @@ s_model *prevplayermodel(s_model *current)
         {
             i = models_cached - 1;
         }
-
-		// If valid and selectable, return the model.
-        if(is_model_cache_index_selectable(i))
+        if(model_cache[i].model && model_cache[i].model->type == TYPE_PLAYER &&
+                (allow_secret_chars || !model_cache[i].model->secret) &&
+                model_cache[i].model->clearcount <= bonus && model_cache[i].selectable)
         {
             //printf("prev %s\n", model_cache[i].model->name);
             return model_cache[i].model;
@@ -5133,7 +4884,7 @@ s_model *prevplayermodel(s_model *current)
     return NULL;
 }
 
-s_model *prevplayermodeln(s_model *current, int player_index)
+s_model *prevplayermodeln(s_model *current, int p)
 {
     int i;
     s_set_entry *set = levelsets + current_set;
@@ -5141,16 +4892,23 @@ s_model *prevplayermodeln(s_model *current, int player_index)
 
     if(set->nosame & 1)
     {
-		int used_player_count = 0; 
-		int player_count = 0;
+        int used_player_count = 0, player_count = 0;
 
-		// Get number of selectable models.
-		player_count = find_selectable_model_count();
+        // check count of selectable players
+        for(i = 0; i < models_cached; i++)
+        {
+            if(model_cache[i].model && model_cache[i].model->type == TYPE_PLAYER &&
+                    (allow_secret_chars || !model_cache[i].model->secret) &&
+                    model_cache[i].model->clearcount <= bonus && model_cache[i].selectable)
+            {
+                ++player_count;
+            }
+        }
 
         // count all used player
         for(i = 0; model && i < MAX_PLAYERS; i++)
         {
-            if(i != player_index && stricmp(player[player_index].name, player[i].name) == 0)
+            if(i != p && stricmp(player[p].name, player[i].name) == 0)
             {
                 ++used_player_count;
                 // all busy players? return the prev natural
@@ -5161,7 +4919,7 @@ s_model *prevplayermodeln(s_model *current, int player_index)
         // search the first free player
         for(i = 0; model && i < MAX_PLAYERS; i++)
         {
-            if(i != player_index && stricmp(model->name, player[i].name) == 0)
+            if(i != p && stricmp(model->name, player[i].name) == 0)
             {
                 i = -1;
                 model = prevplayermodel(model);
@@ -6523,14 +6281,6 @@ static int translate_ani_id(const char *value, s_model *newchar, s_anim *newanim
     {
         ani_id = ANI_SELECT;
     }
-	else if (stricmp(value, "selectin") == 0)
-	{		
-		ani_id = ANI_SELECTIN;
-	}
-	else if (stricmp(value, "selectout") == 0)
-	{
-		ani_id = ANI_SELECTOUT;
-	}
     else if(starts_with_num(value, "walk"))
     {
         get_tail_number(tempInt, value, "walk");
@@ -6549,6 +6299,14 @@ static int translate_ani_id(const char *value, s_model *newchar, s_anim *newanim
     else if(stricmp(value, "backrun") == 0)
     {
         ani_id = ANI_BACKRUN;
+    }
+    else if(stricmp(value, "getboomerang") == 0)
+    {
+        ani_id = ANI_GETBOOMERANG;
+    }
+    else if(stricmp(value, "getboomeranginair") == 0)
+    {
+        ani_id = ANI_GETBOOMERANGINAIR;
     }
     else if(starts_with_num(value, "up"))
     {
@@ -7909,6 +7667,28 @@ void lcmHandleCommandSubtype(ArgList *arglist, s_model *newchar, char *filename)
         newchar->subject_to_maxz        = 1;
         newchar->no_adjust_base         = 1;
     }
+    else if(stricmp(value, "boomerang") == 0) // 16-12-2016 Boomrang type
+    {
+        newchar->subtype = SUBTYPE_BOOMERANG;   // 16-12-2016 Boomrang type
+        if(newchar->aimove == -1)
+        {
+            newchar->aimove = 0;
+        }
+        newchar->aimove |= AIMOVE1_BOOMERANG;
+        if(!newchar->offscreenkill)
+        {
+            newchar->offscreenkill = 200;
+        }
+        newchar->subject_to_hole        = 0;
+        newchar->subject_to_gravity     = 1;
+        newchar->subject_to_basemap     = 0;
+        newchar->subject_to_wall        = 0;
+        newchar->subject_to_platform    = 0;
+        newchar->subject_to_screen      = 0;
+        newchar->subject_to_minz        = 1;
+        newchar->subject_to_maxz        = 1;
+        newchar->no_adjust_base         = 1;
+    }
     else if(stricmp(value, "notgrab") == 0)
     {
         newchar->subtype = SUBTYPE_NOTGRAB;
@@ -8179,6 +7959,10 @@ void lcmHandleCommandAimove(ArgList *arglist, s_model *newchar, int *aimoveset, 
         else if(stricmp(value, "nomove") == 0)
         {
             newchar->aimove |= AIMOVE1_NOMOVE;
+        }
+        else if(stricmp(value, "boomerang") == 0)
+        {
+            newchar->aimove |= AIMOVE1_BOOMERANG;
         }
         else
         {
@@ -8756,6 +8540,8 @@ s_model *init_model(int cacheindex, int unload)
     newchar->icon.mpmed         = -1;               //No mpmed icon yet.
     newchar->edgerange.x        = 0;
     newchar->edgerange.z        = 0;
+    newchar->boomerang_prop.acceleration     = 0;
+    newchar->boomerang_prop.hdistance        = 0;
 
     // Default Attack1 in chain must be referenced if not used.
     for(i = 0; i < MAX_ATCHAIN; i++)
@@ -8803,6 +8589,7 @@ s_model *init_model(int cacheindex, int unload)
     newchar->bomb                       = -1;
     newchar->star                       = -1;
     newchar->knife                      = -1;
+    newchar->boomerang                  = -1;
     newchar->stealth.hide               = 0;
     newchar->stealth.detect             = 0;
     newchar->attackthrottle				= 0.0f;
@@ -9323,6 +9110,21 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 {
                     newchar->star = get_cached_model_index(value);
                 }
+                break;
+            case CMD_MODEL_BOOMERANG:
+                value = GET_ARG(1);
+                if(stricmp(value, "none") == 0)
+                {
+                    newchar->boomerang = -1;
+                }
+                else
+                {
+                    newchar->boomerang = get_cached_model_index(value);
+                }
+                break;
+            case CMD_MODEL_BOOMERANGVALUES:
+                newchar->boomerang_prop.acceleration = GET_FLOAT_ARG(1);
+                newchar->boomerang_prop.hdistance = GET_FLOAT_ARG(2);
                 break;
             case CMD_MODEL_BOMB:
             case CMD_MODEL_PLAYBOMB:
@@ -10394,7 +10196,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->range.z.max            = (int)newchar->grabdistance / 3;		//zmax
                 newanim->range.y.min            = T_MIN_BASEMAP;						//amin
 				newanim->range.y.max			= (int)newchar->jumpheight * 20;		// Same logic as X. Good for attacks, but not terrian. Author better remember to add jump ranges.
-                newanim->range.base.min         = T_MIN_BASEMAP;						// Base min.				
+                newanim->range.base.min         = T_MIN_BASEMAP;						// Base min.
 				newanim->range.base.max			= (int)newchar->jumpheight * 20;		// Just use same logic as range Y.
                 newanim->energycost             = NULL;
                 newanim->chargetime             = 2;			// Default for backwards compatibility
@@ -10413,7 +10215,8 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->cancel                 = 0;  // OX. For cancelling anims into a freespecial. 0 by default , 3 when enabled. IMPORTANT!! Must stay as it is!
                 newanim->animhits               = 0; //OX counts hits on a per anim basis for cancels.
                 newanim->subentity              = newanim->projectile.bomb = newanim->projectile.knife =
-                                                  newanim->projectile.star = newanim->projectile.flash = -1;
+                                                  newanim->projectile.star = newanim->projectile.boomerang =
+                                                  newanim->projectile.flash = -1;
                 newanim->quakeframe.framestart  = 0;
                 newanim->sync                   = -1;
 
@@ -10522,6 +10325,9 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             case CMD_MODEL_CUSTPSHOT:
             case CMD_MODEL_CUSTPSHOTW:
                 newanim->projectile.knife = get_cached_model_index(GET_ARG(1));
+                break;
+            case CMD_MODEL_CUSTBOOMERANG:
+                newanim->projectile.boomerang = get_cached_model_index(GET_ARG(1));
                 break;
             case CMD_MODEL_CUSTPSHOTNO:
                 newanim->projectile.flash = get_cached_model_index(GET_ARG(1));
@@ -11093,11 +10899,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 if(stricmp(value, "none") == 0 || value == 0)
                 {
-                    attack.blockflash = -1;
+                    attack->blockflash = -1;
                 }
                 else
                 {
-					attack.blockflash = get_cached_model_index(value);
+					attack->blockflash = get_cached_model_index(value);
                 }
                 break;
 
@@ -11121,11 +10927,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 if(stricmp(value, "none") == 0 || value == 0)
                 {
-                    attack.hitflash = -1;
+                    attack->hitflash = -1;
                 }
                 else
                 {
-                    attack.hitflash = get_cached_model_index(value);
+                    attack->hitflash = get_cached_model_index(value);
                 }
                 break;
 
@@ -12058,7 +11864,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             break;
         case TYPE_ENEMY:
             newchar->candamage = TYPE_PLAYER | TYPE_SHOT;
-            if(newchar->subtype == SUBTYPE_ARROW)
+            if(newchar->subtype == SUBTYPE_ARROW || newchar->subtype == SUBTYPE_BOOMERANG)
             {
                 newchar->candamage |= TYPE_OBSTACLE;
             }
@@ -16399,22 +16205,21 @@ void updatestatus()
 //
 // Draw dot onto screen to indicate actual entity position,
 // with text readout of Base, X, Y, and Z coordinates directly below.
-void draw_properties_entity(entity *entity, int offset_z, int color, s_drawmethod *drawmethod)
+void draw_position_entity(entity *entity, int offset_z, int color, s_drawmethod *drawmethod)
 {
-    #define FONT_LABEL          1
-	#define FONT_VALUE          0
-	#define TEXT_MARGIN_Y       1
+    #define FONT                0
+    #define TEXT_MARGIN_Y       1
     #define OFFSET_LAYER       -2
 
-    // Array keys for the list of items 
-	// we want to display
+    // Position array keys
+    // and size constants.
     enum
     {
-		DRAW_PROPERTIES_KEY_NAME,
-		DRAW_PROPERTIES_KEY_BASE,
-		DRAW_PROPERTIES_KEY_POS,
-		DRAW_PROPERTIES_KEY_STATUS,
-		DRAW_PROPERTIES_ARRAY_SIZE	// Array size, so always last.
+        KEY_BASE,
+        KEY_X,
+        KEY_Y,
+        KEY_Z,
+        POS_ARRAY_SIZE
     };
 
     typedef struct
@@ -16427,87 +16232,54 @@ void draw_properties_entity(entity *entity, int offset_z, int color, s_drawmetho
     s_axis_plane_vertical_int   base_pos;       // Entity position with screen offsets applied.
     draw_coords                 box;            // On screen coords for display elements.
 
+    int pos_value[POS_ARRAY_SIZE];      // Entity position for display - truncated to int.
     int i;                              // Counter.
     int str_offset_x;                   // Calculated offset of text for centering.
-	int label_width_max;
-	int str_width_max;                  // largest string width.
+    int str_width_max;                  // largest string width.
     int str_height_max;                 // Largest string height.
     size_t str_size;                    // Memory size of string.
 
-	char		*output_label[DRAW_PROPERTIES_ARRAY_SIZE];
-	const char  *output_format[DRAW_PROPERTIES_ARRAY_SIZE]; // Format ("%d, %s ..").
-    char        *output_value[DRAW_PROPERTIES_ARRAY_SIZE];  // Final string to display position.
-	
-    // Let's build the format for information
-	// we want to display.
-	output_format[DRAW_PROPERTIES_KEY_NAME]		= "%s";
-	output_format[DRAW_PROPERTIES_KEY_BASE]		= "%d";
-	output_format[DRAW_PROPERTIES_KEY_POS]		= "%d, %d, %d";
-	output_format[DRAW_PROPERTIES_KEY_STATUS]	= "%d, %d";
-	
-	// Double pass method for unknown string size. 
-	//
-	// 1. Build the label.
-	//
-	// 2. Attempt to copy 0 chars to unallocated 
-	// buffer and record how many characters
-	// would be needed, plus 1 for the NULL terminator
-	// and record as a string_size.
-	// 
-	// 3. Allocate memory using the string size.
-	//
-	// 4. Copy formatted string to allocated buffer
-	// for real.
-	//
-	// Repeat for each line item we want to display.
-	//
-	// TO: Work this into a loop. Main obstacle is
-	// the number of format string inputs vary depending
-	// on type of property.
+    const char  *pos_label[POS_ARRAY_SIZE];  // Labels for string position values.
+    char        *pos_final[POS_ARRAY_SIZE];  // Final string to display position.
 
-	// Name
-	output_label[DRAW_PROPERTIES_KEY_NAME] = "Name: ";
-	output_value[DRAW_PROPERTIES_KEY_NAME] = NULL;
-	str_size = snprintf(output_value[DRAW_PROPERTIES_KEY_NAME], 0, output_format[DRAW_PROPERTIES_KEY_NAME], entity->model->name) + 1;
-	output_value[DRAW_PROPERTIES_KEY_NAME] = malloc(str_size);
-	snprintf(output_value[DRAW_PROPERTIES_KEY_NAME], str_size, output_format[DRAW_PROPERTIES_KEY_NAME], entity->model->name);
+    // Initialize box.
+    box.position.x = 0;
+    box.position.y = 0;
+    box.position.z = 0;
 
-	// Base
-	output_label[DRAW_PROPERTIES_KEY_BASE] = "Base: ";
-	output_value[DRAW_PROPERTIES_KEY_BASE] = NULL;
-	str_size = snprintf(output_value[DRAW_PROPERTIES_KEY_BASE], 0, output_format[DRAW_PROPERTIES_KEY_BASE], (int)entity->base) + 1;
-	output_value[DRAW_PROPERTIES_KEY_BASE] = malloc(str_size);
-	snprintf(output_value[DRAW_PROPERTIES_KEY_BASE], str_size, output_format[DRAW_PROPERTIES_KEY_BASE], (int)entity->base);
+    // Populate position labels.
+    pos_label[KEY_BASE]          = "B: %d";
+    pos_label[KEY_X]             = "X: %d";
+    pos_label[KEY_Y]             = "Y: %d";
+    pos_label[KEY_Z]             = "Z: %d";
 
-	// XYZ
-	output_label[DRAW_PROPERTIES_KEY_POS] = "X,Y,Z: ";
-	output_value[DRAW_PROPERTIES_KEY_POS] = NULL;
-	str_size = snprintf(output_value[DRAW_PROPERTIES_KEY_POS], 0, output_format[DRAW_PROPERTIES_KEY_POS], (int)entity->position.x, (int)entity->position.y, (int)entity->position.z) + 1;
-	output_value[DRAW_PROPERTIES_KEY_POS] = malloc(str_size);
-	snprintf(output_value[DRAW_PROPERTIES_KEY_POS], str_size, output_format[DRAW_PROPERTIES_KEY_POS], (int)entity->position.x, (int)entity->position.y, (int)entity->position.z);
+    // Populate position values - truncated to int.
+    pos_value[KEY_BASE]         = (int)entity->base;
+    pos_value[KEY_X]            = (int)entity->position.x;
+    pos_value[KEY_Y]            = (int)entity->position.y;
+    pos_value[KEY_Z]            = (int)entity->position.z;
 
-	// HP & MP
-	output_label[DRAW_PROPERTIES_KEY_STATUS] = "HP, MP: ";
-	output_value[DRAW_PROPERTIES_KEY_STATUS] = NULL;
-	str_size = snprintf(output_value[DRAW_PROPERTIES_KEY_STATUS], 0, output_format[DRAW_PROPERTIES_KEY_STATUS], (int)entity->energy_status.health_current, (int)entity->energy_status.mp_current) + 1;
-	output_value[DRAW_PROPERTIES_KEY_STATUS] = malloc(str_size);
-	snprintf(output_value[DRAW_PROPERTIES_KEY_STATUS], str_size, output_format[DRAW_PROPERTIES_KEY_STATUS], (int)entity->energy_status.health_current, (int)entity->energy_status.mp_current);
+    // Allocate memory and create finished strings.
+    for(i = 0; i < POS_ARRAY_SIZE; i++)
+    {
+        // Get the total memory size we will need.
+        str_size  = sizeof(char) * (strlen(pos_label[i]) + 1);
+        str_size += sizeof(char) * (sizeof(pos_value[i]) + 1);
 
+        // Allocate memory.
+        pos_final[i] = malloc(str_size);
 
-	// Get the largest string X and Y space. For X find the largest
-	// label and value, then add them. For Y, just get height of 
-	// largest font.
-    label_width_max = font_string_width_max(output_label, DRAW_PROPERTIES_ARRAY_SIZE, FONT_LABEL);
-	str_width_max = label_width_max + font_string_width_max(output_value, DRAW_PROPERTIES_ARRAY_SIZE, FONT_VALUE);
+        // If allocation was successful, concatenate
+        // position label and position value.
+        if(pos_final[i])
+        {
+            sprintf(pos_final[i], pos_label[i], pos_value[i]);
+        }
+    }
 
-	if (fontheight(FONT_LABEL) > fontheight(FONT_VALUE))
-	{
-		str_height_max = fontheight(FONT_LABEL);
-	}
-	else
-	{
-		str_height_max = fontheight(FONT_VALUE);
-	}
+    // Get the largest string X and Y space.
+    str_width_max   = font_string_width_max(*pos_final, FONT);
+    str_height_max  = fontheight(FONT);
 
     // Get our base offsets from screen vs. location.
     screen_offset.x = screenx - ((entity->modeldata.noquake & NO_QUAKEN) ? 0 : gfx_x_offset);
@@ -16534,25 +16306,149 @@ void draw_properties_entity(entity *entity, int offset_z, int color, s_drawmetho
     // instead of just adjusting Z.
     spriteq_add_dot(base_pos.x, base_pos.y, box.position.z+1, color, drawmethod);
 
-    // Print each item text.
-    for(i = 0; i < DRAW_PROPERTIES_ARRAY_SIZE; i++)
+    // Print each position text.
+    for(i = 0; i < POS_ARRAY_SIZE; i++)
     {
-        // If the item string exists then
+        // If the position string exists then
         // we can find a position, print it to
         // the screen, and free up allocated memory.
-        if(output_value[i])
+        if(pos_final[i])
         {
            // Add font height and margin to Y position.
             base_pos.y += (str_height_max + TEXT_MARGIN_Y);
 
-            // Print label to the screen. The value X
-			// position adds maximum label width, plus
-			// 25% the width a single value character.
-            font_printf(box.position.x, base_pos.y, FONT_LABEL, OFFSET_LAYER, output_label[i]);
-			font_printf(box.position.x + label_width_max + (fontmonowidth(FONT_VALUE) * 0.25), base_pos.y, FONT_VALUE, OFFSET_LAYER, output_value[i]);
+            // Print position text.
+            font_printf(box.position.x, base_pos.y, FONT, OFFSET_LAYER, pos_final[i]);
 
-            // Release memory allocated for the value strings.
-            free(output_value[i]);
+            // Release memory allocated for the string.
+            free(pos_final[i]);
+        }
+    }
+
+    return;
+
+    // Remove local constants.
+    #undef FONT
+    #undef TEXT_MARGIN_Y
+    #undef OFFSET_LAYER
+}
+
+// White Dragon
+// 2016-11-28
+//
+// Draw entity features
+void draw_features_entity(entity *entity, int offset_z, int color, s_drawmethod *drawmethod)
+{
+    #define FONT                0
+    #define TEXT_MARGIN_Y       1
+    #define OFFSET_LAYER       -2
+
+    // Features array keys
+    // and size constants.
+    enum
+    {
+        KEY_MODELNAME,
+        CHAR_ARRAY_SIZE
+    };
+
+    typedef struct
+    {
+        s_axis_principal_int        position;
+        s_axis_plane_vertical_int   size;
+    } draw_coords;
+
+    s_axis_plane_vertical_int   screen_offset;  // Base location calculated from screen offsets.
+    s_axis_plane_vertical_int   base_pos;       // Entity position with screen offsets applied.
+    draw_coords                 box;            // On screen coords for display elements.
+
+    char *char_value[CHAR_ARRAY_SIZE];  // Entity features for display
+    int i;                              // Counter.
+    int str_offset_x;                   // Calculated offset of text for centering.
+    int str_width_max;                  // largest string width.
+    int str_height_max;                 // Largest string height.
+    size_t str_size;                    // Memory size of string.
+
+    const char  *char_label[CHAR_ARRAY_SIZE];  // Labels for string features
+    char        *char_final[CHAR_ARRAY_SIZE];  // Final string to display.
+
+    // Initialize box.
+    box.position.x = 0;
+    box.position.y = 0;
+    box.position.z = 0;
+
+    // Populate position labels.
+    char_label[KEY_MODELNAME]    = "%s";
+
+    // Populate position values - truncated to int.
+    char_value[KEY_MODELNAME] = malloc( sizeof(char) * (strlen(entity->model->name)+1) );
+    memcpy( char_value[KEY_MODELNAME], entity->model->name, (strlen(entity->model->name)+1) );
+
+    // Allocate memory and create finished strings.
+    for(i = 0; i < CHAR_ARRAY_SIZE; i++)
+    {
+        // Get the total memory size we will need.
+        str_size  = sizeof(char) * (strlen(char_label[i]) + 1);
+        str_size += sizeof(char) * (strlen(char_value[i]) + 1);
+
+        // Allocate memory.
+        char_final[i] = malloc(str_size);
+
+        // If allocation was successful, concatenate
+        // position label and position value.
+        if(char_final[i])
+        {
+            sprintf(char_final[i], char_label[i], char_value[i]);
+        }
+
+        free(char_value[i]);
+    }
+
+    // Get the largest string X and Y space.
+    str_width_max   = font_string_width_max(*char_final, FONT);
+    str_height_max  = fontheight(FONT);
+
+    // Get our base offsets from screen vs. location.
+    screen_offset.x = screenx - ((entity->modeldata.noquake & NO_QUAKEN) ? 0 : gfx_x_offset);
+    screen_offset.y = screeny - ((entity->modeldata.noquake & NO_QUAKEN) ? 0 : gfx_y_offset);
+
+    // Get entity position with screen offsets.
+    base_pos.x = entity->position.x - screen_offset.x;
+    base_pos.y = (entity->position.z - offset_z) - entity->position.y - screen_offset.y;
+
+    // Get a value of half the text width.
+    // We can use this to center our text
+    // on the entity.
+    str_offset_x = (str_width_max - font_string_width(FONT, "0")) / 2;
+
+    // Apply text offset.
+    box.position.x = base_pos.x - str_offset_x;
+
+    box.position.y = base_pos.y;
+    box.position.z = entity->position.z + offset_z;
+
+    // Draw position dot.
+    // The +1 to Z is a quick fix - offset_z
+    // distorts the dot's vertical position
+    // instead of just adjusting Z.
+    if (!savedata.debug_position) spriteq_add_dot(base_pos.x, base_pos.y, box.position.z+1, color, drawmethod);
+
+    // Print each feature text.
+    if (savedata.debug_position) base_pos.y += (str_height_max + TEXT_MARGIN_Y)*(3+1);
+    for(i = 0; i < CHAR_ARRAY_SIZE; i++)
+    {
+        // If the position string exists then
+        // we can find a position, print it to
+        // the screen, and free up allocated memory.
+        if(char_final[i])
+        {
+           // Add font height and margin to Y position.
+            base_pos.y += (str_height_max + TEXT_MARGIN_Y);
+
+            // Print position text.
+            font_printf(box.position.x, base_pos.y, FONT, OFFSET_LAYER, char_final[i]);
+
+            // Release memory allocated for the string.
+            free(char_final[i]);
         }
     }
 
@@ -16617,6 +16513,7 @@ void draw_visual_debug()
 {
     #define LOCAL_COLOR_BLUE        _makecolour(0, 0, 255)
     #define LOCAL_COLOR_GREEN       _makecolour(0, 255, 0)
+    #define LOCAL_COLOR_ORANGE      _makecolour(255, 100, 0)
     #define LOCAL_COLOR_MAGENTA     _makecolour(255, 0, 255)
     #define LOCAL_COLOR_WHITE       _makecolour(255, 255, 255)
 
@@ -16625,6 +16522,7 @@ void draw_visual_debug()
     s_hitbox            *coords;
     s_collision_attack  *collision_attack;
     s_collision_body    *collision_body;
+    s_collision_entity  *collision_entity;
     s_drawmethod        drawmethod = plainmethod;
     entity              *entity;
 
@@ -16646,20 +16544,26 @@ void draw_visual_debug()
             continue;
         }
 
-        // Basic properties (Name, position, HP, etc.).
-        if(savedata.debuginfo & DEBUG_DISPLAY_PROPERTIES)
+        // Show offset and position.
+        if(savedata.debug_position)
         {
-            draw_properties_entity(entity, 0, LOCAL_COLOR_WHITE, NULL);
+            draw_position_entity(entity, 0, LOCAL_COLOR_WHITE, NULL);
         }
 
-        // Range debug requested?
-        if(savedata.debuginfo & DEBUG_DISPLAY_RANGE)
+        // Show features.
+        if(savedata.debug_features)
+        {
+            draw_features_entity(entity, 0, LOCAL_COLOR_WHITE, NULL);
+        }
+
+        // Collision body debug requested?
+        if(savedata.debug_collision_range)
         {
             draw_box_on_entity(entity, entity->animation->range.x.min, entity->animation->range.y.min, entity->position.z+1, entity->animation->range.x.max, entity->animation->range.y.max, -1, LOCAL_COLOR_GREEN, &drawmethod);
         }
 
         // Collision body debug requested?
-        if(savedata.debuginfo & DEBUG_DISPLAY_COLLISION_BODY)
+        if(savedata.debug_collision_body)
         {
             // Animation has collision?
             if(entity->animation->collision_body)
@@ -16711,7 +16615,7 @@ void draw_visual_debug()
         }
 
         // Collision attack requested?
-        if(savedata.debuginfo & DEBUG_DISPLAY_COLLISION_ATTACK)
+        if(savedata.debug_collision_attack)
         {
             // Animation has collision?
             if(entity->animation->collision_attack)
@@ -16739,6 +16643,7 @@ void draw_visual_debug()
 
     #undef LOCAL_COLOR_BLUE
     #undef LOCAL_COLOR_GREEN
+    #undef LOCAL_COLOR_ORANGE
     #undef LOCAL_COLOR_MAGENTA
     #undef LOCAL_COLOR_WHITE
 }
@@ -16937,10 +16842,14 @@ void predrawstatus()
         }
     }// end of for
 
-	// If any of the debug flags are enabled, let's
-	// output debug data to end user.
-    if(savedata.debuginfo)
-    {		
+    if(savedata.debug_position
+       || savedata.debug_features
+       || savedata.debug_collision_attack
+       || savedata.debug_collision_body
+       || savedata.debug_collision_entity
+       || savedata.debug_collision_range)
+    {
+        // Collision boxes
         draw_visual_debug();
     }
 
@@ -16980,7 +16889,7 @@ void predrawstatus()
     }
 
     // Performance info.
-    if(savedata.debuginfo & DEBUG_DISPLAY_PERFORMANCE)
+    if(savedata.debuginfo)
     {
         spriteq_add_box(0, videomodes.dOffset - 12, videomodes.hRes, videomodes.dOffset + 12, LAYER_Z_LIMIT_BOX_MAX, 0, NULL);
         font_printf(2, videomodes.dOffset - 10, 0, LAYER_Z_LIMIT_MAX, Tr("FPS: %03d"), getFPS());
@@ -17509,16 +17418,8 @@ void ent_default_init(entity *e)
     }
     else if(selectScreen && validanim(e, ANI_SELECT))
     {
-		// Play transition if we have one. Default Select otherwise.
-		if (validanim(e, ANI_SELECTIN))
-		{
-			ent_set_anim(e, ANI_SELECTIN, 0);
-		}
-		else
-		{	
-			ent_set_anim(e, ANI_SELECT, 0);
-		}
-	}
+        ent_set_anim(e, ANI_SELECT, 0);
+    }
     //else set_idle(e);
 
     if(!level)
@@ -17603,7 +17504,7 @@ void ent_default_init(entity *e)
             break;
         }
         // define new subtypes
-        else if(e->modeldata.subtype == SUBTYPE_ARROW)
+        else if(e->modeldata.subtype == SUBTYPE_ARROW || e->modeldata.subtype == SUBTYPE_BOOMERANG)
         {
             e->energy_status.health_current = 1;
             if(!e->modeldata.speed && !e->modeldata.nomove)
@@ -17660,7 +17561,7 @@ void ent_default_init(entity *e)
         }
         else
         {
-            dodrop = (e->modeldata.subtype != SUBTYPE_ARROW && level && (level->scrolldir == SCROLL_UP || level->scrolldir == SCROLL_DOWN));
+            dodrop = (e->modeldata.subtype != SUBTYPE_ARROW && e->modeldata.subtype != SUBTYPE_BOOMERANG && level && (level->scrolldir == SCROLL_UP || level->scrolldir == SCROLL_DOWN));
 
             if(!nodropspawn && (dodrop || (e->position.x > advancex - 30 && e->position.x < advancex + videomodes.hRes + 30 && e->position.y == 0)) )
             {
@@ -17829,7 +17730,7 @@ void ent_spawn_ent(entity *ent)
         {
             s_ent->playerindex = ent->playerindex;
         }
-        if(s_ent->modeldata.subtype == SUBTYPE_ARROW)
+        if(s_ent->modeldata.subtype == SUBTYPE_ARROW || s_ent->modeldata.subtype == SUBTYPE_BOOMERANG)
         {
             s_ent->owner = ent;
         }
@@ -17878,7 +17779,7 @@ void ent_summon_ent(entity *ent)
         {
             s_ent->playerindex = ent->playerindex;
         }
-        if(s_ent->modeldata.subtype == SUBTYPE_ARROW)
+        if(s_ent->modeldata.subtype == SUBTYPE_ARROW || s_ent->modeldata.subtype == SUBTYPE_BOOMERANG)
         {
             s_ent->owner = ent;
         }
@@ -18144,6 +18045,7 @@ void update_frame(entity *ent, unsigned int f)
 
         #define __trystar star_spawn(self->position.x + (self->direction == DIRECTION_RIGHT ? 56 : -56), self->position.z, self->position.y+67, self->direction)
         #define __tryknife knife_spawn(NULL, -1, self->position.x, self->position.z, self->position.y + anim->projectile.position.y, self->direction, 0, 0)
+        #define __tryboomerang boomerang_spawn(NULL, -1, self->position.x, self->position.z, self->position.y + anim->projectile.position.y, self->direction, 0)
 
         if(anim->projectile.knife >= 0 || anim->projectile.flash >= 0)
         {
@@ -18153,16 +18055,26 @@ void update_frame(entity *ent, unsigned int f)
         {
             __trystar;
         }
+        else if(anim->projectile.boomerang >= 0)
+        {
+            __tryboomerang;
+        }
         else if(self->jumping)
         {
             if(!__trystar)
             {
-                __tryknife;
+                if(!__tryknife)
+                {
+                    __tryboomerang;
+                }
             }
         }
         else if(!__tryknife)
         {
-            __trystar;
+            if(!__trystar)
+            {
+                __tryboomerang;
+            }
         }
         self->deduct_ammo = 1;
     }
@@ -18186,6 +18098,7 @@ uf_interrupted:
 
     #undef __trystar
     #undef __tryknife
+    #undef __tryboomerang
 }
 
 
@@ -18445,15 +18358,7 @@ void ent_set_model(entity *ent, char *modelname, int syncAnim)
         }
         else if(selectScreen && validanim(ent, ANI_SELECT))
         {
-			// Play transition if we have one. Default Select otherwise.
-			if (validanim(ent, ANI_SELECTIN))
-			{
-				ent_set_anim(ent, ANI_SELECTIN, 0);
-			}
-			else
-			{
-				ent_set_anim(ent, ANI_SELECT, 0);
-			}
+            ent_set_anim(ent, ANI_SELECT, 0);
         }
         else
         {
@@ -21924,15 +21829,15 @@ void adjust_bind(entity *e)
 			ent_set_anim(e, animation, ADJUST_BIND_SET_ANIM_RESETABLE);
 		}
 
-		
+
 		// If a defined value is requested,
 		// use the binding member value.
 		// If target value is requested use
 		// target's current value (duh).
 		// if no frame match at all requested
 		// then set ADJUST_BIND_NO_FRAME_MATCH
-		// so frame matching logic is skipped.		
-		
+		// so frame matching logic is skipped.
+
 		if (e->binding.matching & BINDING_MATCHING_FRAME_DEFINED)
 		{
 			frame = e->binding.frame;
@@ -21964,7 +21869,7 @@ void adjust_bind(entity *e)
 						// Cancel the bind and exit.
 						e->binding.ent = NULL;
 						return;
-					}					
+					}
 				}
 
 				// Made it this far, let's try to
@@ -21981,10 +21886,10 @@ void adjust_bind(entity *e)
 	e->direction = direction_adjustment(e->direction, e->binding.ent->direction, e->binding.direction);
 
 	// Run bind positioning function to get an
-	// adjusted (or not) position result we apply 
-	// to each axis. For X axis, we want to adjust 
-	// relative to the bind target's direction, so 
-	// we'll send the function an inverted offset if 
+	// adjusted (or not) position result we apply
+	// to each axis. For X axis, we want to adjust
+	// relative to the bind target's direction, so
+	// we'll send the function an inverted offset if
 	// binding target is facing left.
 	e->position.z = binding_position(e->position.z, e->binding.ent->position.z, e->binding.offset.z, e->binding.positioning.z);
 	e->position.y = binding_position(e->position.y, e->binding.ent->position.y, e->binding.offset.y, e->binding.positioning.y);
@@ -21997,7 +21902,7 @@ void adjust_bind(entity *e)
 	{
 		e->position.x = binding_position(e->position.x, e->binding.ent->position.x, e->binding.offset.x, e->binding.positioning.x);
 	}
-	
+
 	#undef ADJUST_BIND_SET_ANIM_RESETABLE
 	#undef ADJUST_BIND_NO_FRAME_MATCH
 }
@@ -22033,7 +21938,7 @@ float binding_position(float position_default, float position_target, int offset
 // Caskey, Damon V.
 // 2018-10-13
 //
-// Return an adjusted entity direction based 
+// Return an adjusted entity direction based
 // on orginal direction, target direction
 // and direction adjust setting.
 e_direction direction_adjustment(e_direction direction_default, e_direction direction_target, e_direction_adjust adjustment)
@@ -22439,16 +22344,12 @@ void display_ents()
 
                     }
 
-                    // In most cases we want any spawned entity to
-                    // default in front of owner.
                     if(e->owner)
                     {
-                        // If this entity is not an exception to the rule,
-                        // move its display order in front of owner.
-                        if (!(self->modeldata.aimove & AIMOVE1_STAR))
-                        {
-                            sortid = e->owner->sortid + 1;
-                        }
+                        // WD: This is for projectile or entity spawned by owner: general rule: Always in front
+                        if ( !(self->modeldata.aimove & AIMOVE1_BOOMERANG) &&
+                             !(self->modeldata.aimove & AIMOVE1_STAR)
+                             ) sortid = e->owner->sortid + 1;
                     }
 
                     if(e->modeldata.setlayer)
@@ -23516,6 +23417,10 @@ void set_model_ex(entity *ent, char *modelname, int index, s_model *newmodel, in
         if(newmodel->star           <   0)
         {
             newmodel->star          = model->star;
+        }
+        if(newmodel->boomerang      <   0)
+        {
+            newmodel->boomerang     = model->boomerang;
         }
         if(newmodel->flash          <   0)
         {
@@ -28826,7 +28731,42 @@ int projectile_wall_deflect(entity *ent)
 }
 
 // Caskey, Damon V.
-// 2018-04-06
+// 2018-04-08
+//
+// Destroy target and while ent plays catch animation
+// if ent has the catch animation and target is in range.
+// Mainly for boomerang projectiles but useful for any
+// time one entity should "catch" another out of the air.
+//
+// Returns true on successful catch, false otherwise.
+int do_catch(entity *ent, entity *target, int animation_catch)
+{
+    // Valid catch animation?
+    if(validanim(ent, animation_catch))
+    {
+        // If target is in range, then destroy it
+        // while we play the catch animation,
+        // and return true.
+        if(check_range_target_all(ent, target, animation_catch))
+        {
+            ent->takeaction = common_animation_normal;
+            ent->attacking = ATTACKING_INACTIVE;
+            ent->idling = IDLING_INACTIVE;
+            ent->ducking = DUCK_INACTIVE;
+            ent_set_anim(ent, animation_catch, 0);
+            kill_entity(target);
+
+            return 1;
+        }
+    }
+
+    // Did not catch anything.
+    return 0;
+}
+
+
+// Caskey, Damon V.
+// 2-18-04-06
 //
 // Invert current sorting position vs. parent.
 void sort_invert_by_parent(entity *ent, entity *parent)
@@ -28839,6 +28779,359 @@ void sort_invert_by_parent(entity *ent, entity *parent)
     {
         ent->sortid = parent->sortid - 1;
     }
+}
+
+// Caskey, Damon V.
+// 2018-04-06
+//
+// Broken off from White Dragon's boomerang_move() function.
+// Verify boomerang is in catchable state and attempt
+// catch action.
+int boomerang_catch(entity *ent, float distance_x_current)
+{
+    int animation_catch; // Animation for owner catching boomerang.
+    entity* owner = NULL;
+
+    if (ent->owner) owner = ent->owner;
+    else owner = ent->parent;
+
+    // Only catch if in front of owner and traveling
+    // back toward them. Otherwise exit function since
+    // any further checks are pointless.
+    if(owner->direction == DIRECTION_RIGHT)
+    {
+        // Traveling right?
+        if(ent->velocity.x >= 0)
+        {
+            return 0;
+        }
+
+        // At or to left of owner?
+        if(ent->position.x <= owner->position.x)
+        {
+            return 0;
+        }
+    }
+    else if(owner->direction == DIRECTION_LEFT)
+    {
+        // Traveling left?
+        if(ent->velocity.x <= 0)
+        {
+            return 0;
+        }
+
+        // At or to right of owner?
+        if(ent->position.x >= owner->position.x)
+        {
+            return 0;
+        }
+    }
+
+    // Can't catch if owner is under any sort of duress.
+
+    // Pain?
+    if(owner->inpain)
+    {
+        return 0;
+    }
+
+    // Knocked down?
+    if(owner->falling)
+    {
+        return 0;
+    }
+
+    // Dead?
+    if(owner->dead)
+    {
+        return 0;
+    }
+
+    // Have to be beyond first cycle of
+    // boomerang logic.
+    if(ent->boomerang_loop <= 1)
+    {
+        return 0;
+    }
+
+    // In air? Then use air catch. Otherwise use ground catch.
+    if(inair(owner))
+    {
+        animation_catch = ANI_GETBOOMERANGINAIR;
+    }
+    else
+    {
+        animation_catch = ANI_GETBOOMERANG;
+    }
+
+    // Verify owner has catch animation and that we
+    // are in catch animation range, attempt to
+    // perform catch, and return result.
+    return do_catch(owner, ent, animation_catch);
+}
+
+// Caskey, Damon V.
+// 2018-04-06
+//
+// Offloaded from boomerang_move().
+// Gets a boomerang type projectile set up when
+// first thrown.
+void boomerang_initialize(entity *ent)
+{
+    #define GRABFORCE           -99999
+    #define OFF_SCREEN_LIMIT    80
+
+    entity* owner = NULL;
+
+    if (ent->owner) owner = ent->owner;
+    else owner = ent->parent;
+
+    // We don't want our directional facing
+    // changing automatically.
+    ent->modeldata.noflip = 1;
+
+    // Populate offscreenkill in case our
+    // boomerang gets out of bounds.
+    ent->modeldata.offscreenkill = OFF_SCREEN_LIMIT;
+
+    // If we have a owner entity, then we need
+    // should set up to match the owner's attributes.
+    if(owner)
+    {
+        // Make sure we're not hostile to our owner
+        // model type.
+        ent->modeldata.hostile &= ~(owner->modeldata.type);
+
+        // If we were thrown by an enemy or player faction
+        // then make sure we're hostile to the opposite
+        // faction.
+        if (owner->modeldata.type == TYPE_PLAYER
+            || owner->modeldata.type == TYPE_NPC)
+        {
+            ent->modeldata.hostile |= TYPE_ENEMY;
+        }
+        else if(owner->modeldata.type == TYPE_ENEMY)
+        {
+            ent->modeldata.hostile |= (TYPE_PLAYER | TYPE_NPC);
+        }
+
+        // Match the owner's direction and drawing order
+        // layer position in the sprite que.
+        ent->direction = owner->direction;
+        ent->sortid = owner->sortid + 1;
+    }
+
+    // Move along X axis according to the direction
+    // we're facing.
+    if(ent->direction == DIRECTION_LEFT)
+    {
+        ent->velocity.x = -ent->modeldata.speed;
+    }
+    else if(ent->direction == DIRECTION_RIGHT)
+    {
+        ent->velocity.x = ent->modeldata.speed;
+    }
+
+    // Synchronize with owner's vertical
+    // and lateral position.
+    ent->position.z = owner->position.z;
+    ent->position.y = owner->position.y;
+
+    // Make sure that we can't grab or be grabbed.
+    ent->modeldata.antigrab = 1;
+    ent->modeldata.grabforce = GRABFORCE;
+
+    ++ent->boomerang_loop;
+
+    #undef GRABFORCE
+    #undef OFF_SCREEN_LIMIT
+}
+
+// for common boomerang types
+int boomerang_move()
+{
+    float acceleration;             // Rate of velocity difference per update.
+    float distance_x_current;       // Current X axis distance from owner.
+    float distance_x_max;           // Maximum X axis distance allowed from owner.
+    float velocity_x_accelerated;   // X velocity after acceleration applied as an addition vs. current velocity.
+    float velocity_x_decelerated;   // X velocity after acceleration applied as a reduction vs. current velocity.
+
+    if(!self->modeldata.nomove)
+    {
+        // Populate local vars with acceleration and
+        // maximum horizontal distance from modeldata.
+        // If there is no model data defined then we'll
+        // need to use some default values instead.
+        entity* owner = NULL;
+
+        if (self->owner) owner = self->owner;
+        else owner = self->parent;
+
+        // Acceleration.
+        if(self->modeldata.boomerang_prop.acceleration != 0)
+        {
+            acceleration = self->modeldata.boomerang_prop.acceleration;
+        }
+        else
+        {
+            acceleration = self->modeldata.speed/(GAME_SPEED/20);
+        }
+
+        // Maximum X distance from owner.
+        if(self->modeldata.boomerang_prop.hdistance > 0)
+        {
+            distance_x_max = self->modeldata.boomerang_prop.hdistance;
+        }
+        else
+        {
+            distance_x_max = videomodes.hRes/(3);
+        }
+
+        // If not moving on X axis and loop count
+        // is 0, then this must be a new boomerang.
+        // Run the initialize function to set up
+        // all of the attributes we'll need.
+        if(self->velocity.x == 0)
+        {
+            if(!self->boomerang_loop)
+            {
+               boomerang_initialize(self);
+            }
+        }
+
+        // No lateral movement.
+        if(self->velocity.z != 0) self->velocity.z = 0;
+
+        // If our boomerang has no owner and gets
+        // too far off the screen, then we will
+        // destroy it and exit the function.
+        if(!owner)
+        {
+            // Did check_lost() kill us?
+            if (check_lost())
+            {
+               return 0;
+            }
+        }
+
+        if(owner)
+        {
+            distance_x_current = diff(self->position.x,owner->position.x);
+            self->position.z = owner->position.z;
+            self->position.y = owner->position.y;
+
+            // Movement.
+
+            // Right of owner on X axis?
+            if (self->position.x >= owner->position.x)
+            {
+                // Get a possible X velocity to apply that
+                // will slightly decelerate us.
+                velocity_x_decelerated = self->velocity.x - acceleration;
+
+                // Exceeded maximum distance from owner?
+                if (distance_x_current >= distance_x_max)
+                {
+                    // Have we stopped accelerating?
+                    if(velocity_x_decelerated <= 0)
+                    {
+                        // Moving right along X axis?
+                        if(self->velocity.x > 0)
+                        {
+                            // Increment tracking loop
+                            ++self->boomerang_loop;
+
+                            // Reverse sorting in relation to owner.
+                            sort_invert_by_parent(self,owner);
+                        }
+                    }
+
+                    // This is where we reverse our X velocity and
+                    // return to thrower.
+                    //
+                    // If we're already reversed, then we just make sure
+                    // our X axis velocity is equal to our model
+                    // speed (inverted).
+                    //
+                    // If we're still moving forward (away from owner)
+                    // then apply the next velocity. This will
+                    // have the effect of reducing the X velocity
+                    // until it falls below inverted model speed, at
+                    // which point our reversed condition will be true.
+                    if(velocity_x_decelerated < -self->modeldata.speed)
+                    {
+                        self->velocity.x = -self->modeldata.speed;
+                    }
+                    else
+                    {
+                        self->velocity.x = velocity_x_decelerated;
+                    }
+                }
+                else if (self->velocity.x <= 0)
+                {
+                    if(velocity_x_decelerated < -self->modeldata.speed)
+                    {
+                        self->velocity.x = -self->modeldata.speed;
+                    }
+                    else
+                    {
+                        self->velocity.x = velocity_x_decelerated;
+                    }
+                }
+            }
+            else if (self->position.x <= owner->position.x)
+            {
+                // Calculate an X velocity with acceleration added.
+                velocity_x_accelerated = self->velocity.x + acceleration;
+
+                if(distance_x_current >= distance_x_max)
+                {
+                    if(velocity_x_accelerated >= 0 && self->velocity.x < 0)
+                    {
+                        ++self->boomerang_loop;
+
+                        // Reverse sorting in relation to owner.
+                        sort_invert_by_parent(self,owner);
+                    }
+
+                    // Make sure X velocity is no greater than
+                    // the model speed setting.
+                    if(velocity_x_accelerated > self->modeldata.speed)
+                    {
+                        self->velocity.x = self->modeldata.speed;
+                    }
+                    else
+                    {
+                        self->velocity.x = velocity_x_accelerated;
+                    }
+                }
+                else if (self->velocity.x >= 0)
+                {
+                    if(velocity_x_accelerated > self->modeldata.speed)
+                    {
+                        self->velocity.x = self->modeldata.speed;
+                    }
+                    else
+                    {
+                        self->velocity.x = velocity_x_accelerated;
+                    }
+                }
+            }
+
+            // Catch the boomerang.
+            boomerang_catch(self, distance_x_current);
+
+            //debug_printf("cur_distx:%f velx:%f",distance_x_current,self->velocity.x);
+            //debug_printf("acceleration:%f speed:%f",acceleration,self->modeldata.speed);
+            //debug_printf("boomerang_loop:%d",self->boomerang_loop);
+            //debug_printf("sortid:%d",self->sortid);
+        }
+    }
+
+    // Bounce off walls or platforms.
+    projectile_wall_deflect(self);
+
+    return 1;
 }
 
 // for common bomb types
@@ -28959,6 +29252,11 @@ int common_move()
     {
         // for a bomb, travel in a arc
         return bomb_move();
+    }
+    else if(aimove & AIMOVE1_BOOMERANG)
+    {
+        // for a boomerang, boomerang move
+        return boomerang_move();
     }
     else if(aimove & AIMOVE1_NOMOVE)
     {
@@ -29738,7 +30036,7 @@ void player_die()
 				++all_p_ko;
 			}
         }
-        
+
 		// If all players are KO'd, then KO count = 1.
 		// Otherwise, set it to 0.
 		all_p_ko = (all_p_ko >= MAX_PLAYERS) ? 1 : 0;
@@ -29750,7 +30048,7 @@ void player_die()
 			int all_p_nocredits = 0;
 
 			// All players NOT joining?
-			// Same logic as all player KO. 
+			// Same logic as all player KO.
             for(i = 0; i < MAX_PLAYERS; i++)
             {
 				if (!player[i].joining)
@@ -29769,8 +30067,7 @@ void player_die()
 				{
 					++all_p_nocredits;
 				}
-            }			
-
+            }
 
             all_p_nocredits = (all_p_nocredits >= MAX_PLAYERS) ? 1 : 0;
 
@@ -29781,7 +30078,7 @@ void player_die()
 				// If the player can't continue, let's set the time over
 				// to end almost instantly so they won't have to wait.
 
-				// If noshare is enabled, credit shares are not allowed. Verify all 
+				// If noshare is enabled, credit shares are not allowed. Verify all
 				// player individual credit supplies are empty. Otherwise credit
 				// shares are allowed, so verify pool of credits is empty.
 				if (noshare)
@@ -29789,7 +30086,7 @@ void player_die()
 					if (all_p_nocredits)
 					{
 						timeleft = COUNTER_SPEED / 2;
-					}					
+					}
 				}
 				else
 				{
@@ -29810,7 +30107,7 @@ void player_die()
         {
             nomaxrushreset[playerindex] = 0;
         }
-        
+
 		return;
     }
     else
@@ -32154,7 +32451,6 @@ void player_think()
 
         break;
     default:
-
         if(self->idling)
         {
             common_idle_anim(self);
@@ -32650,6 +32946,114 @@ entity *knife_spawn(char *name, int index, float x, float z, float a, int direct
     e->modeldata.no_adjust_base  = 1;
     return e;
 }
+
+
+entity *boomerang_spawn(char *name, int index, float x, float z, float a, int direction, int map)
+{
+    entity *e = NULL;
+
+    if(index >= 0 || name)
+    {
+        e = spawn(x, z, a, direction, name, index, NULL);
+    }
+    else if(self->weapent && self->weapent->modeldata.subtype == SUBTYPE_PROJECTILE && self->weapent->modeldata.project >= 0)
+    {
+        e = spawn(x, z, a, direction, NULL, self->weapent->modeldata.project, NULL);
+    }
+    else if(self->animation->projectile.boomerang >= 0)
+    {
+        e = spawn(x, z, a, direction, NULL, self->animation->projectile.boomerang, NULL);
+    }
+    else if(self->modeldata.boomerang >= 0)
+    {
+        e = spawn(x, z, a, direction, NULL, self->modeldata.boomerang, NULL);
+    }
+
+    if(e == NULL)
+    {
+        return NULL;
+    }
+    else if(self->modeldata.type & TYPE_PLAYER)
+    {
+        e->modeldata.type = TYPE_NPC;
+    }
+    else if(self->modeldata.type & TYPE_ENEMY)
+    {
+        e->modeldata.type = TYPE_ENEMY;
+    }
+    else
+    {
+        e->modeldata.type = self->modeldata.type;
+    }
+
+    if(!e->model->speed && !e->modeldata.nomove)
+    {
+        e->modeldata.speed = 2;
+    }
+    else if(e->modeldata.nomove)
+    {
+        e->modeldata.speed = 0;
+    }
+
+    e->spawntype = SPAWN_TYPE_PROJECTILE_BOOMERANG;
+    e->owner = self;                                                     // Added so projectiles don't hit the owner
+    e->nograb = 1;                                                       // Prevents trying to grab a projectile
+    e->attacking = ATTACKING_ACTIVE;
+    //e->direction = direction;
+    e->think = common_think;
+    e->nextthink = _time + 1;
+    e->trymove = NULL;
+    e->takedamage = common_takedamage;
+    e->takeaction = NULL;
+    e->modeldata.aimove = AIMOVE1_BOOMERANG;
+    if(!e->modeldata.offscreenkill)
+    {
+        e->modeldata.offscreenkill = 200;    //default value
+    }
+    e->modeldata.aiattack = AIATTACK1_NOATTACK;
+    e->remove_on_attack = e->modeldata.remove;
+    e->autokill = e->modeldata.nomove;
+    e->speedmul = 2;
+
+    ent_set_colourmap(e, map);
+
+    if(e->projectile_prime & PROJECTILE_PRIME_BASE_FLOOR)
+    {
+        e->base = 0;
+    }
+    else
+    {
+        e->base = a;
+    }
+
+    if(e->modeldata.hostile < 0)
+    {
+        e->modeldata.hostile = self->modeldata.hostile;
+    }
+    if(e->modeldata.candamage < 0)
+    {
+        e->modeldata.candamage = self->modeldata.candamage;
+    }
+    if((self->modeldata.type & TYPE_PLAYER) && ((level && level->nohit == DAMAGE_FROM_PLAYER_OFF) || savedata.mode))
+    {
+        e->modeldata.hostile &= ~TYPE_PLAYER;
+        e->modeldata.candamage &= ~TYPE_PLAYER;
+    }
+
+    e->modeldata.subject_to_hole        = 0;
+    e->modeldata.subject_to_gravity     = 1;
+    e->modeldata.subject_to_basemap     = 0;
+    e->modeldata.subject_to_wall        = 0;
+    e->modeldata.subject_to_platform    = 0;
+    e->modeldata.subject_to_screen      = 0;
+    e->modeldata.subject_to_minz        = 1;
+    e->modeldata.subject_to_maxz        = 1;
+    e->modeldata.no_adjust_base         = 1;
+
+    return e;
+}
+
+
 
 void bomb_explode()
 {
@@ -36519,64 +36923,19 @@ int playlevel(char *filename)
     return ((type == 2 && endgame != 2) || p_alive);
 }
 
-// Caskey, Damon V (retool, OA unknown)
-// 2019-01-03
-//
-// For select screen. Spawn sample entity for player_index.
-static entity *spawnexample(int player_index)
+
+static entity *spawnexample(int i)
 {
-	#define SPAWN_MODEL_NAME	NULL
-	#define SPAWN_MODEL_INDEX	-1
+    entity *example;
+    s_set_entry *set = levelsets + current_set;
+    example = spawn((float)psmenu[i][0], (float)psmenu[i][1], 0, spdirection[i], NULL, -1, nextplayermodeln(NULL, i));
+    strcpy(player[i].name, example->model->name);
 
-    entity	*example;
-	s_model *model;
-	s_set_entry *set;
+    player[i].colourmap = (colourselect && (set->nosame & 2)) ? nextcolourmapn(example->model, -1, i) : 0;
 
-	float pos_x;
-	float pos_y;
-	float pos_z;
-	int direction;
-		
-	set = levelsets + current_set;
-
-	// Get spawn attributes and spawn entity.
-	pos_x = (float)psmenu[player_index][0];
-	pos_y = 0;
-	pos_z = (float)psmenu[player_index][1];
-	direction = spdirection[player_index];
-
-	// Next selectable model in cycle. We'll use this
-	// to decide what we spawn.
-	model = nextplayermodeln(NULL, player_index);
-
-	example = spawn(pos_x, pos_z, pos_y, direction, SPAWN_MODEL_NAME, SPAWN_MODEL_INDEX, model);
-    
-	// Copy model's name to player property.
-	strcpy(player[player_index].name, model->name);
-
-	// If color selection is allowed and we want
-	// players with same models to use different
-	// maps, then use next map in cycle. Otherwise
-	// just go with default map.
-	if (colourselect && (set->nosame & 2))
-	{
-		player[player_index].colourmap = nextcolourmapn(model, -1, player_index);
-	}
-	else
-	{
-		player[player_index].colourmap = 0;
-	}
-
-	// Apply map to spawned entity.
-    ent_set_colourmap(example, player[player_index].colourmap);
-    
-	// So the entity knows how it came to be.
-	example->spawntype = SPAWN_TYPE_PLAYER_SELECT;
-    
-	return example;
-
-	#undef SPAWN_MODEL_NAME
-	#undef SPAWN_MODEL_INDEX
+    ent_set_colourmap(example, player[i].colourmap);
+    example->spawntype = SPAWN_TYPE_PLAYER_SELECT;
+    return example;
 }
 
 // load saved select screen
@@ -36617,531 +36976,362 @@ static void load_select_screen_info(s_savelevel *save)
 
 int selectplayer(int *players, char *filename, int useSavedGame)
 {
-	s_model *tempmodel;
-	s_model *model_old = NULL;
-	s_model *model_new = NULL;
-	int i;
-	int exit = 0;
-	int escape = 0;
-	int defaultselect = 0;
-	unsigned exitdelay = 0;
-	int players_busy = 0;
-	int players_ready = 0;
-	char string[MAX_BUFFER_LEN] = { "" };
-	char *buf, *command;
-	size_t size = 0;
-	ptrdiff_t pos = 0;
-	ArgList arglist;
-	char argbuf[MAX_ARG_LEN + 1] = "";
-	s_set_entry *set = levelsets + current_set;
-	s_savelevel *save = savelevel + current_set;
-	int load_count = 0;
-	int saved_select_screen = 0;
-	int is_first_select = 1;
+    s_model *tempmodel;
+    entity *example[4] = {NULL, NULL, NULL, NULL};
+    int i;
+    int exit = 0;
+    int ready[MAX_PLAYERS] = {0, 0, 0, 0};
+    int escape = 0;
+    int defaultselect = 0;
+    unsigned exitdelay = 0;
+    int players_busy = 0;
+    int players_ready = 0;
+    char string[MAX_BUFFER_LEN] = {""};
+    char *buf, *command;
+    size_t size = 0;
+    ptrdiff_t pos = 0;
+    ArgList arglist;
+    char argbuf[MAX_ARG_LEN + 1] = "";
+    s_set_entry *set = levelsets + current_set;
+    s_savelevel *save = savelevel + current_set;
+    int load_count = 0, saved_select_screen = 0;
+    int is_first_select = 1;
 
-	savelevelinfo();
+    savelevelinfo();
 
-	selectScreen = 1;
-	kill_all();
+    selectScreen = 1;
+    kill_all();
+    if( allowselect_args[0] != 'a' && allowselect_args[0] != 'A' ) reset_playable_list(1); // 'a' is the first char of allowselect, if there's 'a' then there is allowselect
+    memset(player, 0, sizeof(*player) * 4);
 
-	// Initialize player sized arrays.
-	entity *example[set->maxplayers];
-	int ready[set->maxplayers];
+    if(useSavedGame && save)
+    {
+        if (save->selectFlag)
+        {
+            load_select_screen_info(save);
+            load_playable_list(save->allowSelectArgs);
+            saved_select_screen = 1;
+        }
+    }
 
-	// Initialize 
-	for (i = 0; i < set->maxplayers; i++)
-	{
-		example[i] = NULL;
-		ready[i] = 0;
-	}
+    //loadGameFile();
 
-	// Allow select? 'a' is the first char of allowselect,
-	// if there's 'a' then there is allowselect.
-	if (allowselect_args[0] != 'a'
-		&& allowselect_args[0] != 'A')
-	{
-		reset_playable_list(1);
-	}
+    for(i = 0; i < set->maxplayers; i++)
+    {
+        player[i].hasplayed = players[i];
+    }
 
-	// Reset memory for player array.
-	memset(player, 0, sizeof(*player) * MAX_PLAYERS);
+    for(i = 0; i < set->maxplayers; i++)
+    {
+        if (savelevel[current_set].pLives[i] > 0)
+        {
+            is_first_select = 0;
+            break;
+        }
+    }
 
-	// Load game selected and a save game available?
-	if (useSavedGame && save)
-	{
-		if (save->selectFlag)
-		{
-			load_select_screen_info(save);
-			load_playable_list(save->allowSelectArgs);
-			saved_select_screen = 1;
-		}
-	}
+    if(filename && filename[0])
+    {
+        if(buffer_pakfile(filename, &buf, &size) != 1)
+        {
+            borShutdown(1, "Failed to load player select file '%s'", filename);
+        }
+        while(pos < size)
+        {
+            ParseArgs(&arglist, buf + pos, argbuf);
+            command = GET_ARG(0);
+            if(command && command[0])
+            {
+                if(stricmp(command, "music") == 0)
+                {
+                    music(GET_ARG(1), GET_INT_ARG(2), atol(GET_ARG(3)));
+                    // SAVE
+                    multistrcatsp(save->selectMusic, command,GET_ARG(1),GET_ARG(2),GET_ARG(3),NULL);
+                }
+                else if(stricmp(command, "allowselect") == 0)
+                {
+                    load_playable_list(buf + pos);
+                    memcpy(&save->allowSelectArgs, &allowselect_args, sizeof(allowselect_args)); // SAVE
+                }
+                else if(stricmp(command, "background") == 0)
+                {
+                    load_background(GET_ARG(1), 1);
+                    // SAVE
+                    multistrcatsp(save->selectBackground, command,GET_ARG(1),NULL);
+                }
+                else if(stricmp(command, "load") == 0)
+                {
+                    tempmodel = findmodel(GET_ARG(1));
+                    if (!tempmodel)
+                    {
+                        load_cached_model(GET_ARG(1), filename, GET_INT_ARG(2));
+                    }
+                    else
+                    {
+                        update_model_loadflag(tempmodel, GET_INT_ARG(2));
+                    }
+                    // SAVE
+                    if(load_count < MAX_SELECT_LOADS)
+                    {
+                        multistrcatsp(save->selectLoad[load_count], command,GET_ARG(1),GET_ARG(2),NULL);
+                        load_count++;
+                    }
+                }
+                else if(command && command[0])
+                {
+                    printf("Command '%s' is not understood in file '%s'\n", command, filename);
+                }
+            }
 
-	// Mark "hasplayed" for all players.
-	for (i = 0; i < set->maxplayers; i++)
-	{
-		player[i].hasplayed = players[i];
-	}
+            pos += getNewLineStart(buf + pos);
+        }
+        save->selectLoadCount = load_count; // SAVE number of LOAD command
+        save->selectFlag = 1;
 
-	for (i = 0; i < set->maxplayers; i++)
-	{
-		if (savelevel[current_set].pLives[i] > 0)
-		{
-			is_first_select = 0;
-			break;
-		}
-	}
+        if(buf != NULL)
+        {
+            free(buf);
+            buf = NULL;
+        }
+    }
+    else // without select.txt
+    {
+        if(is_first_select || (!skipselect[0][0] && !set->noselect)) // no select is skipselect without names
+        {
+            defaultselect = 1; // normal select or skipselect/noselect? 1 == normal select
+        }
 
-	// Load and apply selection text file.
-	if (filename && filename[0])
-	{
-		if (buffer_pakfile(filename, &buf, &size) != 1)
-		{
-			borShutdown(1, "Failed to load player select file '%s'", filename);
-		}
-		while (pos < size)
-		{
-			ParseArgs(&arglist, buf + pos, argbuf);
-			command = GET_ARG(0);
-			if (command && command[0])
-			{
-				if (stricmp(command, "music") == 0)
-				{
-					music(GET_ARG(1), GET_INT_ARG(2), atol(GET_ARG(3)));
-					// SAVE
-					multistrcatsp(save->selectMusic, command, GET_ARG(1), GET_ARG(2), GET_ARG(3), NULL);
-				}
-				else if (stricmp(command, "allowselect") == 0)
-				{
-					load_playable_list(buf + pos);
-					memcpy(&save->allowSelectArgs, &allowselect_args, sizeof(allowselect_args)); // SAVE
-				}
-				else if (stricmp(command, "background") == 0)
-				{
-					load_background(GET_ARG(1), 1);
-					// SAVE
-					multistrcatsp(save->selectBackground, command, GET_ARG(1), NULL);
-				}
-				else if (stricmp(command, "load") == 0)
-				{
-					tempmodel = findmodel(GET_ARG(1));
-					if (!tempmodel)
-					{
-						load_cached_model(GET_ARG(1), filename, GET_INT_ARG(2));
-					}
-					else
-					{
-						update_model_loadflag(tempmodel, GET_INT_ARG(2));
-					}
-					// SAVE
-					if (load_count < MAX_SELECT_LOADS)
-					{
-						multistrcatsp(save->selectLoad[load_count], command, GET_ARG(1), GET_ARG(2), NULL);
-						load_count++;
-					}
-				}
-				else if (command && command[0])
-				{
-					printf("Command '%s' is not understood in file '%s'\n", command, filename);
-				}
-			}
+        if(!noshare)
+        {
+            credits = CONTINUES;
+        }
+        else for(i = 0; i < set->maxplayers; i++)
+        {
+            if(players[i])
+            {
+                player[i].credits = CONTINUES;
+            }
+        }
 
-			pos += getNewLineStart(buf + pos);
-		}
-		save->selectLoadCount = load_count; // SAVE number of LOAD command
-		save->selectFlag = 1;
+        if(skipselect[0][0] || set->noselect)
+        {
+            for(i = 0; i < set->maxplayers; i++)
+            {
+                if(!players[i])
+                {
+                    continue;
+                }
+                strncpy(player[i].name, skipselect[i], MAX_NAME_LEN);
 
-		if (buf != NULL)
-		{
-			free(buf);
-			buf = NULL;
-		}
-	}
-	else // without select.txt
-	{
-		if (is_first_select || (!skipselect[0][0] && !set->noselect)) // no select is skipselect without names
-		{
-			defaultselect = 1; // normal select or skipselect/noselect? 1 == normal select
-		}
+                if(defaultselect)
+                {
+                    player[i].lives = PLAYER_LIVES;
+                    if(!creditscheat)
+                    {
+                        if(noshare)
+                        {
+                            --player[i].credits;
+                        }
+                        else
+                        {
+                            --credits;
+                        }
+                    }
+                }
+                else
+                {
+                    player[i].lives = savelevel[current_set].pLives[i];
+                    player[i].score = savelevel[current_set].pScores[i];
+                    if(noshare) player[i].credits = savelevel[current_set].pCredits[i];
+                    else credits = savelevel[current_set].credits;
+                }
+            }
+            selectScreen = 0;
 
-		if (!noshare)
-		{
-			credits = CONTINUES;
-		}
-		else for (i = 0; i < set->maxplayers; i++)
-		{
-			if (players[i])
-			{
-				player[i].credits = CONTINUES;
-			}
-		}
+            return 1;
+        }
 
-		if (skipselect[0][0] || set->noselect)
-		{
-			for (i = 0; i < set->maxplayers; i++)
-			{
-				if (!players[i])
-				{
-					continue;
-				}
-				strncpy(player[i].name, skipselect[i], MAX_NAME_LEN);
+        if (!saved_select_screen)
+        {
+            if(unlockbg && bonus)
+            {
+                // New alternative background path for PSP
+                if(custBkgrds != NULL)
+                {
+                    strcpy(string, custBkgrds);
+                    strcat(string, "unlockbg");
+                    load_background(string, 1);
+                }
+                else
+                {
+                    load_cached_background("data/bgs/unlockbg", 1);
+                }
+            }
+            else
+            {
+                // New alternative background path for PSP
+                if(custBkgrds != NULL)
+                {
+                    strcpy(string, custBkgrds);
+                    strcat(string, "select");
+                    load_background(string, 1);
+                }
+                else
+                {
+                    load_cached_background("data/bgs/select", 1);
+                }
+            }
+            if(!music("data/music/menu", 1, 0))
+            {
+                music("data/music/remix", 1, 0);
+            }
+        }
+    }
 
-				if (defaultselect)
-				{
-					player[i].lives = PLAYER_LIVES;
-					if (!creditscheat)
-					{
-						if (noshare)
-						{
-							--player[i].credits;
-						}
-						else
-						{
-							--credits;
-						}
-					}
-				}
-				else
-				{
-					player[i].lives = savelevel[current_set].pLives[i];
-					player[i].score = savelevel[current_set].pScores[i];
-					if (noshare) player[i].credits = savelevel[current_set].pCredits[i];
-					else credits = savelevel[current_set].credits;
-				}
-			}
-			selectScreen = 0;
+    for(i = 0; i < set->maxplayers; i++)
+    {
+        if(players[i])
+        {
+            example[i] = spawnexample(i);
+            player[i].playkeys = 0;
+            if(defaultselect)
+            {
+                player[i].lives = PLAYER_LIVES;
+                if(!creditscheat)
+                {
+                    if(noshare)
+                    {
+                        --player[i].credits;
+                    }
+                    else
+                    {
+                        --credits;
+                    }
+                }
+            }
+            else
+            {
+                player[i].lives = savelevel[current_set].pLives[i];
+                player[i].score = savelevel[current_set].pScores[i];
+                if(noshare) player[i].credits = savelevel[current_set].pCredits[i];
+                else credits = savelevel[current_set].credits;
+            }
+        }
+    }
 
-			return 1;
-		}
+    _time = 0;
+    while(!(exit || escape))
+    {
+        players_busy = 0;
+        players_ready = 0;
+        for(i = 0; i < set->maxplayers; i++)
+        {
+            if(!ready[i])
+            {
+                if(!player[i].hasplayed && (noshare || credits > 0) && (player[i].newkeys & FLAG_ANYBUTTON))
+                {
+                    players[i] = player[i].hasplayed = 1;
+                    //printf("%d %d %d\n", i, player[i].lives, immediate[i]);
 
-		if (!saved_select_screen)
-		{
-			if (unlockbg && bonus)
-			{
-				// New alternative background path for PSP
-				if (custBkgrds != NULL)
-				{
-					strcpy(string, custBkgrds);
-					strcat(string, "unlockbg");
-					load_background(string, 1);
-				}
-				else
-				{
-					load_cached_background("data/bgs/unlockbg", 1);
-				}
-			}
-			else
-			{
-				// New alternative background path for PSP
-				if (custBkgrds != NULL)
-				{
-					strcpy(string, custBkgrds);
-					strcat(string, "select");
-					load_background(string, 1);
-				}
-				else
-				{
-					load_cached_background("data/bgs/select", 1);
-				}
-			}
-			if (!music("data/music/menu", 1, 0))
-			{
-				music("data/music/remix", 1, 0);
-			}
-		}
-	}
+                    if(noshare)
+                    {
+                        player[i].credits = CONTINUES;
+                    }
 
-	for (i = 0; i < set->maxplayers; i++)
-	{
-		if (players[i])
-		{
-			example[i] = spawnexample(i);
-			player[i].playkeys = 0;
-			if (defaultselect)
-			{
-				player[i].lives = PLAYER_LIVES;
-				if (!creditscheat)
-				{
-					if (noshare)
-					{
-						--player[i].credits;
-					}
-					else
-					{
-						--credits;
-					}
-				}
-			}
-			else
-			{
-				player[i].lives = savelevel[current_set].pLives[i];
-				player[i].score = savelevel[current_set].pScores[i];
-				if (noshare) player[i].credits = savelevel[current_set].pCredits[i];
-				else credits = savelevel[current_set].credits;
-			}
-		}
-	}
+                    if(!creditscheat)
+                    {
+                        if(noshare)
+                        {
+                            --player[i].credits;
+                        }
+                        else
+                        {
+                            --credits;
+                        }
+                    }
 
-	_time = 0;
+                    player[i].lives = PLAYER_LIVES;
+                    example[i] = spawnexample(i);
+                    player[i].playkeys = 0;
 
-	// Stay in selection until escape or exit.
-	// 
-	// exit = all players ready (selected) and exit delay expired.
-	// escape = Escape key pressed.
-	while (!(exit || escape))
-	{
-		players_busy = 0;
-		players_ready = 0;
+                    if(SAMPLE_BEEP >= 0)
+                    {
+                        sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
+                    }
+                }
+                else if(player[i].newkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT) && example[i])
+                {
+                    if(SAMPLE_BEEP >= 0)
+                    {
+                        sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
+                    }
+                    ent_set_model(example[i], ((player[i].newkeys & FLAG_MOVELEFT) ? prevplayermodeln : nextplayermodeln)(example[i]->model, i)->name, 0);
+                    strcpy(player[i].name, example[i]->model->name);
+                    player[i].colourmap = (colourselect && (set->nosame & 2)) ? nextcolourmapn(example[i]->model, -1, i) : 0;
+                    ent_set_colourmap(example[i], player[i].colourmap);
+                }
+                // oooh pretty colors! - selectable color scheme for player characters
+                else if(player[i].newkeys & (FLAG_MOVEUP | FLAG_MOVEDOWN) && colourselect && example[i])
+                {
+                    player[i].colourmap = ((player[i].newkeys & FLAG_MOVEUP) ? nextcolourmapn : prevcolourmapn)(example[i]->model, player[i].colourmap, i);
+                    ent_set_colourmap(example[i], player[i].colourmap);
+                }
+                else if((player[i].newkeys & FLAG_ANYBUTTON) && example[i])
+                {
+                    if(SAMPLE_BEEP2 >= 0)
+                    {
+                        sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
+                    }
+                    // yay you picked me!
+                    if(validanim(example[i], ANI_PICK))
+                    {
+                        ent_set_anim(example[i], ANI_PICK, 0);
+                    }
+                    example[i]->stalltime = _time + GAME_SPEED * 2;
+                    ready[i] = 1;
+                }
+            }
+            else if(ready[i] == 1)
+            {
+                if(((!validanim(example[i], ANI_PICK) || example[i]->modeldata.animation[ANI_PICK]->loop.mode) && _time > example[i]->stalltime) || !example[i]->animating)
+                {
+                    ready[i] = 2;
+                    exitdelay = _time + GAME_SPEED;
+                }
+            }
+            else if(ready[i] == 2)
+            {
+                font_printf(psmenu[i][2], psmenu[i][3], 0, 0, Tr("Ready!"));
+            }
 
-		// Loop through players.
-		for (i = 0; i < set->maxplayers; i++)
-		{
-			// Current player index not yet selected?
-			if (!ready[i])
-			{
-				
-				// This is where we present player selections. The logic is long
-				// and a little messy, so buckle up! Basically, we want to spawn
-				// an example entity to get started, and that example entity
-				// is what player sees on the selection screen. Then we switch
-				// its model/color/animation based on the situation and player
-				// input.
-				//
-				// 1. If an example entity exists and is playing a transition 
-				//  then we...
-				//
-				// a) do nothing if the animation isn't finished.
-				//
-				// b) If it IS finished...
-				//
-				// -- 1. If the animation is ANI_SELECTIN, then play ANI_SELECT.
-				// 
-				// -- 2. If aniamton is ANI_SELECTOUT, then we switch to new 
-				// model (if available).
-				//
-				// 2. If player hasn't played yet, has some credits or 
-				// can draw from credit pool and pressed any action button,
-				// then we'll deal with their credit pool and spawn the
-				// first example (selectable model preview). Having an 
-				// example spawned also tells us the player has completed 
-				// this step, and so it's OK to run actions from any of 
-				// the others.
-				//
-				// 3. If the player pressed Left or Right instead and there's
-				// an example spawned, then we find the previous/next 
-				// character in line, and record it to a variable. Then we
-				// see if example has ANI_SELECTIN. if it doesn't we switch
-				// to new model. If it does, play ANI_SELECT.
-				//
-				// 4. If the player presses Up or Down, we have an example 
-				// spawned and colourselect is enabled, then cycle to the
-				// model's previous/next color set choice.
-				//
-				// 5. If the player presses any action button and we have
-				// an example spawned, then we mark the player's ready delay 
-				// flag, and stalltime. See the parent logic block for 
-				// selection delay & exit details. This is the player
-				// making their selection choice.
+            if(example[i] != NULL)
+            {
+                players_busy++;
+            }
+            if(ready[i] == 2)
+            {
+                players_ready++;
+            }
+        }
 
-				// Example exists and select transition animation?
-				if (example[i] 
-					&& (example[i]->animnum == ANI_SELECTIN || example[i]->animnum == ANI_SELECTOUT))
-				{
-					// If still animating than do nothing. Let the transition finish.
-					if (example[i]->animating)
-					{
-					}
-					else
-					{
-						// Transition to select animation.
-						if (example[i]->animnum == ANI_SELECTIN)
-						{
-							ent_set_anim(example[i], ANI_SELECT, 0);
-						}
+        if(players_busy && players_busy == players_ready && exitdelay && _time > exitdelay)
+        {
+            exit = 1;
+        }
+        update(0, 0);
 
-						// Transition from select (player selected another model, and the
-						// select out transition is now finished). Repeat of left/right key 
-						// logic below and probably needs consolidation.
-						if (example[i]->animnum == ANI_SELECTOUT && model_new)
-						{
-							// Apply new model.
-							ent_set_model(example[i], model_new->name, 0);
+        if(bothnewkeys & FLAG_ESC)
+        {
+            escape = 1;
+        }
+    }
 
-							// Copy example model name to player name variable.
-							strcpy(player[i].name, example[i]->model->name);
+    // No longer at the select screen
+    kill_all();
+    sound_close_music();
+    selectScreen = 0;
 
-							// If colorselect is enabled and nosame 2 is enabled, skip to
-							// start at next avaialble color cycle. Otherwise just start 
-							// with default color set (0).
-							if (colourselect && (set->nosame & 2))
-							{
-								player[i].colourmap = nextcolourmapn(example[i]->model, -1, i);
-							}
-							else
-							{
-								player[i].colourmap = 0;
-							}
-
-							//  Apply color set.
-							ent_set_colourmap(example[i], player[i].colourmap);
-						}
-					}
-				}
-				else if (!player[i].hasplayed
-					&& (noshare || credits > 0)
-					&& (player[i].newkeys & FLAG_ANYBUTTON))
-				{
-
-					//  Now this player has played.
-					players[i] = player[i].hasplayed = 1;
-					//printf("%d %d %d\n", i, player[i].lives, immediate[i]);
-
-					// Noshare means each player has their own credit pool.
-					if (noshare)
-					{
-						player[i].credits = CONTINUES;
-					}
-
-					// Credits cheat = infinite credits. If that's not enabled,
-					// then deduct a credit.
-					if (!creditscheat)
-					{
-						if (noshare)
-						{
-							--player[i].credits;
-						}
-						else
-						{
-							--credits;
-						}
-					}
-
-					// Give player default number of lives, spawn
-					// example model and cancel the key flag.
-					player[i].lives = PLAYER_LIVES;
-					example[i] = spawnexample(i);
-					player[i].playkeys = 0;
-
-					// Play sound effect.
-					if (SAMPLE_BEEP >= 0)
-					{
-						sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
-					}
-				}
-				else if (player[i].newkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT) && example[i])
-				{
-					// Give player a feedback sound.
-					if (SAMPLE_BEEP >= 0)
-					{
-						sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
-					}
-
-					// Get model in use right now.
-					model_old = example[i]->model;
-
-					// Let's get the new model. Left key = previous model 
-					// in cycle. Right key = next.
-					if ((player[i].newkeys & FLAG_MOVELEFT))
-					{
-						model_new = prevplayermodeln(model_old, i);
-					}
-					else
-					{
-						model_new = nextplayermodeln(model_old, i);
-					}
-
-					// Do we have a select out transition? If so play it here. 
-					// Otherwise switch to new model. 
-					if (validanim(example[i], ANI_SELECTOUT))
-					{						
-						ent_set_anim(example[i], ANI_SELECTOUT, 0);				
-					}
-					else
-					{
-						// Apply new model.
-						ent_set_model(example[i], model_new->name, 0);
-
-						// Copy example model name to player name variable.
-						strcpy(player[i].name, example[i]->model->name);
-
-						// If colorselect is enabled and nosame 2 is enabled, skip to
-						// start at next avaialble color cycle. Otherwise just start 
-						// with default color set (0).
-						if (colourselect && (set->nosame & 2))
-						{
-							player[i].colourmap = nextcolourmapn(example[i]->model, -1, i);
-						}
-						else
-						{
-							player[i].colourmap = 0;
-						}
-
-						//  Apply color set.
-						ent_set_colourmap(example[i], player[i].colourmap);
-					}					
-				}
-				else if (player[i].newkeys & (FLAG_MOVEUP | FLAG_MOVEDOWN) && colourselect && example[i])
-				{
-					player[i].colourmap = ((player[i].newkeys & FLAG_MOVEUP) ? nextcolourmapn : prevcolourmapn)(example[i]->model, player[i].colourmap, i);
-					ent_set_colourmap(example[i], player[i].colourmap);
-				}
-				else if ((player[i].newkeys & FLAG_ANYBUTTON) && example[i])
-				{
-					if (SAMPLE_BEEP2 >= 0)
-					{
-						sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
-					}
-					// yay you picked me!
-					if (validanim(example[i], ANI_PICK))
-					{
-						ent_set_anim(example[i], ANI_PICK, 0);
-					}
-					example[i]->stalltime = _time + GAME_SPEED * 2;
-					ready[i] = 1;
-				}
-		
-			}
-			else if (ready[i] == 1)
-			{
-				if (((!validanim(example[i], ANI_PICK) || example[i]->modeldata.animation[ANI_PICK]->loop.mode) && _time > example[i]->stalltime) || !example[i]->animating)
-				{
-					ready[i] = 2;
-					exitdelay = _time + GAME_SPEED;
-				}
-			}
-			else if (ready[i] == 2)
-			{
-				font_printf(psmenu[i][2], psmenu[i][3], 0, 0, Tr("Ready!"));
-			}
-
-			if (example[i] != NULL)
-			{
-				players_busy++;
-			}
-			if (ready[i] == 2)
-			{
-				players_ready++;
-			}
-		}
-
-		if (players_busy && players_busy == players_ready && exitdelay && _time > exitdelay)
-		{
-			exit = 1;
-		}
-		update(0, 0);
-
-		if (bothnewkeys & FLAG_ESC)
-		{
-			escape = 1;
-		}
-	}
-
-	// No longer at the select screen
-	kill_all();
-	sound_close_music();
-	selectScreen = 0;
-
-	return (!escape);
+    return (!escape);
 }
 
 void playgame(int *players,  unsigned which_set, int useSavedGame)
@@ -38754,8 +38944,10 @@ void menu_options_debug()
         // and last can go in any
         // order.
         ITEM_POSITION,
+        ITEM_FEATURES,
         ITEM_COL_ATTACK,
         ITEM_COL_BODY,
+        ITEM_COL_ENTITY,
         ITEM_COL_RANGE,
 
         // This is the "Back"
@@ -38787,19 +38979,23 @@ void menu_options_debug()
         pos_y = MENU_POS_Y + MENU_ITEMS_MARGIN_Y;
 
         _menutext((selector == ITEM_PERFORMANCE),    COLUMN_1_POS_X, pos_y, Tr("Performance:"));
-        _menutext((selector == ITEM_PERFORMANCE),    COLUMN_2_POS_X, pos_y, (savedata.debuginfo & DEBUG_DISPLAY_PERFORMANCE ? Tr("Enabled") : Tr("Disabled")));
+        _menutext((selector == ITEM_PERFORMANCE),    COLUMN_2_POS_X, pos_y, (savedata.debuginfo ? Tr("Enabled") : Tr("Disabled")));
         pos_y++;
 
-        _menutext((selector == ITEM_POSITION),       COLUMN_1_POS_X, pos_y, Tr("Basic Properties:"));
-        _menutext((selector == ITEM_POSITION),       COLUMN_2_POS_X, pos_y, (savedata.debuginfo & DEBUG_DISPLAY_PROPERTIES ? Tr("Enabled") : Tr("Disabled")));
+        _menutext((selector == ITEM_POSITION),       COLUMN_1_POS_X, pos_y, Tr("Position:"));
+        _menutext((selector == ITEM_POSITION),       COLUMN_2_POS_X, pos_y, (savedata.debug_position ? Tr("Enabled") : Tr("Disabled")));
+        pos_y++;
+
+        _menutext((selector == ITEM_FEATURES),       COLUMN_1_POS_X, pos_y, Tr("Features:"));
+        _menutext((selector == ITEM_FEATURES),       COLUMN_2_POS_X, pos_y, (savedata.debug_features ? Tr("Enabled") : Tr("Disabled")));
         pos_y++;
 
         _menutext((selector == ITEM_COL_ATTACK),     COLUMN_1_POS_X, pos_y, Tr("Collision Attack:"));
-        _menutext((selector == ITEM_COL_ATTACK),     COLUMN_2_POS_X, pos_y, (savedata.debuginfo & DEBUG_DISPLAY_COLLISION_ATTACK ? Tr("Enabled") : Tr("Disabled")));
+        _menutext((selector == ITEM_COL_ATTACK),     COLUMN_2_POS_X, pos_y, (savedata.debug_collision_attack ? Tr("Enabled") : Tr("Disabled")));
         pos_y++;
 
         _menutext((selector == ITEM_COL_BODY),       COLUMN_1_POS_X, pos_y, Tr("Collision Body:"));
-        _menutext((selector == ITEM_COL_BODY),       COLUMN_2_POS_X, pos_y, (savedata.debuginfo & DEBUG_DISPLAY_COLLISION_BODY ? Tr("Enabled") : Tr("Disabled")));
+        _menutext((selector == ITEM_COL_BODY),       COLUMN_2_POS_X, pos_y, (savedata.debug_collision_body ? Tr("Enabled") : Tr("Disabled")));
         pos_y++;
 
         if (enable_entity_collision)
@@ -38810,7 +39006,7 @@ void menu_options_debug()
         }
 
         _menutext((selector == ITEM_COL_RANGE),      COLUMN_1_POS_X, pos_y, Tr("Range:"));
-        _menutext((selector == ITEM_COL_RANGE),      COLUMN_2_POS_X, pos_y, (savedata.debuginfo & DEBUG_DISPLAY_RANGE ? Tr("Enabled") : Tr("Disabled")));
+        _menutext((selector == ITEM_COL_RANGE),      COLUMN_2_POS_X, pos_y, (savedata.debug_collision_range ? Tr("Enabled") : Tr("Disabled")));
         pos_y++;
 
         // Display exit title
@@ -38881,19 +39077,25 @@ void menu_options_debug()
             switch(selector)
             {
                 case ITEM_PERFORMANCE:
-                    savedata.debuginfo ^= DEBUG_DISPLAY_PERFORMANCE;
+                    savedata.debuginfo = !savedata.debuginfo;
                     break;
                 case ITEM_POSITION:
-                    savedata.debuginfo ^= DEBUG_DISPLAY_PROPERTIES;
-                    break;                
+                    savedata.debug_position = !savedata.debug_position;
+                    break;
+                case ITEM_FEATURES:
+                    savedata.debug_features = !savedata.debug_features;
+                    break;
                 case ITEM_COL_ATTACK:
-                    savedata.debuginfo ^= DEBUG_DISPLAY_COLLISION_ATTACK;
+                    savedata.debug_collision_attack = !savedata.debug_collision_attack;
                     break;
                 case ITEM_COL_BODY:
-                    savedata.debuginfo ^= DEBUG_DISPLAY_COLLISION_BODY;
+                    savedata.debug_collision_body = !savedata.debug_collision_body;
+                    break;
+                case ITEM_COL_ENTITY:
+                    savedata.debug_collision_entity = !savedata.debug_collision_entity;
                     break;
                 case ITEM_COL_RANGE:
-                    savedata.debuginfo ^= DEBUG_DISPLAY_RANGE;
+                    savedata.debug_collision_range = !savedata.debug_collision_range;
                     break;
                 case ITEM_EXIT:
                     quit = 1;

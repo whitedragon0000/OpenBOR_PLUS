@@ -926,7 +926,7 @@ void ScriptVariant_Neg( ScriptVariant *svar)
     {
     case VT_DECIMAL:
         svar->dblVal = -(svar->dblVal);
-		break;
+        break;
     case VT_INTEGER:
         svar->lVal = -(svar->lVal);
         break;
