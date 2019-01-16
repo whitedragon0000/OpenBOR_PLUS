@@ -4644,7 +4644,7 @@ int load_special_sounds()
 // 2019-01-02
 //
 // Return true if map_index matches a special purpose
-// map or falls within author defined hidden map range, 
+// map or falls within author defined hidden map range,
 // unless any of the above are same as default map (0).
 int is_map_hidden(s_model *model, int map_index)
 {
@@ -4668,10 +4668,10 @@ int is_map_hidden(s_model *model, int map_index)
 	}
 
 	// Hidden map range. Both should be
-	// something other than default. If 
+	// something other than default. If
 	// they are and map index is in range
 	// we return true.
-	if (model->maps.hide_start > 0 
+	if (model->maps.hide_start > 0
 		&& model->maps.hide_end > 0)
 	{
 		if (map_index >= model->maps.hide_start
@@ -4681,15 +4681,15 @@ int is_map_hidden(s_model *model, int map_index)
 		}
 	}
 
-	// If we got this far, there's no match. 
+	// If we got this far, there's no match.
 	return 0;
 }
 
 // Return model's next selectable map index in line.
 int nextcolourmap(s_model *model, int map_index)
 {
-	// Increment to next color set, or return to 0 
-	// if we go past number of available sets. 
+	// Increment to next color set, or return to 0
+	// if we go past number of available sets.
 	// Continue until we find an index that
 	// isn't hidden.
     do
@@ -4707,7 +4707,7 @@ int nextcolourmap(s_model *model, int map_index)
 }
 
 // Increment to next map in player's (player_index) model
-// while avoiding the map another player with same 
+// while avoiding the map another player with same
 // is using.
 int nextcolourmapn(s_model *model, int map_index, int player_index)
 {
@@ -4716,8 +4716,8 @@ int nextcolourmapn(s_model *model, int map_index, int player_index)
 
     s_set_entry *set = levelsets + current_set;
 
-	// If color selection is allowed but identical map is 
-	// not (nosame 2), then let's make sure anohter player 
+	// If color selection is allowed but identical map is
+	// not (nosame 2), then let's make sure anohter player
 	// with same model isn't already using this map.
 	// If they are we'll find the next map available.
     if (colourselect && (set->nosame & 2))
@@ -4757,23 +4757,23 @@ int nextcolourmapn(s_model *model, int map_index, int player_index)
 		// has two maps), then we return initial map selection.
 
         for(i = 0; i < MAX_PLAYERS; i++)
-        {			
+        {
 			// Compare every player index to player_index argument. If
 			// it's a different index but that index's model matches
-			// player_index's model, then it's another player choosing 
+			// player_index's model, then it's another player choosing
 			// (or about to choose) the same character.
 
-            if (player_index != i 
-				&& 
+            if (player_index != i
+				&&
 				stricmp(player[player_index].name, player[i].name) == 0)
             {
 				// Use the map index as an array element index, and mark it true.
 				// Now we now this map index is in use.
                 used_colors_map[player[i].colourmap] = 1;
-                
+
 				// Increment number of used map indexes.
 				++used_color_count;
-                
+
 				// If all the map indexes are used, we'll just
 				// have to settle for one we already picked.
 				if (used_color_count >= maps_count)
@@ -4809,7 +4809,7 @@ int nextcolourmapn(s_model *model, int map_index, int player_index)
 // Return model's previous selectable map index in line.
 int prevcolourmap(s_model *model, int map_index)
 {
-	// Decrement to previous color set, or return 
+	// Decrement to previous color set, or return
 	// to last set if we go below 0. Continue until
 	// we find an index that isn't hidden.
     do
@@ -4826,7 +4826,7 @@ int prevcolourmap(s_model *model, int map_index)
 }
 
 // Decrement to previous map in player's (player_index) model
-// while avoiding the map another player with same 
+// while avoiding the map another player with same
 // is using.
 int prevcolourmapn(s_model *model, int map_index, int player_index)
 {
@@ -4835,8 +4835,8 @@ int prevcolourmapn(s_model *model, int map_index, int player_index)
 
 	s_set_entry *set = levelsets + current_set;
 
-	// If color selection is allowed but identical map is 
-	// not (nosame 2), then let's make sure anohter player 
+	// If color selection is allowed but identical map is
+	// not (nosame 2), then let's make sure anohter player
 	// with same model isn't already using this map.
 	// If they are we'll find the next map available.
 	if (colourselect && (set->nosame & 2))
@@ -4879,7 +4879,7 @@ int prevcolourmapn(s_model *model, int map_index, int player_index)
 		{
 			// Compare every player index to player_index argument. If
 			// it's a different index but that index's model matches
-			// player_index's model, then it's another player choosing 
+			// player_index's model, then it's another player choosing
 			// (or about to choose) the same character.
 
 			if (player_index != i
@@ -4942,7 +4942,7 @@ int is_model_cache_index_selectable(int cache_index)
 	{
 		return 0;
 	}
-	
+
 	// Element's model must be selectable.
 	if (!is_model_selectable(model_cache[cache_index].model))
 	{
@@ -4975,7 +4975,7 @@ int is_model_selectable(s_model *model)
 		}
 	}
 
-	// 2019-01-02 DC: Not sure what this is. 
+	// 2019-01-02 DC: Not sure what this is.
 	// TO DO - Document clearcount vs. bonus.
 	if (model->clearcount > bonus)
 	{
@@ -5017,7 +5017,7 @@ s_model *nextplayermodel(s_model *current)
     int i;
     int curindex = -1;
     int loops;
-    
+
 	// Do we have a model?
 	if(current)
     {
@@ -5045,7 +5045,7 @@ s_model *nextplayermodel(s_model *current)
         if(is_model_cache_index_selectable(i))
         {
 			//printf("next %s\n", model_cache[i].model->name);
-			return model_cache[i].model;            
+			return model_cache[i].model;
         }
     }
     borShutdown(1, "Fatal: can't find any player models!");
@@ -5069,7 +5069,7 @@ s_model *nextplayermodeln(s_model *current, int player_index)
         // count all used player
         for(i = 0; model && i < MAX_PLAYERS; i++)
         {
-            if(i != player_index 
+            if(i != player_index
 				&& stricmp(player[player_index].name, player[i].name) == 0)
             {
                 ++used_player_count;
@@ -5140,7 +5140,7 @@ s_model *prevplayermodeln(s_model *current, int player_index)
 
     if(set->nosame & 1)
     {
-		int used_player_count = 0; 
+		int used_player_count = 0;
 		int player_count = 0;
 
 		// Get number of selectable models.
@@ -6523,7 +6523,7 @@ static int translate_ani_id(const char *value, s_model *newchar, s_anim *newanim
         ani_id = ANI_SELECT;
     }
 	else if (stricmp(value, "selectin") == 0)
-	{		
+	{
 		ani_id = ANI_SELECTIN;
 	}
 	else if (stricmp(value, "selectout") == 0)
@@ -7461,7 +7461,7 @@ static int translate_ani_id(const char *value, s_model *newchar, s_anim *newanim
         newanim->range.x.min = 1;
         newanim->range.x.max = 100;
     }
-	else if (stricmp(value, "blockrelease") == 0) 
+	else if (stricmp(value, "blockrelease") == 0)
 	{
 		ani_id = ANI_BLOCKRELEASE;
 	}
@@ -16461,7 +16461,7 @@ void draw_properties_entity(entity *entity, int offset_z, int color, s_drawmetho
 	#define TEXT_MARGIN_Y       1
     #define OFFSET_LAYER       -2
 
-    // Array keys for the list of items 
+    // Array keys for the list of items
 	// we want to display
     enum
     {
@@ -16492,23 +16492,23 @@ void draw_properties_entity(entity *entity, int offset_z, int color, s_drawmetho
 	char		*output_label[DRAW_PROPERTIES_ARRAY_SIZE];
 	const char  *output_format[DRAW_PROPERTIES_ARRAY_SIZE]; // Format ("%d, %s ..").
     char        *output_value[DRAW_PROPERTIES_ARRAY_SIZE];  // Final string to display position.
-	
+
     // Let's build the format for information
 	// we want to display.
 	output_format[DRAW_PROPERTIES_KEY_NAME]		= "%s";
 	output_format[DRAW_PROPERTIES_KEY_BASE]		= "%d";
 	output_format[DRAW_PROPERTIES_KEY_POS]		= "%d, %d, %d";
 	output_format[DRAW_PROPERTIES_KEY_STATUS]	= "%d, %d";
-	
-	// Double pass method for unknown string size. 
+
+	// Double pass method for unknown string size.
 	//
 	// 1. Build the label.
 	//
-	// 2. Attempt to copy 0 chars to unallocated 
+	// 2. Attempt to copy 0 chars to unallocated
 	// buffer and record how many characters
 	// would be needed, plus 1 for the NULL terminator
 	// and record as a string_size.
-	// 
+	//
 	// 3. Allocate memory using the string size.
 	//
 	// 4. Copy formatted string to allocated buffer
@@ -16550,7 +16550,7 @@ void draw_properties_entity(entity *entity, int offset_z, int color, s_drawmetho
 
 
 	// Get the largest string X and Y space. For X find the largest
-	// label and value, then add them. For Y, just get height of 
+	// label and value, then add them. For Y, just get height of
 	// largest font.
     label_width_max = font_string_width_max(output_label, DRAW_PROPERTIES_ARRAY_SIZE, FONT_LABEL);
 	str_width_max = label_width_max + font_string_width_max(output_value, DRAW_PROPERTIES_ARRAY_SIZE, FONT_VALUE);
@@ -16673,6 +16673,7 @@ void draw_visual_debug()
     #define LOCAL_COLOR_BLUE        _makecolour(0, 0, 255)
     #define LOCAL_COLOR_GREEN       _makecolour(0, 255, 0)
     #define LOCAL_COLOR_MAGENTA     _makecolour(255, 0, 255)
+    #define LOCAL_COLOR_ORANGE      _makecolour(255, 100, 0)
     #define LOCAL_COLOR_WHITE       _makecolour(255, 255, 255)
 
     int i;
@@ -16680,6 +16681,7 @@ void draw_visual_debug()
     s_hitbox            *coords;
     s_collision_attack  *collision_attack;
     s_collision_body    *collision_body;
+    s_collision_entity  *collision_entity;
     s_drawmethod        drawmethod = plainmethod;
     entity              *entity;
 
@@ -16740,7 +16742,7 @@ void draw_visual_debug()
         }
 
         // Collision entity debug requested?
-        if(savedata.debug_collision_entity)
+        if(savedata.debuginfo & DEBUG_DISPLAY_COLLISION_ENTITY)
         {
             // Animation has collision?
             if(entity->animation->collision_entity)
@@ -16795,6 +16797,7 @@ void draw_visual_debug()
     #undef LOCAL_COLOR_BLUE
     #undef LOCAL_COLOR_GREEN
     #undef LOCAL_COLOR_MAGENTA
+    #undef LOCAL_COLOR_ORANGE
     #undef LOCAL_COLOR_WHITE
 }
 
@@ -16995,7 +16998,7 @@ void predrawstatus()
 	// If any of the debug flags are enabled, let's
 	// output debug data to end user.
     if(savedata.debuginfo)
-    {		
+    {
         draw_visual_debug();
     }
 
@@ -17570,7 +17573,7 @@ void ent_default_init(entity *e)
 			ent_set_anim(e, ANI_SELECTIN, 0);
 		}
 		else
-		{	
+		{
 			ent_set_anim(e, ANI_SELECT, 0);
 		}
 	}
@@ -19714,11 +19717,11 @@ void set_opponent(entity *ent, entity *other)
 
 // Caskey, Damon V.
 // 2018-12-31
-// 
-// Initialize appropriate block animation and flags. Called when 
-// entity blocks actively (blocking before attack hits). Used 
-// by all player controlled entities or AI controlled entities 
-// with nopassiveblock enabled. 
+//
+// Initialize appropriate block animation and flags. Called when
+// entity blocks actively (blocking before attack hits). Used
+// by all player controlled entities or AI controlled entities
+// with nopassiveblock enabled.
 void do_active_block(entity *ent)
 {
 	// Run blocking action.
@@ -19874,7 +19877,7 @@ int check_blocking_rules(entity *ent)
 // 2018-09-17
 //
 // AI blocking decision. Handles AI's chances
-// to block. Returns true if AI chooses to attempt 
+// to block. Returns true if AI chooses to attempt
 // a block.
 int check_blocking_decision(entity *ent)
 {
@@ -19969,7 +19972,7 @@ void set_blocking_action(entity *ent, entity *other, s_collision_attack *attack)
 
 	// Set up blocking action and flag.
 	ent->takeaction = common_block;
-	set_blocking(ent);	
+	set_blocking(ent);
 
 	// Stop movement.
 	ent->velocity.x = ent->velocity.z = 0;
@@ -20035,12 +20038,12 @@ void set_blocking_animation(entity *ent, s_collision_attack *attack)
 //
 // Perform a block.
 void do_passive_block(entity *ent, entity *other, s_collision_attack *attack)
-{	
+{
 	// Place entity in blocking animation.
 	set_blocking_animation(ent, attack);
-	
+
 	// Spawn the blocking flash.
-	spawn_attack_flash(ent, attack, attack->blockflash, ent->modeldata.bflash);	
+	spawn_attack_flash(ent, attack, attack->blockflash, ent->modeldata.bflash);
 
 	// Run blocking actions and scripts.
 	set_blocking_action(ent, other, attack);
@@ -20264,7 +20267,7 @@ void do_attack(entity *e)
 
 		// Target laying down? Exit if
         // attack only hits standing targets.
-		// Otherwise exit if attack only hits 
+		// Otherwise exit if attack only hits
 		// grounded targets.
         if(target->takeaction == common_lie)
         {
@@ -20483,7 +20486,7 @@ void do_attack(entity *e)
             {
                 def = self;
             }
-            
+
 			// Follow animations.
             if((e->animation->followup.animation) && // follow up?
                     (!e->animation->counterrange) && // This isn't suppossed to be a counter, right?
@@ -20506,11 +20509,11 @@ void do_attack(entity *e)
             }
 
             self->attack_id_incoming = current_attack_id;
-            
+
 			// If hit, stop blocking.
 			if(self == def)
             {
-                self->blocking = didblock;   
+                self->blocking = didblock;
             }
 
             //2011/11/24 UT: move the pain_time logic here,
@@ -22520,7 +22523,7 @@ void display_ents()
                     }
 
                     drawmethod = e->animation->drawmethods ? getDrawMethod(e->animation, e->animpos) : NULL;
-                    
+
 					if(e->drawmethod.flag)
                     {
                         drawmethod = &(e->drawmethod);
@@ -22550,22 +22553,22 @@ void display_ents()
 						// Drawmethod remap by index. Is there a value?
                         if(drawmethod->remap >= 1)
                         {
-							// Does the value fall within range of tables loaded? If so, use 
+							// Does the value fall within range of tables loaded? If so, use
 							// value to locate the color table by index, and then populate
 							// drawmethod table value with the color table pointer.
 							if (drawmethod->remap <= e->modeldata.maps_loaded)
 							{
 								drawmethod->table = model_get_colourmap(&(e->modeldata), drawmethod->remap);
-							}                            
+							}
                         }
 
 						// Color selection by entity property. Does it have a value? Note that script functions
-						// and most text values in OpenBOR give the appearance this property is an integer index. 
-						// In actuality those functions accept an index, but immediately use it to locate a color 
+						// and most text values in OpenBOR give the appearance this property is an integer index.
+						// In actuality those functions accept an index, but immediately use it to locate a color
 						// table pointer to populate this property. See ent_set_colourmap.
                         if(e->colourmap)
                         {
-							// We don't want to override drawmethods, so first check drawmethod 
+							// We don't want to override drawmethods, so first check drawmethod
 							// remap to make sure it is disabled (0 = force default, 1+ force alternates).
 							// If it is (dsiabled) then use property value to populate drawmethod table.
                             if(drawmethod->remap < 0)
@@ -22602,7 +22605,7 @@ void display_ents()
 					// If we have a dying remap, let's check for the dying flash effect.
                     if(e->dying)
                     {
-						// This checks against both dying percentage thresholds and their associated 
+						// This checks against both dying percentage thresholds and their associated
 						// timing. If any pass, then we can move on and apply a flash.
                         if((e->energy_status.health_current <= e->per1 && e->energy_status.health_current > e->per2 && (_time % (GAME_SPEED / 5)) < (GAME_SPEED / 10)) ||
                                 (e->energy_status.health_current <= e->per2 && (_time % (GAME_SPEED / 10)) < (GAME_SPEED / 20)))
@@ -22637,7 +22640,7 @@ void display_ents()
                     {
 						// Reverse the drawmethod flipx.
                         drawmethod->flipx = !drawmethod->flipx;
-                        
+
 						// If the flip rotate is enabled, reverse the
 						// rotation setting.
 						if(drawmethod->fliprotate && drawmethod->rotate)
@@ -22647,7 +22650,7 @@ void display_ents()
                     }
 
 					// don't display if behind the mirror
-                    if(!use_mirror || z > MIRROR_Z) 
+                    if(!use_mirror || z > MIRROR_Z)
                     {
                         //just a simple check, doesn't work with mirror nor gfxshadow
                         if(drawmethod->clipw)
@@ -24656,12 +24659,12 @@ void common_get()
 // Continue or release block.
 void common_block()
 {
-	// Player type with holdblock, also not in pain 
+	// Player type with holdblock, also not in pain
 	// or has post blockpain holdblock ability.
-    int hb1 = self->modeldata.holdblock 
-		&& (self->modeldata.type & TYPE_PLAYER) 
+    int hb1 = self->modeldata.holdblock
+		&& (self->modeldata.type & TYPE_PLAYER)
 		&& (!self->inpain || (self->modeldata.holdblock & 2));
-    
+
 	// Controlling player is holding special key.
 	int hb2 = ((player + self->playerindex)->keys & FLAG_SPECIAL);
 
@@ -24671,19 +24674,19 @@ void common_block()
 	{
 		ent_set_anim(self, ANI_BLOCK, 0);
 	}
-	
+
 	// In "Blockstun", at last frame of animation, and have holdblock
 	// after blockpain ability? Then we return to block.
 	//
 	// Otherwise, entity is a player with various other flags (see bh1) but
-	// not holding special key, or the entity has finihsed animation and 
-	// doesn't match any of the player/holdblock criteria (could be another 
-	// entity type, doesn't have holdblock ability, or controlling 
+	// not holding special key, or the entity has finihsed animation and
+	// doesn't match any of the player/holdblock criteria (could be another
+	// entity type, doesn't have holdblock ability, or controlling
 	// player isn't holding special key). In any of those cases, we disable
 	// blocking flag and return to idle.
-    if(self->inpain 
-		&& (self->modeldata.holdblock & 2) 
-		&& !self->animating 
+    if(self->inpain
+		&& (self->modeldata.holdblock & 2)
+		&& !self->animating
 		&& validanim(self, ANI_BLOCK))
     {
 		self->inpain = 0;
@@ -24692,11 +24695,11 @@ void common_block()
 		self->inbackpain = 0;
 		ent_set_anim(self, ANI_BLOCK, 0);
     }
-    else if((hb1 && !hb2) 
+    else if((hb1 && !hb2)
 		|| (!self->animating && (!hb1 || !hb2)))
     {
 		// Can't release block until pain flag
-		// disables or the animation is complete. This 
+		// disables or the animation is complete. This
 		// forces blockpain animations to finish before
 		// entity can act again.
 		if (!self->inpain || !self->animating)
@@ -24718,8 +24721,8 @@ void common_block()
 					self->blocking = 0;
 					self->takeaction = NULL;
 					set_idle(self);
-				}				
-			}			
+				}
+			}
 		}
     }
 }
@@ -25587,13 +25590,13 @@ int common_try_runattack(entity *target)
     return 0;
 }
 
-// Active blocking (nopassiveblock enabled). 
+// Active blocking (nopassiveblock enabled).
 //
 // AI can behave more like players when blocking. Normally AI
 // blocking is passive. IOW, it can only choose to block attacks
-// as they hit. This function allows the AI to initiate blocking 
+// as they hit. This function allows the AI to initiate blocking
 // preemptively the way players have to.
-// 
+//
 // AI blocks if following conditions are met:
 //
 // 1. Entity has nopassiveblock enabled.
@@ -25608,10 +25611,10 @@ int common_try_block(entity *target)
 		return 0;
 	}
 
-	// Exit if we choose not to block. This function includes 
+	// Exit if we choose not to block. This function includes
 	// the check for passive blocking flag.
 	if (!check_blocking_decision(self))
-	{	
+	{
 		return 0;
 	}
 
@@ -37103,7 +37106,7 @@ static entity *spawnexample(int player_index)
 	float pos_y;
 	float pos_z;
 	int direction;
-		
+
 	set = levelsets + current_set;
 
 	// Get spawn attributes and spawn entity.
@@ -37117,7 +37120,7 @@ static entity *spawnexample(int player_index)
 	model = nextplayermodeln(NULL, player_index);
 
 	example = spawn(pos_x, pos_z, pos_y, direction, SPAWN_MODEL_NAME, SPAWN_MODEL_INDEX, model);
-    
+
 	// Copy model's name to player property.
 	strcpy(player[player_index].name, model->name);
 
@@ -37136,10 +37139,10 @@ static entity *spawnexample(int player_index)
 
 	// Apply map to spawned entity.
     ent_set_colourmap(example, player[player_index].colourmap);
-    
+
 	// So the entity knows how it came to be.
 	example->spawntype = SPAWN_TYPE_PLAYER_SELECT;
-    
+
 	return example;
 
 	#undef SPAWN_MODEL_NAME
@@ -37215,7 +37218,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 	entity *example[set->maxplayers];
 	int ready[set->maxplayers];
 
-	// Initialize 
+	// Initialize
 	for (i = 0; i < set->maxplayers; i++)
 	{
 		example[i] = NULL;
@@ -37452,7 +37455,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 	_time = 0;
 
 	// Stay in selection until escape or exit.
-	// 
+	//
 	// exit = all players ready (selected) and exit delay expired.
 	// escape = Escape key pressed.
 	while (!(exit || escape))
@@ -37466,7 +37469,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 			// Current player index not yet selected?
 			if (!ready[i])
 			{
-				
+
 				// This is where we present player selections. The logic is long
 				// and a little messy, so buckle up! Basically, we want to spawn
 				// an example entity to get started, and that example entity
@@ -37474,7 +37477,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 				// its model/color/animation based on the situation and player
 				// input.
 				//
-				// 1. If an example entity exists and is playing a transition 
+				// 1. If an example entity exists and is playing a transition
 				//  then we...
 				//
 				// a) do nothing if the animation isn't finished.
@@ -37482,36 +37485,36 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 				// b) If it IS finished...
 				//
 				// -- 1. If the animation is ANI_SELECTIN, then play ANI_SELECT.
-				// 
-				// -- 2. If aniamton is ANI_SELECTOUT, then we switch to new 
+				//
+				// -- 2. If aniamton is ANI_SELECTOUT, then we switch to new
 				// model (if available).
 				//
-				// 2. If player hasn't played yet, has some credits or 
+				// 2. If player hasn't played yet, has some credits or
 				// can draw from credit pool and pressed any action button,
 				// then we'll deal with their credit pool and spawn the
-				// first example (selectable model preview). Having an 
-				// example spawned also tells us the player has completed 
-				// this step, and so it's OK to run actions from any of 
+				// first example (selectable model preview). Having an
+				// example spawned also tells us the player has completed
+				// this step, and so it's OK to run actions from any of
 				// the others.
 				//
 				// 3. If the player pressed Left or Right instead and there's
-				// an example spawned, then we find the previous/next 
+				// an example spawned, then we find the previous/next
 				// character in line, and record it to a variable. Then we
 				// see if example has ANI_SELECTIN. if it doesn't we switch
 				// to new model. If it does, play ANI_SELECT.
 				//
-				// 4. If the player presses Up or Down, we have an example 
+				// 4. If the player presses Up or Down, we have an example
 				// spawned and colourselect is enabled, then cycle to the
 				// model's previous/next color set choice.
 				//
 				// 5. If the player presses any action button and we have
-				// an example spawned, then we mark the player's ready delay 
-				// flag, and stalltime. See the parent logic block for 
+				// an example spawned, then we mark the player's ready delay
+				// flag, and stalltime. See the parent logic block for
 				// selection delay & exit details. This is the player
 				// making their selection choice.
 
 				// Example exists and select transition animation?
-				if (example[i] 
+				if (example[i]
 					&& (example[i]->animnum == ANI_SELECTIN || example[i]->animnum == ANI_SELECTOUT))
 				{
 					// If still animating than do nothing. Let the transition finish.
@@ -37527,7 +37530,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 						}
 
 						// Transition from select (player selected another model, and the
-						// select out transition is now finished). Repeat of left/right key 
+						// select out transition is now finished). Repeat of left/right key
 						// logic below and probably needs consolidation.
 						if (example[i]->animnum == ANI_SELECTOUT && model_new)
 						{
@@ -37538,7 +37541,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 							strcpy(player[i].name, example[i]->model->name);
 
 							// If colorselect is enabled and nosame 2 is enabled, skip to
-							// start at next avaialble color cycle. Otherwise just start 
+							// start at next avaialble color cycle. Otherwise just start
 							// with default color set (0).
 							if (colourselect && (set->nosame & 2))
 							{
@@ -37606,7 +37609,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 					// Get model in use right now.
 					model_old = example[i]->model;
 
-					// Let's get the new model. Left key = previous model 
+					// Let's get the new model. Left key = previous model
 					// in cycle. Right key = next.
 					if ((player[i].newkeys & FLAG_MOVELEFT))
 					{
@@ -37617,11 +37620,11 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 						model_new = nextplayermodeln(model_old, i);
 					}
 
-					// Do we have a select out transition? If so play it here. 
-					// Otherwise switch to new model. 
+					// Do we have a select out transition? If so play it here.
+					// Otherwise switch to new model.
 					if (validanim(example[i], ANI_SELECTOUT))
-					{						
-						ent_set_anim(example[i], ANI_SELECTOUT, 0);				
+					{
+						ent_set_anim(example[i], ANI_SELECTOUT, 0);
 					}
 					else
 					{
@@ -37632,7 +37635,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 						strcpy(player[i].name, example[i]->model->name);
 
 						// If colorselect is enabled and nosame 2 is enabled, skip to
-						// start at next avaialble color cycle. Otherwise just start 
+						// start at next avaialble color cycle. Otherwise just start
 						// with default color set (0).
 						if (colourselect && (set->nosame & 2))
 						{
@@ -37645,7 +37648,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 
 						//  Apply color set.
 						ent_set_colourmap(example[i], player[i].colourmap);
-					}					
+					}
 				}
 				else if (player[i].newkeys & (FLAG_MOVEUP | FLAG_MOVEDOWN) && colourselect && example[i])
 				{
@@ -37666,7 +37669,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 					example[i]->stalltime = _time + GAME_SPEED * 2;
 					ready[i] = 1;
 				}
-		
+
 			}
 			else if (ready[i] == 1)
 			{
@@ -39323,6 +39326,7 @@ void menu_options_debug()
         ITEM_POSITION,
         ITEM_COL_ATTACK,
         ITEM_COL_BODY,
+        ITEM_COL_ENTITY,
         ITEM_COL_RANGE,
 
         // This is the "Back"
@@ -39372,7 +39376,7 @@ void menu_options_debug()
         if (enable_entity_collision)
         {
             _menutext((selector == ITEM_COL_ENTITY),       COLUMN_1_POS_X, pos_y, Tr("Collision Entity:"));
-            _menutext((selector == ITEM_COL_ENTITY),       COLUMN_2_POS_X, pos_y, (savedata.debug_collision_entity ? Tr("Enabled") : Tr("Disabled")));
+            _menutext((selector == ITEM_COL_ENTITY),       COLUMN_2_POS_X, pos_y, (savedata.debuginfo & DEBUG_DISPLAY_COLLISION_ENTITY ? Tr("Enabled") : Tr("Disabled")));
             pos_y++;
         }
 
@@ -39452,12 +39456,15 @@ void menu_options_debug()
                     break;
                 case ITEM_POSITION:
                     savedata.debuginfo ^= DEBUG_DISPLAY_PROPERTIES;
-                    break;                
+                    break;
                 case ITEM_COL_ATTACK:
                     savedata.debuginfo ^= DEBUG_DISPLAY_COLLISION_ATTACK;
                     break;
                 case ITEM_COL_BODY:
                     savedata.debuginfo ^= DEBUG_DISPLAY_COLLISION_BODY;
+                    break;
+                case ITEM_COL_ENTITY:
+                    savedata.debuginfo ^= DEBUG_DISPLAY_COLLISION_ENTITY;
                     break;
                 case ITEM_COL_RANGE:
                     savedata.debuginfo ^= DEBUG_DISPLAY_RANGE;
