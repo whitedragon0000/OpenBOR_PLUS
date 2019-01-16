@@ -187,13 +187,13 @@ void refreshInput()
 		if(wupc->button & WPAD_CLASSIC_BUTTON_FULL_L)     btns |= CC_L;
 		if(wupc->button & WPAD_CLASSIC_BUTTON_ZL)         btns |= CC_ZL;
 		if(wupc->button & WPAD_CLASSIC_BUTTON_ZR)         btns |= CC_ZR;
-
-		//analog stick
+		
+		//analog stick  
 		if(wupc->yAxisL > 200)							  btns |= DIR_UP;
 		if(wupc->yAxisL < -200)							  btns |= DIR_DOWN;
 		if(wupc->xAxisL > 200)							  btns |= DIR_RIGHT;
 		if(wupc->xAxisL < -200)							  btns |= DIR_LEFT;
-
+			
 	}
 	else if(wpad->exp.type == WPAD_EXP_NUNCHUK) // Wiimote + Nunchuk
 	{
@@ -360,7 +360,6 @@ static int findPaks(void)
 					filelist = malloc((i + 1) * sizeof(struct fileliststruct));
 					memcpy(filelist, copy, (i + 1) * sizeof(struct fileliststruct));
 					free(copy); copy = NULL;*/
-				}
 				memset(&filelist[i], 0, sizeof(fileliststruct));
 				strcpy(filelist[i].filename, ds->d_name);
 				i++;
@@ -464,8 +463,8 @@ static Image *getPreview(char *filename)
 
 static s_screen *getPreviewScreen(char *filename)
 {
-	int width = factor == 4 ? 640 : (factor == 2 ? 320 : 160);
-	int height = factor == 4 ? 480 : (factor == 2 ? 240 : 120);
+	int width = 160; //preview width
+	int height = 120; //preview height
 	s_screen *title = NULL;
 	s_screen *scale = NULL;
     FILE *preview = NULL;
@@ -491,10 +490,10 @@ static s_screen *getPreviewScreen(char *filename)
 
 	// ScreenShots within Menu will be saved as "Menu"
 	strncpy(packfile,"Menu.ext",MAX_FILENAME_LEN);
-
+	
 	// Free Images and Terminate FileCaching
-    if(title) freescreen(&title); //free image screen
-    return scale; // return scaled down screen
+	if(title) freescreen(&title); //free image screen
+	return scale; // return scaled down screen
 }
 
 static void getAllPreviews()
@@ -782,6 +781,11 @@ void drawMenu()
 #endif
 
 	drawScreens(NULL, 0, 0);
+	else
+	{
+	//draw screen without preview
+	drawScreens(NULL, 0, 0);
+	}
 }
 
 void drawLogs()

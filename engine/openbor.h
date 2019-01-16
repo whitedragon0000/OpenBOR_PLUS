@@ -256,6 +256,20 @@ typedef enum
     PORTING_PS3
 } e_porting;
 
+// Caskey, Damon V.
+// 2019-01-08
+//
+// Debugging display options for end user.
+typedef enum
+{
+	DEBUG_DISPLAY_NONE				= (1 << 0),
+	DEBUG_DISPLAY_COLLISION_ATTACK	= (1 << 1),
+	DEBUG_DISPLAY_COLLISION_BODY	= (1 << 2),
+	DEBUG_DISPLAY_PERFORMANCE		= (1 << 3),
+	DEBUG_DISPLAY_PROPERTIES		= (1 << 4),
+	DEBUG_DISPLAY_RANGE				= (1 << 5)
+} e_debug_display;
+
 typedef enum
 {
     SPAWN_TYPE_UNDEFINED,
@@ -273,7 +287,6 @@ typedef enum
     SPAWN_TYPE_PROJECTILE_BOMB,
     SPAWN_TYPE_PROJECTILE_NORMAL,
     SPAWN_TYPE_PROJECTILE_STAR,
-    SPAWN_TYPE_PROJECTILE_BOOMERANG,
     SPAWN_TYPE_STEAM,
     SPAWN_TYPE_WEAPON
 } e_spawn_type;
@@ -378,7 +391,6 @@ typedef enum
     SUBTYPE_BIKER,
     SUBTYPE_NOTGRAB,
     SUBTYPE_ARROW,		//7-1-2005  subtype for an "enemy" that flies across the screen and dies
-    SUBTYPE_BOOMERANG,
     SUBTYPE_TOUCH,		// ltb 1-18-05  new Item subtype for a more platformer feel.
     SUBTYPE_WEAPON,
     SUBTYPE_NOSKIP,		// Text type that can't be skipped
@@ -417,7 +429,6 @@ typedef enum
     AIMOVE1_STAR        = 0x00000200,   // fly like a star, subject to ground
     AIMOVE1_BOMB        = 0x00000400,   // fly like a bomb, subject to ground/wall etc
     AIMOVE1_NOMOVE      = 0x00000800,   // don't move at all
-    AIMOVE1_BOOMERANG   = 0x00001000,   // boomerang
     MASK_AIMOVE1        = 0x0000FFFF
 } e_aimove_1;
 
@@ -535,7 +546,9 @@ typedef enum //Animations
     ANI_GRABDOWN2,			// Attack when a player has grabbed an opponent and presses down/attack
     ANI_GRABUP,				// Attack when a player has grabbed an opponent and presses up/attack
     ANI_GRABUP2,			// Attack when a player has grabbed an opponent and presses up/attack
-    ANI_SELECT,				// Animation that is displayed at the select screen
+    ANI_SELECT,				// Animation that is displayed at the select screen in place of idle.
+	ANI_SELECTIN,			// Animation that is displayed at the select screen, when first highlighted.
+	ANI_SELECTOUT,			// Animation that is displayed at the select screen, when moving to another character.
     ANI_DUCK,				// Animation that is played when pressing down in "platform" type levels
     ANI_FAINT,  			// Faint animations for players/enemys by tails
     ANI_CANT,  				// Can't animation for players(animation when mp is less than mpcost) by tails.
@@ -713,8 +726,6 @@ typedef enum //Animations
     ANI_BACKBLOCKPAIN8,
     ANI_BACKBLOCKPAIN9,
     ANI_BACKBLOCKPAIN10,
-    ANI_GETBOOMERANG,
-    ANI_GETBOOMERANGINAIR,
     ANI_EDGE,
     ANI_BACKEDGE,
     ANI_DUCKING,
@@ -1530,7 +1541,7 @@ if(n<1) n = 1;
 
 #define freezeall        (smartbomber || textbox)
 
-#define is_projectile(e) (e->modeldata.type == TYPE_SHOT || e->model->subtype == SUBTYPE_ARROW || e->model->subtype == SUBTYPE_BOOMERANG || e->owner)
+#define is_projectile(e) (e->modeldata.type == TYPE_SHOT || e->model->subtype == SUBTYPE_ARROW || e->owner)
 
 #define screeny (level?((level->scrolldir == SCROLL_UP || level->scrolldir == SCROLL_DOWN )? 0:advancey ):0)
 #define screenx (level?advancex:0)
@@ -1623,13 +1634,6 @@ typedef struct
     s_axis_principal_int    axis;
     int                     base;
 } s_move;
-
-// boomerang props
-typedef struct
-{
-    float acceleration;
-    float hdistance;
-} s_boomerang_props;
 
 // distance x and z for edge animation
 typedef struct
@@ -1991,7 +1995,6 @@ typedef struct
     int                     knife;      // custknife;
     s_axis_principal_int  position;   // Location at which projectiles are spawned
     int                     star;       // custstar;
-    int                     boomerang;       // custboomerang;
 } s_projectile;
 
 typedef struct
@@ -2268,8 +2271,6 @@ typedef struct
     int pshotno; // 7-1-2005 now every enemy can have their own "knife" projectile
     int star; // 7-1-2005 now every enemy can have their own "ninja star" projectiles
     int bomb; // New projectile type for exploding bombs/grenades/dynamite
-    int boomerang;
-    s_boomerang_props boomerang_prop;
     int flash; // Now each entity can have their own flash
     int bflash; // Flash that plays when an attack is blocked
     s_dust dust; //Spawn entity during certain actions.
@@ -2471,7 +2472,6 @@ typedef struct entity
     unsigned int dying2;  // Corresponds with which remap is to be used for the dying flash for per2
     unsigned int per1;    // Used to store at what health value the entity begins to flash
     unsigned int per2;    // Used to store at what health value the entity flashes more rapidly
-    unsigned int boomerang_loop;  // Count of boomerang passes.
     e_direction direction;
     int nograb; // Some enemies cannot be grabbed (bikes) - now used with cantgrab as well
     int nograb_default; // equal to nograb  but this is remain the default value setetd in entity txt file (by White Dragon)
@@ -2896,14 +2896,31 @@ float	binding_position(float position_default, float position_target, int offset
 int     check_bind_override(entity *ent, e_binding_overriding overriding);
 
 // Blocking logic.
-void	do_active_block(entity *ent);
 int     check_blocking_decision(entity *ent);
 int     check_blocking_eligible(entity *ent, entity *other, s_collision_attack *attack);
 int     check_blocking_master(entity *ent, entity *other, s_collision_attack *attack);
 int     check_blocking_rules(entity *ent);
 int     check_blocking_pain(entity *ent, s_collision_attack *attack);
+void	do_active_block(entity *ent);
+void	do_passive_block(entity *ent, entity *other, s_collision_attack *attack);
 void    set_blocking_action(entity *ent, entity *other, s_collision_attack *attack);
 void    set_blocking_animation(entity *ent, s_collision_attack *attack);
+
+// Select player models.
+int		find_selectable_model_count				();
+int		is_model_cache_index_selectable			(int cache_index);
+int		is_model_selectable						(s_model *model);
+s_model *nextplayermodel						(s_model *current);
+s_model *nextplayermodeln						(s_model *current, int player_index);
+s_model *prevplayermodel						(s_model *current);
+s_model *prevplayermodeln						(s_model *current, int player_index);
+
+// Select player maps (colors).
+int		is_map_hidden							(s_model *model, int map_index);
+int		nextcolourmap							(s_model *model, int map_index);
+int		nextcolourmapn							(s_model *model, int map_index, int player_index);
+int		prevcolourmap							(s_model *model, int map_index);
+int		prevcolourmapn							(s_model *model, int map_index, int player_index);	
 
 int     buffer_pakfile							(char *filename, char **pbuffer, size_t *psize);
 size_t  ParseArgs								(ArgList *list, char *input, char *output);
@@ -2937,7 +2954,7 @@ void    execute_updateentity_script             (entity *ent);
 void    execute_think_script                    (entity *ent);
 void    execute_didhit_script                   (entity *ent, entity *other, s_collision_attack *attack, int blocked);
 void    execute_onspawn_script                  (entity *ent);
-void    clearbuttons(int player);
+void    clearbuttonss(int player);
 void    clearsettings(void);
 void    savesettings(void);
 void    saveasdefault(void);
@@ -3087,9 +3104,6 @@ void kill_all();
 
 int projectile_wall_deflect(entity *ent);
 
-int boomerang_catch(entity *ent, float distance_x_current);
-void boomerang_initialize(entity *ent);
-int boomerang_move();
 void sort_invert_by_parent(entity *ent, entity* parent);
 
 int checkgrab(entity *other, s_collision_attack *attack);
@@ -3140,7 +3154,6 @@ int is_on_platform(entity *);
 entity *get_platform_on(entity *);
 void do_item_script(entity *ent, entity *item);
 void do_attack(entity *e);
-int do_catch(entity *ent, entity *target, int animation_catch);
 int do_energy_charge(entity *ent);
 void adjust_base(entity *e, entity **pla);
 void check_gravity(entity *e);
@@ -3215,7 +3228,7 @@ int common_try_wandercompletely(int dox, int doz);
 int common_try_wander(entity *target, int dox, int doz);
 void common_pickupitem(entity *other);
 int common_backwalk_anim(entity *ent);
-void draw_position_entity(entity *entity, int offset_z, int color, s_drawmethod *drawmethod);
+void draw_properties_entity(entity *entity, int offset_z, int color, s_drawmethod *drawmethod);
 void draw_box_on_entity(entity *entity, int pos_x, int pos_y, int pos_z, int size_w, int size_h, int offset_z, int color, s_drawmethod *drawmethod);
 void draw_visual_debug();
 int bomb_move(void);
@@ -3242,7 +3255,6 @@ void kill_all_enemies();
 void smart_bomb(entity *e, s_collision_attack *attack);
 void anything_walk(void);
 entity *knife_spawn(char *name, int index, float x, float z, float a, int direction, int type, int map);
-entity *boomerang_spawn(char *name, int index, float x, float z, float a, int direction, int map);
 entity *bomb_spawn(char *name, int index, float x, float z, float a, int direction, int map);
 void bomb_explode(void);
 int star_spawn(float x, float z, float a, int direction);
