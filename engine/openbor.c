@@ -2497,9 +2497,6 @@ void clearsettings()
     savedata.compatibleversion = COMPATIBLEVERSION;
     savedata.gamma = 0;
     savedata.brightness = 0;
-    savedata.usesound = 1;
-    savedata.soundrate = 44100;
-    savedata.soundbits = 16;
     savedata.soundvol = 15;
     savedata.usemusic = 1;
     savedata.musicvol = 100;
@@ -2512,6 +2509,7 @@ void clearsettings()
     savedata.uselog = 1;
     savedata.debuginfo = 0;
     savedata.fullscreen = 0;
+    savedata.vsync = 1;
 
 	#if WII
     savedata.stretch = 1;
@@ -4158,8 +4156,8 @@ s_sprite *loadsprite2(char *filename, int *width, int *height)
     encodesprite(-clip_left, -clip_top, bitmap, sprite);
     sprite->offsetx = clip_left;
     sprite->offsety = clip_top;
-    sprite->srcwidth = bitmap->width;
-    sprite->srcheight = bitmap->height;
+    sprite->srcwidth = bitmap->clipped_width;
+    sprite->srcheight = bitmap->clipped_height;
 
     // Delete the raw bitmap, we don't need it
     // any more.
@@ -4395,8 +4393,8 @@ int loadsprite(char *filename, int ofsx, int ofsy, int bmpformat)
     sprite_map[sprites_loaded].centery = ofsy - clipt;
     sprite_list->sprite->offsetx = clipl;
     sprite_list->sprite->offsety = clipt;
-    sprite_list->sprite->srcwidth = bitmap->width;
-    sprite_list->sprite->srcheight = bitmap->height;
+    sprite_list->sprite->srcwidth = bitmap->clipped_width;
+    sprite_list->sprite->srcheight = bitmap->clipped_height;
     freebitmap(bitmap);
     ++sprites_loaded;
     return sprites_loaded - 1;
@@ -4406,35 +4404,43 @@ void load_special_sprites()
 {
     memset(shadowsprites, -1, sizeof(*shadowsprites) * 6);
     golsprite = gosprite = -1;
-    if(testpackfile("data/sprites/shadow1.gif", packfile) >= 0)
+    if (testpackfile("data/sprites/shadow1.gif", packfile) >= 0 ||
+        testpackfile("data/sprites/shadow1.png", packfile) >= 0)
     {
         shadowsprites[0] = loadsprite("data/sprites/shadow1", 9, 3, pixelformat);
     }
-    if(testpackfile("data/sprites/shadow2.gif", packfile) >= 0)
+    if (testpackfile("data/sprites/shadow2.gif", packfile) >= 0 ||
+        testpackfile("data/sprites/shadow2.png", packfile) >= 0)
     {
         shadowsprites[1] = loadsprite("data/sprites/shadow2", 14, 5, pixelformat);
     }
-    if(testpackfile("data/sprites/shadow3.gif", packfile) >= 0)
+    if (testpackfile("data/sprites/shadow3.gif", packfile) >= 0 ||
+        testpackfile("data/sprites/shadow3.png", packfile) >= 0)
     {
         shadowsprites[2] = loadsprite("data/sprites/shadow3", 19, 6, pixelformat);
     }
-    if(testpackfile("data/sprites/shadow4.gif", packfile) >= 0)
+    if (testpackfile("data/sprites/shadow4.gif", packfile) >= 0 ||
+        testpackfile("data/sprites/shadow4.png", packfile) >= 0)
     {
         shadowsprites[3] = loadsprite("data/sprites/shadow4", 24, 8, pixelformat);
     }
-    if(testpackfile("data/sprites/shadow5.gif", packfile) >= 0)
+    if (testpackfile("data/sprites/shadow5.gif", packfile) >= 0 ||
+        testpackfile("data/sprites/shadow5.png", packfile) >= 0)
     {
         shadowsprites[4] = loadsprite("data/sprites/shadow5", 29, 9, pixelformat);
     }
-    if(testpackfile("data/sprites/shadow6.gif", packfile) >= 0)
+    if (testpackfile("data/sprites/shadow6.gif", packfile) >= 0 ||
+        testpackfile("data/sprites/shadow6.png", packfile) >= 0)
     {
         shadowsprites[5] = loadsprite("data/sprites/shadow6", 34, 11, pixelformat);
     }
-    if(testpackfile("data/sprites/arrow.gif", packfile) >= 0)
+    if (testpackfile("data/sprites/arrow.gif", packfile) >= 0 ||
+        testpackfile("data/sprites/arrow.png", packfile) >= 0)
     {
         gosprite  = loadsprite("data/sprites/arrow", 35, 23, pixelformat);
     }
-    if(testpackfile("data/sprites/arrowl.gif", packfile) >= 0)
+    if (testpackfile("data/sprites/arrowl.gif", packfile) >= 0 ||
+        testpackfile("data/sprites/arrowl.png", packfile) >= 0)
     {
         golsprite = loadsprite("data/sprites/arrowl", 35, 23, pixelformat);
     }
@@ -16191,8 +16197,8 @@ void pausemenu()
 
 unsigned getFPS(void)
 {
-    static unsigned lasttick = 0, framerate = 0;
-    unsigned curtick = timer_gettick();
+    static u64 lasttick = 0, framerate = 0;
+    u64 curtick = timer_uticks();
     if(lasttick > curtick)
     {
         lasttick = curtick;
@@ -16201,12 +16207,13 @@ unsigned getFPS(void)
     lasttick = curtick;
     if(!framerate)
     {
-        return 0;
+        // if the frame took 0 ms, act like it was 1 ms instead
+        return 1000;
     }
 #ifdef PSP
     return ((10000000 / framerate) + 9) / 10;
 #else
-    return ((10000000 / framerate) + 9) / 10000;
+    return round(1.0e6 / framerate);
 #endif
 }
 
@@ -20710,7 +20717,7 @@ void check_gravity(entity *e)
     float gravity;
     float fmin, fmax;
 
-    if(e->update_mark & 8)
+    if(e->update_mark & UPDATE_MARK_CHECK_GRAVITY)
     {
         return;
     }
@@ -20914,7 +20921,7 @@ void check_gravity(entity *e)
 
     }//end of if
 
-    self->update_mark |= 8;
+    self->update_mark |= UPDATE_MARK_CHECK_GRAVITY;
 
     self = tempself;
 }
@@ -21019,7 +21026,7 @@ void check_ai()
 {
     if(self->nextthink <= _time && !endgame)
     {
-        self->update_mark |= 2; //mark it
+        self->update_mark |= UPDATE_MARK_CHECK_AI; //mark it
         // take actions
         if(self->takeaction)
         {
@@ -21130,7 +21137,7 @@ void adjust_base(entity *e, entity **pla)
         *pla = other = self->landed_on_platform = NULL;
     }
 
-    if(other && !(other->update_mark & 8))
+    if(other && !(other->update_mark & UPDATE_MARK_CHECK_GRAVITY))
     {
         check_gravity(other);
     }
@@ -21148,7 +21155,7 @@ void adjust_base(entity *e, entity **pla)
 
     if( (plat = self->landed_on_platform) )
     {
-        if(!(plat->update_mark & 8))
+        if(!(plat->update_mark & UPDATE_MARK_CHECK_GRAVITY))
         {
             check_gravity(plat);
         }
@@ -21420,7 +21427,7 @@ void update_animation()
         if(self->animating)
         {
             //self->nextanim = _time + (self->animation->delay[f]);
-            self->update_mark |= 1; // frame updated, mark it
+            self->update_mark |= UPDATE_MARK_UPDATE_ANIMATION; // frame updated, mark it
             // just switch frame to f, if frozen, expand_time will deal with it well
             update_frame(self, f);
         }
@@ -22051,7 +22058,7 @@ void check_move(entity *e)
     float x, z;
     entity *plat, *tempself;
 
-    if((e->update_mark & 4))
+    if((e->update_mark & UPDATE_MARK_CHECK_MOVE))
     {
         return;
     }
@@ -22065,7 +22072,7 @@ void check_move(entity *e)
     if((plat = self->landed_on_platform) ) // on the platform?
     {
         //update platform first to get actual movex and movez
-        if(!(plat->update_mark & 4))
+        if(!(plat->update_mark & UPDATE_MARK_CHECK_MOVE))
         {
             check_move(plat);
         }
@@ -22127,7 +22134,7 @@ void check_move(entity *e)
     }
     self->movex = self->position.x - x;
     self->movez = self->position.z - z;
-    self->update_mark |= 4;
+    self->update_mark |= UPDATE_MARK_CHECK_MOVE;
     self = tempself;
 }
 
@@ -22197,7 +22204,7 @@ void update_ents()
         if(ent_list[i]->exists && _time != ent_list[i]->timestamp)// dont update fresh entity
         {
             self = ent_list[i];
-            self->update_mark = 0;
+            self->update_mark = UPDATE_MARK_NONE;
             if(level)
             {
                 check_lost();    // check lost caused by level scrolling or lifespan
@@ -35459,7 +35466,7 @@ void startup()
     printf("Done!\n");
 
     printf("Initialize Sound..............\t");
-    if(savedata.usesound && sound_init(12))
+    if(sound_init(12))
     {
         if(load_special_sounds())
         {
@@ -35469,9 +35476,9 @@ void startup()
         {
             printf("\n");
         }
-        if(!sound_start_playback(savedata.soundbits, savedata.soundrate))
+        if(!sound_start_playback())
         {
-            printf("Warning: can't play sound at %u Hz!\n", savedata.soundrate);
+            printf("Warning: can't play sound!\n");
         }
         SB_setvolume(SB_MASTERVOL, 15);
         SB_setvolume(SB_VOICEVOL, savedata.soundvol);
@@ -38256,8 +38263,7 @@ void menu_options_sound()
         _menutext((selector == 3), col2, 1, (savedata.usemusic ? Tr("Enabled") : Tr("Disabled")));
         _menutext((selector == 4), col1, 2, Tr("Show Titles:"));
         _menutext((selector == 4), col2, 2, (savedata.showtitles ? Tr("Yes") : Tr("No")));
-        _menutext((selector == 5), col1, 3, Tr("Advanced Options..."));
-        _menutextm((selector == 6), 6, 0, Tr("Back"));
+        _menutextm((selector == 5), 5, 0, Tr("Back"));
 
         update((level != NULL), 0);
 
@@ -38285,9 +38291,9 @@ void menu_options_sound()
         }
         if(selector < 0)
         {
-            selector = 6;
+            selector = 5;
         }
-        if(selector > 6)
+        if(selector > 5)
         {
             selector = 0;
         }
@@ -38365,9 +38371,6 @@ void menu_options_sound()
                 break;
             case 4:
                 savedata.showtitles = !savedata.showtitles;
-                break;
-            case 5:
-                menu_options_soundcard();
                 break;
             default:
                 quit = 1;
@@ -38986,22 +38989,25 @@ void menu_options_video()
         _menutext((selector == 7), col1, 4, Tr("Software Filter:"));
         _menutext((selector == 7), col2, 4, ((savedata.hwscale >= 2.0 || savedata.fullscreen) ? Tr(GfxBlitterNames[savedata.swfilter]) : Tr("Disabled")));
 
+        _menutext((selector == 8), col1, 5, Tr("VSync:"));
+        _menutext((selector == 8), col2, 5, savedata.vsync ? "Enabled" : "Disabled");
+
         if(savedata.fullscreen)
         {
-            _menutext((selector == 8), col1, 5, Tr("Fullscreen Type:"));
-            _menutext((selector == 8), col2, 5, (savedata.stretch ? Tr("Stretch to Screen") : Tr("Preserve Aspect Ratio")));
+            _menutext((selector == 9), col1, 6, Tr("Fullscreen Type:"));
+            _menutext((selector == 9), col2, 6, (savedata.stretch ? Tr("Stretch to Screen") : Tr("Preserve Aspect Ratio")));
         }
-        else if(selector == 8)
+        else if(selector == 9)
         {
-            selector = (bothnewkeys & FLAG_MOVEUP) ? 7 : 9;
+            selector = (bothnewkeys & FLAG_MOVEUP) ? 8 : 10;
         }
 
-        _menutextm((selector == 9), 7, 0, Tr("Back"));
+        _menutextm((selector == 10), 8, 0, Tr("Back"));
         if(selector < 0)
         {
-            selector = 9;
+            selector = 10;
         }
-        if(selector > 9)
+        if(selector > 10)
         {
             selector = 0;
         }
@@ -39281,6 +39287,10 @@ void menu_options_video()
 				video_set_mode(videomodes);
                 break;
             case 8:
+                savedata.vsync = !savedata.vsync;
+                video_set_mode(videomodes);
+                break;
+            case 9:
                 video_stretch((savedata.stretch ^= 1));
                 break;
 #endif
@@ -39430,108 +39440,6 @@ void menu_options()
     #undef OPT_Y_POS
     #undef OPT_X_POS
     #undef CHEAT_PAUSE_POSY
-}
-
-void menu_options_soundcard()
-{
-    int quit = 0;
-    int selector = 0;
-    int col1 = -8, col2 = 6;
-
-    savesettings();
-
-    bothnewkeys = 0;
-
-    while(!quit)
-    {
-        _menutextm(2, -5, 0, Tr("Advanced Sound Options"));
-        _menutext((selector == 0), col1, -2, Tr("Frequency:"));
-        _menutext((selector == 0), col2, -2, "%i", savedata.soundrate);
-        _menutext((selector == 1), col1, -1, Tr("Bits:"));
-        _menutext((selector == 1), col2, -1, "%i", savedata.soundbits);
-        _menutextm((selector == 2), 1, 0, Tr("Apply"));
-        _menutextm((selector == 3), 2, 0, Tr("Discard"));
-        _menutextm((selector == 4), 7, 0, Tr("Back"));
-        update((level != NULL), 0);
-
-        if(bothnewkeys & FLAG_ESC)
-        {
-            quit = 1;
-        }
-        if(bothnewkeys & FLAG_MOVEUP)
-        {
-            --selector;
-            sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
-        }
-        if(bothnewkeys & FLAG_MOVEDOWN)
-        {
-            ++selector;
-            sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
-        }
-        if(selector < 0)
-        {
-            selector = 4;
-        }
-        selector %= 5;
-        if(bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
-        {
-            sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
-            switch(selector)
-            {
-            case 0:
-                if(bothnewkeys & FLAG_MOVELEFT)
-                {
-                    savedata.soundrate >>= 1;
-                }
-                if(bothnewkeys & FLAG_MOVERIGHT)
-                {
-                    savedata.soundrate <<= 1;
-                }
-                if(savedata.soundrate < 11025)
-                {
-                    savedata.soundrate = 44100;
-                }
-                if(savedata.soundrate > 44100)
-                {
-                    savedata.soundrate = 11025;
-                }
-                break;
-            case 1:
-                savedata.soundbits = (savedata.soundbits ^ (8 + 16));
-                if(savedata.soundbits != 8 && savedata.soundbits != 16)
-                {
-                    savedata.soundbits = 8;
-                }
-                break;
-            case 2:
-                if(!(bothnewkeys & FLAG_ANYBUTTON))
-                {
-                    break;
-                }
-                // Apply new hardware settings
-                sound_stop_playback();
-                if(!sound_start_playback(savedata.soundbits, savedata.soundrate))
-                {
-                    savedata.soundbits = 8;
-                    savedata.soundrate = 11025;
-                    sound_start_playback(savedata.soundbits, savedata.soundrate);
-                }
-                music("data/music/remix", 1, 0);
-                savesettings();
-                break;
-            case 3:
-                if(bothnewkeys & FLAG_ANYBUTTON)
-                {
-                    loadsettings();
-                }
-                break;
-            default:
-                quit = (bothnewkeys & FLAG_ANYBUTTON);
-            }
-        }
-    }
-    loadsettings();
-    bothnewkeys = 0;
 }
 
 // ----------------------------------------------------------------------------
