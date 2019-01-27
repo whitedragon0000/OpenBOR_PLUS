@@ -1572,7 +1572,7 @@ void sound_stop_playback()
     mixing_active = 0;
 }
 
-int sound_start_playback(int bits, int frequency)
+int sound_start_playback()
 {
     int i;
 
@@ -1583,10 +1583,8 @@ int sound_start_playback(int bits, int frequency)
 
     sound_stop_playback();
 
-    if(bits != 8 && bits != 16)
-    {
-        return 0;
-    }
+    playbits = 16;
+    playfrequency = 44100;
 
 #if WIN || LINUX || DARWIN || SYMBIAN
     //
