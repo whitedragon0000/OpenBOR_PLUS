@@ -1572,9 +1572,12 @@ void sound_stop_playback()
     mixing_active = 0;
 }
 
-int sound_start_playback(int bits, int frequency)
+int sound_start_playback()
 {
     int i;
+    int playbits = 16;
+    int playfrequency = 44100;
+    // Most consoles support natively 16/44100
 
     if(!mixing_inited)
     {
@@ -1583,24 +1586,12 @@ int sound_start_playback(int bits, int frequency)
 
     sound_stop_playback();
 
-    if(bits != 8 && bits != 16)
-    {
-        return 0;
-    }
-
 #if WIN || LINUX || DARWIN || SYMBIAN
     //
 #elif PS3
-    bits = 16;
-    frequency = 48000;
-#else
-    // Most consoles support natively 16/44100
-    bits = 16;
-    frequency = 44100;
+    playbits = 16;
+    playfrequency = 48000;
 #endif
-
-    playbits = bits;
-    playfrequency = frequency;
 
     for(i = 0; i < max_channels; i++)
     {
