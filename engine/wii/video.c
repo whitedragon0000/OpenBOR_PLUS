@@ -36,7 +36,7 @@ static GXTlutObj tlut;
 static unsigned short palette[256] ATTRIBUTE_ALIGN(32);
 
 static int inited = 0;
-static int stretch = 0;
+static int stretch = 1;
 
 static int brightness = 0;
 static int brightness_update = 0;
@@ -286,7 +286,6 @@ int video_copy_screen(s_screen* src)
 		video_draw_quad(0, 0, viewportWidth, viewportHeight);
 	else
 		video_draw_quad(xoffset, yoffset, scaledWidth, scaledHeight);
-		}
 
 	// blit the contents of the EFB to the XFB, and swap video buffers
 	GX_CopyDisp(xfb[whichbuffer], GX_FALSE);
