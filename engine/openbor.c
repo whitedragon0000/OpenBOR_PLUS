@@ -8959,11 +8959,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
     float               platform[8] = { 0, 0, 0, 0, 0, 0, 0, 0 },
                         platform_con[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    s_move                  move = {    {   .x = 0,
-                                            .y = 0,
-                                            .z = 0},
-                                        .base = -1    //-1 = Disabled, 0+ base set
-                                    };
+    s_move              move = {    {   .x = 0,
+                                        .y = 0,
+                                        .z = 0},
+                                    .base = -1    //-1 = Disabled, 0+ base set
+                                };
 
     s_damage_recursive  recursive;
     s_collision_attack  *pattack = NULL;
@@ -10865,7 +10865,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             case CMD_MODEL_FASTATTACK:
                 if(GET_INT_ARG(1))
                 {
-                    attack.next_hit_time = GAME_SPEED / 20;
+                    attack[abox_index].next_hit_time = GAME_SPEED / 20;
                 }
                 break;
             case CMD_MODEL_IGNOREATTACKID:
@@ -11236,7 +11236,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 attack[abox_index].freezetime = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_COLLISION_REACTION_INVINCIBLE_TIME:
-                attack.next_hit_time = GET_INT_ARG(1);
+                attack[abox_index].next_hit_time = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_COLLISION_REACTION_REPOSITION_DISTANCE:
                 attack[abox_index].grab_distance = GET_INT_ARG(1);
@@ -17411,10 +17411,10 @@ int is_walking(int iAni)
 static bool common_anim_series(entity *ent, e_animations *alterates, int max_alternates, int force_mode, e_animations default_animation)
 {
 	int i;						// Loop cursor.
-	int loop_min;							
-	int loop_max;							
+	int loop_min;
+	int loop_max;
 	e_animations animation_id;	// Animation to apply.
-	
+
 	// If we have a forced mode, we'll use it to constrict
 	// loop options to just the forced mode.
 	loop_min = force_mode ? force_mode - 1 : 0;
@@ -17439,7 +17439,7 @@ static bool common_anim_series(entity *ent, e_animations *alterates, int max_alt
 			continue;
 		}
 
-		// If there's a target in range of this alternate animation, or 
+		// If there's a target in range of this alternate animation, or
 		// we're forced to use it, switch animations.
 		if (force_mode || normal_find_target(animation_id, 0))
 		{
@@ -20401,14 +20401,14 @@ void do_attack(entity *e)
                 didfind_item(e);
                 return;
             }
-            
-			// Set bomb projectile to detonate status if it 
+
+			// Set bomb projectile to detonate status if it
 			// hits or takes a hit.
             if(self->toexplode & EXPLODE_PREPARED)
             {
                 self->toexplode |= EXPLODE_DETONATE;
             }
-           
+
             if(e->toexplode & EXPLODE_PREPARED)
             {
                 e->toexplode |= EXPLODE_DETONATE;
@@ -20832,7 +20832,7 @@ int check_edge(entity *ent)
     float t_alt = 0.0f, t_walkoff = 1.0f, t_edge_default = 8.0f;
     float t_edge_x = t_edge_default, t_edge_z = t_edge_default / 2;
 
-    if (ent->position.y > ent->base) return EDGE_NO;
+    if (ent->position.y > ent->base) return EDGE_NONE;
 
     if (ent->modeldata.edgerange.x > t_edge_x) t_edge_x = ent->modeldata.edgerange.x;
     if (ent->modeldata.edgerange.z > t_edge_z) t_edge_z = ent->modeldata.edgerange.z;
@@ -21080,7 +21080,7 @@ void check_gravity(entity *e)
                 }
             }// end of if - land checking
         }// end of if  - in-air checking
-        
+
 		if(self->toss_time <= _time)
         {
             self->toss_time = _time + 1;
@@ -21818,18 +21818,18 @@ void free_damage_recursive_node(s_damage_recursive **list, s_damage_recursive *n
 
 	// Iterate each node of list. On each iteration, previous is
 	// set to cursor before cursor iterates.
-	for (cursor = *list; cursor != NULL; previous = cursor, cursor = cursor->next) 
+	for (cursor = *list; cursor != NULL; previous = cursor, cursor = cursor->next)
 	{
 		// Are we at target element?
 		if (cursor == node)
-		{ 
+		{
 			// If previous is NULL we're at the head.
-			if (previous == NULL) 
+			if (previous == NULL)
 			{
 				// Move node from head's next to head.
 				*list = cursor->next;
 			}
-			else 
+			else
 			{
 				// Move previous next to cursor next. This
 				// effectivly "skips" cursor in sequence.
@@ -21878,7 +21878,7 @@ void damage_recursive(entity *ent)
 			else
 			{
 				free_damage_recursive_node(&ent->recursive_damage, cursor);
-			}				
+			}
 
 			continue;
 		}
@@ -22016,8 +22016,8 @@ void damage_recursive(entity *ent)
 			{
 				ent->energy_state.mp_current = 0;
 			}
-		}		
-	}    
+		}
+	}
 }
 
 void adjust_bind(entity *e)
@@ -24374,11 +24374,11 @@ void common_fall()
     {
         return;
     }
-   
+
     // Landed. Let's see if we could land
 	// safely.
     if(self->projectile != BLAST_NONE)
-	{ 
+	{
 		if (self->projectile & BLAST_TOSS)
 		{
 			// damage_on_landing.attack_force==-2 means a player has pressed up+jump and has a land animation
@@ -25040,7 +25040,7 @@ void checkdamageeffects(s_collision_attack *attack)
     if(_steal && opp && opp != self)
     {
 		// If we have enough HP to withstand the attack, give attacker
-		// the same amount as attack force. Otherwise just give them 
+		// the same amount as attack force. Otherwise just give them
 		// whatever HP we have left.
 		if(self->energy_state.health_current >= attack->attack_force)
         {
@@ -25059,12 +25059,12 @@ void checkdamageeffects(s_collision_attack *attack)
     }
 
 	// Freeze effect. If this is a freeze attack and we're
-	// not already frozen, apply a freeze effect and possibly 
+	// not already frozen, apply a freeze effect and possibly
 	// remap to freeze palette. If we ARE frozen, then
 	// unfreeze and knock down instead.
     if(_freeze && !self->frozen)
     {
-        
+
 		// Set freeze status and expire time.
         self->frozen = 1;
         if(self->freezetime == 0)
@@ -25072,14 +25072,14 @@ void checkdamageeffects(s_collision_attack *attack)
             self->freezetime = _time + _freezetime;
         }
 
-		// 2007-12-14 
+		// 2007-12-14
 		// Caskey, Damon V.
 		//
 		// If opponents frozen map = -1 or only stun, then don't change the color map.
 
         if(_remap == -1 && self->modeldata.maps.frozen != -1)
         {
-            self->colourmap = model_get_colourmap(&(self->modeldata), self->modeldata.maps.frozen);    
+            self->colourmap = model_get_colourmap(&(self->modeldata), self->modeldata.maps.frozen);
         }
 
         self->drop = 0;
@@ -25098,9 +25098,9 @@ void checkdamageeffects(s_collision_attack *attack)
         self->colourmap = model_get_colourmap(&(self->modeldata), _remap);
     }
 
-	// Disable specials. Apply seal (Any animation with 
+	// Disable specials. Apply seal (Any animation with
 	// energycost > seal) is disabled and time to expire.
-    if(_seal)                                                                       
+    if(_seal)
     {
         self->sealtime  = _time + _sealtime;
         self->seal      = _seal;
@@ -25112,7 +25112,7 @@ void checkdamageeffects(s_collision_attack *attack)
 	// Static enemies/nodrop enemies cannot be knocked down
     if(self->modeldata.nodrop)
     {
-        self->drop = 0;    
+        self->drop = 0;
     }
 
 	// Always knock airborne entities down unless we're freezeing them
@@ -25159,7 +25159,7 @@ void check_damage_recursive(entity *ent, entity *other, s_collision_attack *atta
 	s_damage_recursive *previous;
 	s_damage_recursive *cursor;
 
-	// If the recursive head pointer is 
+	// If the recursive head pointer is
 	// null, there's no recursive, so exit.
 	if (!attack->recursive)
 	{
@@ -25182,18 +25182,18 @@ void check_damage_recursive(entity *ent, entity *other, s_collision_attack *atta
 		while (cursor != NULL)
 		{
 			previous = cursor;
-			
+
 			// Found index match, so we can use the cursor
 			// as is. Get out now.
 			if (cursor->index == attack->recursive->index)
 			{
 				break;
 			}
-						
+
 			// Move to next node in list (if any).
 			cursor = cursor->next;
 		}
-		
+
 		// Add new node to list.
 		if (!cursor)
 		{
@@ -25202,7 +25202,7 @@ void check_damage_recursive(entity *ent, entity *other, s_collision_attack *atta
 
 			// Make sure there's no random garbage in our next pointer.
 			cursor->next = NULL;
-			
+
 			// Link previous node's next to our new node.
 			previous->next = cursor;
 		}
@@ -25220,7 +25220,7 @@ void check_damage_recursive(entity *ent, entity *other, s_collision_attack *atta
 
 		// Assign to entity.
 		ent->recursive_damage = cursor;
-	}		
+	}
 
 	// Now we have a target recursive element to populate with
 	// attack's recursive values.
@@ -25478,7 +25478,7 @@ void checkdamage(entity *other, s_collision_attack *attack)
 	{
 		force = 0;
 	}
-	
+
 	// Apply damage.
     self->energy_state.health_current -= force;
 
@@ -25497,7 +25497,7 @@ void checkdamage(entity *other, s_collision_attack *attack)
     execute_takedamage_script(self, other, attack);
 
 	// Attack meant to put health at 0?
-    if (self->energy_state.health_current <= 0)                                      
+    if (self->energy_state.health_current <= 0)
     {
 		// Normal attack source?
         if(normal_damage)
@@ -25507,9 +25507,9 @@ void checkdamage(entity *other, s_collision_attack *attack)
             {
                 self->energy_state.health_current = 1;
             }
-            
+
 			// Reset to maximum HP?
-			if(self->invincible & INVINCIBLE_HP_RESET)                      
+			if(self->invincible & INVINCIBLE_HP_RESET)
             {
                 self->energy_state.health_current = self->modeldata.health;
             }
@@ -25653,9 +25653,9 @@ int common_takedamage(entity *other, s_collision_attack *attack, int fall_flag)
 	}
 
     // unlink due to being hit
-    if((self->opponent && self->opponent->grabbing != self) // Have an opponent, but opponent is not grabbing me. 
+    if((self->opponent && self->opponent->grabbing != self) // Have an opponent, but opponent is not grabbing me.
 		|| self->dead										// Dead.
-		|| self->frozen										// Frozen. 
+		|| self->frozen										// Frozen.
 		|| self->drop)										// Knocked down.
     {
         ent_unlink(self);
@@ -26236,7 +26236,7 @@ int common_try_duckattack(entity *other)
     self->velocity.z = self->velocity.x = 0;
     // Don't waste any time!
     ent_set_anim(self, ANI_DUCKATTACK, 0);
-   
+
     return 1;
 }
 
@@ -29098,9 +29098,9 @@ int do_catch(entity *ent, entity *target, int animation_catch)
         if(check_range_target_all(ent, target, animation_catch))
         {
             ent->takeaction = common_animation_normal;
-            ent->attacking = ATTACKING_INACTIVE;
-            ent->idling = IDLING_INACTIVE;
-            ent->ducking = DUCK_INACTIVE;
+            ent->attacking = ATTACKING_NONE;
+            ent->idling = IDLING_NONE;
+            ent->ducking = DUCK_NONE;
             ent_set_anim(ent, animation_catch, 0);
             kill_entity(target);
 
@@ -30125,12 +30125,12 @@ int ai_check_warp()
 
 int ai_check_lie()
 {
-    if(self->drop 
-		&& self->position.y == self->base 
-		&& !self->velocity.y 
-		&& validanim(self, ANI_RISEATTACK) 
-		&& ((rand32() % (self->stalltime - _time + 1)) < 3) 
-		&& (self->energy_state.health_current > 0 
+    if(self->drop
+		&& self->position.y == self->base
+		&& !self->velocity.y
+		&& validanim(self, ANI_RISEATTACK)
+		&& ((rand32() % (self->stalltime - _time + 1)) < 3)
+		&& (self->energy_state.health_current > 0
 		&& _time > self->staydown.riseattack_stall))
     {
         common_try_riseattack();
@@ -31234,7 +31234,7 @@ void player_fall_check()
     if(autoland != 2 && (player[self->playerindex].keys & (FLAG_MOVEUP | FLAG_JUMP)) == (FLAG_MOVEUP | FLAG_JUMP))
     {
 		// mark it, so we will play land animation when hit the ground.
-        self->damage_on_landing.attack_force = ATTACK_FORCE_LAND_COMMAND; 
+        self->damage_on_landing.attack_force = ATTACK_FORCE_LAND_COMMAND;
     }
 }
 
@@ -33266,19 +33266,19 @@ entity *knife_spawn(char *name, int index, float x, float z, float a, int direct
         e->modeldata.offscreenkill = 200;    //default value
     }
     e->modeldata.aiattack = AIATTACK1_NOATTACK;
-    
+
 	// Kill self when we hit.
 	if (e->modeldata.remove)
 	{
 		e->autokill |= AUTOKILL_ATTACK_HIT;
 	}
-	
+
     // Kill self when we finish animation.
 	if (e->modeldata.nomove)
 	{
 		e->autokill |= AUTOKILL_ANIMATION_COMPLETE;
 	}
-	
+
     e->speedmul = 2;
 
     ent_set_colourmap(e, map);
@@ -33375,8 +33375,17 @@ entity *boomerang_spawn(char *name, int index, float x, float z, float a, int di
         e->modeldata.offscreenkill = 200;    //default value
     }
     e->modeldata.aiattack = AIATTACK1_NOATTACK;
-    e->remove_on_attack = e->modeldata.remove;
-    e->autokill = e->modeldata.nomove;
+
+	// Kill self when we hit.
+	if (e->modeldata.remove)
+	{
+		e->autokill |= AUTOKILL_ATTACK_HIT;
+	}
+    // Kill self when we finish animation.
+	if (e->modeldata.nomove)
+	{
+		e->autokill |= AUTOKILL_ANIMATION_COMPLETE;
+	}
     e->speedmul = 2;
 
     ent_set_colourmap(e, map);
@@ -33487,7 +33496,7 @@ entity *bomb_spawn(char *name, int index, float x, float z, float a, int directi
 	{
 		e->autokill |= AUTOKILL_ANIMATION_COMPLETE;
 	}
-	
+
     e->speedmul = 2;
 
 
@@ -33561,12 +33570,12 @@ int star_spawn(float x, float z, float a, int direction)  // added entity to kno
         e->takeaction = NULL;
         e->modeldata.aimove = AIMOVE1_STAR;
         e->modeldata.aiattack = AIATTACK1_NOATTACK;
-        
+
 		if (e->modeldata.remove)
 		{
 			e->autokill |= AUTOKILL_ATTACK_HIT;
 		}
-				
+
 		e->position.y = e->base = a;
         e->speedmul = 2;
         //e->direction = direction;
