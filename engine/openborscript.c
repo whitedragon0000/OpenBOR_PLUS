@@ -2028,7 +2028,7 @@ enum entityproperty_enum
     _ep_autokill,
     _ep_base,
     _ep_bbox,
-    _ep_binding,
+    _ep_bind,
     _ep_blink,
     _ep_blockback,
     _ep_blockodds,
@@ -3602,7 +3602,7 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
         (*pretvar)->ptrVal = (VOID *)ent->binding.ent;
         break;
     }
-    case _ep_binding:
+    case _ep_bind:
     {
         ScriptVariant_ChangeType(*pretvar, VT_PTR);
         (*pretvar)->ptrVal = (VOID *)&ent->binding;
@@ -10771,7 +10771,8 @@ HRESULT openbor_projectile(ScriptVariant **varlist , ScriptVariant **pretvar, in
         name = StrCache_Get(varlist[0]->strVal);
     }
 
-    if(paramCount >= 2 && SUCCEEDED(ScriptVariant_DecimalValue(varlist[1], &temp)))
+    // X offset.
+	if(paramCount >= 2 && SUCCEEDED(ScriptVariant_DecimalValue(varlist[1], &temp)))
     {
         x = (float)temp;
     }
@@ -10783,6 +10784,8 @@ HRESULT openbor_projectile(ScriptVariant **varlist , ScriptVariant **pretvar, in
     {
         x = self->position.x;
     }
+
+	// Z offset.
     if(paramCount >= 3 && SUCCEEDED(ScriptVariant_DecimalValue(varlist[2], &temp)))
     {
         z = (float)temp;
@@ -10795,6 +10798,8 @@ HRESULT openbor_projectile(ScriptVariant **varlist , ScriptVariant **pretvar, in
     {
         z = self->position.z;
     }
+
+	// Y offset.
     if(paramCount >= 4 && SUCCEEDED(ScriptVariant_DecimalValue(varlist[3], &temp)))
     {
         a = (float)temp;
@@ -10807,6 +10812,8 @@ HRESULT openbor_projectile(ScriptVariant **varlist , ScriptVariant **pretvar, in
     {
         a = self->position.y + self->animation->projectile.position.y;
     }
+
+	// Direction.
     if(paramCount >= 5 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[4], &ltemp)))
     {
         direction = (LONG)ltemp;
@@ -10819,6 +10826,8 @@ HRESULT openbor_projectile(ScriptVariant **varlist , ScriptVariant **pretvar, in
     {
         direction = self->direction;
     }
+
+	// PType
     if(paramCount >= 6 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[5], &ltemp)))
     {
 
@@ -10827,24 +10836,29 @@ HRESULT openbor_projectile(ScriptVariant **varlist , ScriptVariant **pretvar, in
         // behavior to both be tied to a single 0 or 1 value.
         if((LONG)ltemp)
         {
-            projectile_prime = PROJECTILE_PRIME_BASE_FLOOR;
-            projectile_prime += PROJECTILE_PRIME_LAUNCH_STATIONARY;
+            projectile_prime |= PROJECTILE_PRIME_BASE_FLOOR;
+            projectile_prime |= PROJECTILE_PRIME_LAUNCH_STATIONARY;
         }
         else
         {
-            projectile_prime = PROJECTILE_PRIME_BASE_Y;
-            projectile_prime += PROJECTILE_PRIME_LAUNCH_MOVING;
+            projectile_prime |= PROJECTILE_PRIME_BASE_Y;
+            projectile_prime |= PROJECTILE_PRIME_LAUNCH_MOVING;
         }
     }
+
+	// Type (Spawn as knife or bomb).
     if(paramCount >= 7 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[6], &ltemp)))
     {
         type = (LONG)ltemp;
     }
-    if(paramCount >= 8 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[7], &ltemp)))
+    
+	// Map
+	if(paramCount >= 8 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[7], &ltemp)))
     {
         map = (LONG)ltemp;
     }
 
+	// Reverse X if using relative offset.
     if(relative)
     {
         if(self->direction == DIRECTION_RIGHT)
@@ -12644,7 +12658,7 @@ HRESULT openbor_bindentity(ScriptVariant **varlist , ScriptVariant **pretvar, in
         {
             return E_FAIL;
         }
-        ent->binding.matching = (int)anim;
+        ent->binding.match = (int)anim;
     }
     if(paramCount < 8)
     {

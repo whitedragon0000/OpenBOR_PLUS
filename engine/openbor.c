@@ -1431,7 +1431,7 @@ void execute_takedamage_script(entity *ent, entity *other, s_collision_attack *a
 // 2018-08-30
 //
 // Run on the bind target when updating a bind.
-void execute_on_bind_update_other_to_self(entity *ent, entity *other, s_bind *binding)
+void execute_on_bind_update_other_to_self(entity *ent, entity *other, s_bind *bind)
 {
     ScriptVariant tempvar;
     Script *cs = ent->scripts->on_bind_update_other_to_self_script;
@@ -1442,21 +1442,21 @@ void execute_on_bind_update_other_to_self(entity *ent, entity *other, s_bind *bi
         ScriptVariant_ChangeType(&tempvar, VT_PTR);
 
         tempvar.ptrVal = (entity *)ent;
-        Script_Set_Local_Variant(cs, "self",    &tempvar);
+        Script_Set_Local_Variant(cs, "self", &tempvar);
 
         tempvar.ptrVal = (entity *)other;
-        Script_Set_Local_Variant(cs, "other",   &tempvar);
+        Script_Set_Local_Variant(cs, "other", &tempvar);
 
-        tempvar.ptrVal = (s_bind *)binding;
-        Script_Set_Local_Variant(cs, "binding", &tempvar);
+        tempvar.ptrVal = (s_bind *)bind;
+        Script_Set_Local_Variant(cs, "bind", &tempvar);
 
         Script_Execute(cs);
 
         //clear to save variant space
         ScriptVariant_Clear(&tempvar);
-        Script_Set_Local_Variant(cs, "self",        &tempvar);
-        Script_Set_Local_Variant(cs, "other",       &tempvar);
-        Script_Set_Local_Variant(cs, "binding",     &tempvar);
+        Script_Set_Local_Variant(cs, "self",	&tempvar);
+        Script_Set_Local_Variant(cs, "other",	&tempvar);
+        Script_Set_Local_Variant(cs, "bind",	&tempvar);
     }
 }
 
@@ -1464,7 +1464,7 @@ void execute_on_bind_update_other_to_self(entity *ent, entity *other, s_bind *bi
 // 2018-08-30
 //
 // Run on bound entity when updating bind.
-void execute_on_bind_update_self_to_other(entity *ent, entity *other, s_bind *binding)
+void execute_on_bind_update_self_to_other(entity *ent, entity *other, s_bind *bind)
 {
     ScriptVariant tempvar;
     Script *cs = ent->scripts->on_bind_update_self_to_other_script;
@@ -1475,21 +1475,21 @@ void execute_on_bind_update_self_to_other(entity *ent, entity *other, s_bind *bi
         ScriptVariant_ChangeType(&tempvar, VT_PTR);
 
         tempvar.ptrVal = (entity *)ent;
-        Script_Set_Local_Variant(cs, "self",    &tempvar);
+        Script_Set_Local_Variant(cs, "self", &tempvar);
 
         tempvar.ptrVal = (entity *)other;
-        Script_Set_Local_Variant(cs, "other",   &tempvar);
+        Script_Set_Local_Variant(cs, "other", &tempvar);
 
-        tempvar.ptrVal = (s_bind *)binding;
-        Script_Set_Local_Variant(cs, "binding", &tempvar);
+        tempvar.ptrVal = (s_bind *)bind;
+        Script_Set_Local_Variant(cs, "bind", &tempvar);
 
         Script_Execute(cs);
 
         //clear to save variant space
         ScriptVariant_Clear(&tempvar);
-        Script_Set_Local_Variant(cs, "self",        &tempvar);
-        Script_Set_Local_Variant(cs, "other",       &tempvar);
-        Script_Set_Local_Variant(cs, "binding",     &tempvar);
+        Script_Set_Local_Variant(cs, "self",	&tempvar);
+        Script_Set_Local_Variant(cs, "other",	&tempvar);
+        Script_Set_Local_Variant(cs, "bind",	&tempvar);
     }
 }
 
@@ -9063,6 +9063,9 @@ s_model *load_cached_model(char *name, char *owner, char unload)
     addModel(newchar);
 
     attack = emptyattack;      // empty attack
+
+	attack.dropv = default_model_dropv;
+
     bbox_con = empty_body;
     ebox_con = empty_entity_collision;
 
@@ -10369,6 +10372,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 ebox_con                        = empty_entity_collision;
                 body_coords                     = empty_collision_coords;
                 attack                          = emptyattack;
+				attack.dropv					= default_model_dropv;
                 attack_coords                   = empty_collision_coords;
                 recursive                       = empty_recursive;
                 attack.hitsound                 = SAMPLE_BEAT;
@@ -11057,8 +11061,32 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 attack.steal = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_COLLISION_DAMAGE_TYPE:
-                attack.attack_type = GET_INT_ARG(1);
+
+				value = GET_ARG(1);
+
+				if (stricmp(value, "burn") == 0)
+				{
+					attack.attack_type = ATK_BURN;
+				}
+				else if(stricmp(value, "freeze") == 0)
+				{
+					attack.attack_type = ATK_FREEZE;
+				}
+				else if (stricmp(value, "shock") == 0)
+				{
+					attack.attack_type = ATK_SHOCK;
+				}
+				else if (stricmp(value, "steal") == 0)
+				{
+					attack.attack_type = ATK_STEAL;
+				}
+				else
+				{
+					attack.attack_type = GET_INT_ARG(1);
+				}
+
                 break;
+
             case CMD_MODEL_COLLISION_DAMAGE_RECURSIVE_FORCE:
 				recursive.force = GET_INT_ARG(1);
                 break;
@@ -11233,9 +11261,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 abox.y = GET_INT_ARG(2);
                 abox.width = GET_INT_ARG(3);
                 abox.height = GET_INT_ARG(4);
-                attack.dropv.y = default_model_dropv.y;
-                attack.dropv.x = default_model_dropv.x;
-                attack.dropv.z = default_model_dropv.z;
                 attack.attack_force = GET_INT_ARG(5);
 
                 attack.attack_drop = GET_INT_ARG(6);
@@ -18091,9 +18116,7 @@ void update_frame(entity *ent, unsigned int f)
         {
             self = self->subentity;
             attack = emptyattack;
-            attack.dropv.y = default_model_dropv.y;
-            attack.dropv.x = default_model_dropv.x;
-            attack.dropv.z = default_model_dropv.z;
+            attack.dropv = default_model_dropv;
             attack.attack_force = self->energy_state.health_current;
             attack.attack_type = max_attack_types - 1;
             if(self->takedamage)
@@ -18646,9 +18669,7 @@ void kill_entity(entity *victim)
     {
         attack = emptyattack;
         attack.attack_type = max_attack_types - 1;
-        attack.dropv.y = default_model_dropv.y;
-        attack.dropv.x = default_model_dropv.x;
-        attack.dropv.z = default_model_dropv.z;
+        attack.dropv = default_model_dropv;
     }
     // kill minions
     if(victim->modeldata.summonkill == 1 && victim->subentity)
@@ -20667,7 +20688,7 @@ bool check_landframe(entity *ent)
     }
 
     // Can't be bound with a landframe override.
-    if(check_bind_override(ent, BINDING_OVERRIDING_LANDFRAME))
+    if(check_bind_override(ent, BIND_OVERRIDE_LANDFRAME))
     {
         return 0;
     }
@@ -20883,7 +20904,7 @@ void check_gravity(entity *e)
                 if(self->velocity.y <=0)
                 {
                     // No bind target, or binding set to ignore fall lands.
-                    if(!check_bind_override(self, BINDING_OVERRIDING_FALL_LAND))
+                    if(!check_bind_override(self, BIND_OVERRIDE_FALL_LAND))
                     {
                         self->position.y = self->base;
                         self->falling = 0;
@@ -21000,9 +21021,7 @@ int check_lost()
         else
         {
             attack          = emptyattack;
-            attack.dropv.y = default_model_dropv.y;
-            attack.dropv.x = default_model_dropv.x;
-            attack.dropv.z = default_model_dropv.z;
+            attack.dropv	= default_model_dropv;
             attack.attack_force = self->energy_state.health_current;
             attack.attack_type  = ATK_PIT;
             self->takedamage(self, &attack, 0);
@@ -21018,9 +21037,7 @@ int check_lost()
         else
         {
             attack          = emptyattack;
-            attack.dropv.y = default_model_dropv.y;
-            attack.dropv.x = default_model_dropv.x;
-            attack.dropv.z = default_model_dropv.z;
+			attack.dropv	= default_model_dropv;
             attack.attack_force = self->energy_state.health_current;
             attack.attack_type  = ATK_LIFESPAN;
             self->takedamage(self, &attack, 0);
@@ -21839,9 +21856,7 @@ void damage_recursive(entity *ent)
 						attack = emptyattack;
 						attack.attack_type = cursor->type;
 						attack.attack_force = force_final;
-						attack.dropv.y = default_model_dropv.y;
-						attack.dropv.x = default_model_dropv.x;
-						attack.dropv.z = default_model_dropv.z;
+						attack.dropv = default_model_dropv;
 
 						// Apply takedamage(). The engine will
 						// take care of everything else damage
@@ -21913,7 +21928,7 @@ void adjust_bind(entity *e)
 	// Run bind update script on *e (entity performing bind).
 	execute_on_bind_update_self_to_other(e, e->binding.ent, &e->binding);
 
-	if (e->binding.matching)
+	if (e->binding.match)
 	{
 		int				frame;
 		e_animations	animation;
@@ -21921,7 +21936,7 @@ void adjust_bind(entity *e)
 		// If a defined value is requested,
 		// use the binding member value.
 		// Otherwise use target's current value.
-		if (e->binding.matching & BINDING_MATCHING_ANIMATION_DEFINED)
+		if (e->binding.match & BIND_ANIMATION_DEFINED)
 		{
 			animation = e->binding.animation;
 		}
@@ -21939,7 +21954,7 @@ void adjust_bind(entity *e)
 			if (!validanim(e, animation))
 			{
 				// Don't have the animation? Kill ourself.
-				if (e->binding.matching & BINDING_MATCHING_ANIMATION_REMOVE)
+				if (e->binding.match & BIND_ANIMATION_REMOVE)
 				{
 					kill_entity(e);
 				}
@@ -21963,11 +21978,11 @@ void adjust_bind(entity *e)
 		// then set ADJUST_BIND_NO_FRAME_MATCH
 		// so frame matching logic is skipped.		
 		
-		if (e->binding.matching & BINDING_MATCHING_FRAME_DEFINED)
+		if (e->binding.match & BIND_ANIMATION_FRAME_DEFINED)
 		{
 			frame = e->binding.frame;
 		}
-		else if (e->binding.matching & BINDING_MATCHING_FRAME_TARGET)
+		else if (e->binding.match & BIND_ANIMATION_FRAME_TARGET)
 		{
 			frame = e->binding.ent->animpos;
 		}
@@ -21987,7 +22002,7 @@ void adjust_bind(entity *e)
 				if (e->animation[e->animnum].numframes < frame)
 				{
 
-					if (e->binding.matching & BINDING_MATCHING_FRAME_REMOVE)
+					if (e->binding.match & BIND_ANIMATION_FRAME_REMOVE)
 					{
 						kill_entity(e);
 
@@ -22037,21 +22052,21 @@ void adjust_bind(entity *e)
 //
 // Return an adjusted position for binding based
 // on positioning settings, offset, and current position.
-float binding_position(float position_default, float position_target, int offset, e_binding_positioning positioning)
+float binding_position(float position_default, float position_target, int offset, e_bind_mode positioning)
 {
 	switch (positioning)
 	{
-		case BINDING_POSITIONING_TARGET:
+		case BIND_MODE_TARGET:
 
 			return position_target + offset;
 			break;
 
-		case BINDING_POSITIONING_LEVEL:
+		case BIND_MODE_LEVEL:
 
 			return offset;
 			break;
 
-		case BINDING_POSITIONING_NONE:
+		case BIND_MODE_NONE:
 		default:
 
 			// Leave position as-is.
@@ -22115,7 +22130,7 @@ e_direction direction_adjustment(e_direction direction_default, e_direction dire
 //
 // Return true if the target entity has a valid
 // bind target and match for the override argument.
-int check_bind_override(entity *ent, e_binding_overriding overriding)
+int check_bind_override(entity *ent, e_bind_override overriding)
 {
     if(ent->binding.ent)
     {
@@ -29838,14 +29853,14 @@ int check_energy(e_cost_check which, int ani)
     // return false.
     if(type & (TYPE_ENEMY  | TYPE_NPC))
     {
-        if(check_bind_override(self, BINDING_OVERRIDING_SPECIAL_AI))
+        if(check_bind_override(self, BIND_OVERRIDE_SPECIAL_AI))
         {
             return FALSE;
         }
     }
     else if(type & TYPE_PLAYER)
     {
-        if(check_bind_override(self, BINDING_OVERRIDING_SPECIAL_PLAYER))
+        if(check_bind_override(self, BIND_OVERRIDE_SPECIAL_PLAYER))
         {
             return FALSE;
         }
@@ -32326,10 +32341,7 @@ void kill_all_enemies()
 
     attack = emptyattack;
 	attack.attack_type = ATK_BOSS_DEATH;
-    //attack.attack_type = max_attack_types - 1;
-    attack.dropv.y = default_model_dropv.y;
-    attack.dropv.x = default_model_dropv.x;
-    attack.dropv.z = default_model_dropv.z;
+	attack.dropv = default_model_dropv;
 
     tmpself = self;
     for(i = 0; i < ent_max; i++)
@@ -34305,7 +34317,8 @@ void draw_scrolled_bg()
 
         //printf("layer %d, handle:%u, z:%d\n", index, layer->gfx.handle, layer->position.z);
 
-        if(!layer->drawmethod.xrepeat || !layer->drawmethod.yrepeat || !layer->enabled)
+		// Layer must be enabled and have at least one instace, or we don't draw it.
+        if(!screenmethod.xrepeat || !screenmethod.yrepeat || !layer->enabled)
         {
             continue;
         }
@@ -34364,7 +34377,8 @@ void draw_scrolled_bg()
         {
             j = 0;
         }
-        if(layer->neon)
+        
+		if(layer->neon)
         {
             screenmethod.table = neontable;
         }
@@ -34379,6 +34393,7 @@ void draw_scrolled_bg()
                 screenmethod.table = NULL;
             }
         }
+
         screenmethod.water.wavetime =  (int)(timevar * screenmethod.water.wavespeed);
         screenmethod.xrepeat = screenmethod.yrepeat = 0;
         for(m = z; j < layer->drawmethod.yrepeat && m < vph; m += height, j++, screenmethod.yrepeat++);
