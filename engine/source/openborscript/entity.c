@@ -22,21 +22,22 @@ int mapstrings_entity_property(ScriptVariant **varlist, int paramCount)
     static const char *proplist[] =
     {
 		"ai_disable",
-        "ai_target_entity",
+		"ai_target_entity",
 		"alternate_idle",
-        "animation",
-        "animation_frame",
+		"alternate_walk",
+		"animation",
+		"animation_frame",
 		"animation_id",
 		"animation_id_previous",
 		"animation_state",
 		"animation_time",
-        "arrow_state",
-        "attack_id_incoming",
-        "attack_id_outgoing",
+		"arrow_state",
+		"attack_id_incoming",
+		"attack_id_outgoing",
 		"attack_state",
-        "autokill",
+		"autokill",
 		"back_hit_direction",
-        "bind",
+		"bind",
 		"blast_state",
         "blink",
         "block_state",
@@ -44,24 +45,24 @@ int mapstrings_entity_property(ScriptVariant **varlist, int paramCount)
         "boss",
         "charge_state",
 		"child",
-        "colorset_default",
-        "colorset_dying_health_1",
-        "colorset_dying_health_2",
-        "colorset_dying_index_1",
-        "colorset_dying_index_2",
-        "colorset_table",
-        "colorset_time",
-        "combo_step",
-        "combo_time",
+		"colorset_default",
+		"colorset_dying_health_1",
+		"colorset_dying_health_2",
+		"colorset_dying_index_1",
+		"colorset_dying_index_2",
+		"colorset_table",
+		"colorset_time",
+		"combo_step",
+		"combo_time",
 		"command_time",
-        "damage_on_landing",
+		"damage_on_landing",
 		"dead",
-        "deduct_ammo",
+		"deduct_ammo",
 		"defense_collection",
 		"destination_x",
 		"destination_z",
 		"die_on_landing",
-		"draw_method"
+		"draw_method",
 		"drop",
 		"duck_state",
 		"entvar_collection",
@@ -116,20 +117,20 @@ int mapstrings_entity_property(ScriptVariant **varlist, int paramCount)
 		"obstructed",
 		"obstruction_overhead",
 		"offense_collection",
-        "opponent",
-        "owner",
+		"opponent",
+		"owner",
 		"parent",
 		"path_obstructed_wait",
 		"pause_time",
 		"platform_land",
 		"player_index",
 		"position_base",
-        "position_base_alternate",
-        "position_direction",
+		"position_base_alternate",
+		"position_direction",
 		"position_x",
 		"position_y",
 		"position_z",
-        "projectile_prime",
+		"projectile_prime",
 		"recursive_damage",
 		"release_time",
 		"rise_attack_delay",
@@ -144,7 +145,7 @@ int mapstrings_entity_property(ScriptVariant **varlist, int paramCount)
 		"sleep_time",
 		"sort_id",
 		"space_other",
-        "spawn_type",
+		"spawn_type",
 		"speed_multiplier",
 		"stall_time",
 		"think_time",
@@ -154,6 +155,9 @@ int mapstrings_entity_property(ScriptVariant **varlist, int paramCount)
 		"turn_state",
 		"turn_time",
 		"update_mark",
+		"velocity_x",
+		"velocity_y",
+		"velocity_z",
 		"walk_state",
 		"waypoint_collection",
 		"waypoint_count",
@@ -200,12 +204,8 @@ HRESULT openbor_get_entity_property(ScriptVariant **varlist , ScriptVariant **pr
     e_entity_properties    property    = 0;    // Property argument.
 
     // Clear pass by reference argument used to send
-    // property data back to calling script.     .
+    // property data back to calling script.
     ScriptVariant_Clear(*pretvar);
-
-    // Map string property name to a
-    // matching integer constant.
-    mapstrings_binding(varlist, paramCount);
 
     // Verify arguments. There should at least
     // be a pointer for the property handle and an integer
@@ -223,7 +223,7 @@ HRESULT openbor_get_entity_property(ScriptVariant **varlist , ScriptVariant **pr
         handle      = (entity *)varlist[ARG_HANDLE]->ptrVal;
         property    = (LONG)varlist[ARG_PROPERTY]->lVal;
     }
-
+	
     switch(property)
     {
 		case _ENTITY_AI_DISABLE:
@@ -1172,6 +1172,27 @@ HRESULT openbor_get_entity_property(ScriptVariant **varlist , ScriptVariant **pr
 
 			break;
 
+		case _ENTITY_VELOCITY_X:
+
+			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
+			(*pretvar)->dblVal = (DOUBLE)handle->velocity.x;
+
+			break;
+
+		case _ENTITY_VELOCITY_Y:
+
+			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
+			(*pretvar)->dblVal = (DOUBLE)handle->velocity.y;
+
+			break;
+
+		case _ENTITY_VELOCITY_Z:
+
+			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
+			(*pretvar)->dblVal = (DOUBLE)handle->velocity.z;
+
+			break;
+
 		case _ENTITY_WALK_STATE:
 
 			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
@@ -1245,11 +1266,7 @@ HRESULT openbor_set_entity_property(ScriptVariant **varlist, ScriptVariant **pre
     // taken from argument.
     LONG    temp_int;
     DOUBLE  temp_float;
-
-    // Map string property name to a
-    // matching integer constant.
-    mapstrings_binding(varlist, paramCount);
-
+	
     // Verify incoming arguments. There should at least
     // be a pointer for the property handle and an integer
     // to determine which property is accessed.
@@ -2378,6 +2395,33 @@ HRESULT openbor_set_entity_property(ScriptVariant **varlist, ScriptVariant **pre
 			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
 			{
 				handle->update_mark = temp_int;
+			}
+
+			break;
+
+		case _ENTITY_VELOCITY_X:
+
+			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
+			{
+				handle->velocity.x = temp_float;
+			}
+
+			break;
+
+		case _ENTITY_VELOCITY_Y:
+
+			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
+			{
+				handle->velocity.x = temp_float;
+			}
+
+			break;
+
+		case _ENTITY_VELOCITY_Z:
+
+			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
+			{
+				handle->velocity.x = temp_float;
 			}
 
 			break;
