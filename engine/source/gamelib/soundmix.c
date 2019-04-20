@@ -1575,9 +1575,6 @@ void sound_stop_playback()
 int sound_start_playback()
 {
     int i;
-    int playbits = 16;
-    int playfrequency = 44100;
-    // Most consoles support natively 16/44100
 
     if(!mixing_inited)
     {
@@ -1586,11 +1583,14 @@ int sound_start_playback()
 
     sound_stop_playback();
 
-#if WIN || LINUX || DARWIN || SYMBIAN
-    //
-#elif PS3
+    playbits = 16;
+//#if WIN || LINUX || DARWIN || SYMBIAN
+#if PS3
     playbits = 16;
     playfrequency = 48000;
+#else
+    // Most consoles support natively 16/44100
+    playfrequency = 44100;
 #endif
 
     for(i = 0; i < max_channels; i++)
