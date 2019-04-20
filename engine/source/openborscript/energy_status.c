@@ -11,7 +11,7 @@
 // Use string property argument to find an
 // integer property constant and populate
 // varlist->lval.
-int mapstrings_energy_status_property(ScriptVariant **varlist, int paramCount)
+int mapstrings_energy_state_property(ScriptVariant **varlist, int paramCount)
 {
     #define ARG_MINIMUM     2   // Minimum number of arguments allowed in varlist.
     #define ARG_PROPERTY    1   // Varlist element carrying which property is requested.
@@ -63,7 +63,7 @@ HRESULT openbor_get_energy_status_property(ScriptVariant **varlist , ScriptVaria
     #define ARG_HANDLE      0   // Handle (pointer to property structure).
     #define ARG_PROPERTY    1   // Property to access.
 
-    s_energy_status             *handle     = NULL; // Property handle.
+    s_energy_state             *handle     = NULL; // Property handle.
     e_energy_status_properties  property    = 0;    // Property argument.
 
     // Clear pass by reference argument used to send
@@ -72,7 +72,7 @@ HRESULT openbor_get_energy_status_property(ScriptVariant **varlist , ScriptVaria
 
     // Map string property name to a
     // matching integer constant.
-    mapstrings_binding(varlist, paramCount);
+    mapstrings_bind(varlist, paramCount);
 
     // Verify arguments. There should at least
     // be a pointer for the property handle and an integer
@@ -87,7 +87,7 @@ HRESULT openbor_get_energy_status_property(ScriptVariant **varlist , ScriptVaria
     else
     {
         // Populate local vars for readability.
-        handle      = (s_energy_status *)varlist[ARG_HANDLE]->ptrVal;
+        handle      = (s_energy_state *)varlist[ARG_HANDLE]->ptrVal;
         property    = (LONG)varlist[ARG_PROPERTY]->lVal;
     }
 
@@ -159,7 +159,7 @@ HRESULT openbor_set_energy_status_property(ScriptVariant **varlist, ScriptVarian
     #define ARG_VALUE           2   // New value to apply.
 
     int                         result      = S_OK; // Success or error?
-    s_energy_status             *handle     = NULL; // Property handle.
+    s_energy_state             *handle     = NULL; // Property handle.
     e_energy_status_properties  property    = 0;    // Property to access.
 
     // Value carriers to apply on properties after
@@ -168,7 +168,7 @@ HRESULT openbor_set_energy_status_property(ScriptVariant **varlist, ScriptVarian
 
     // Map string property name to a
     // matching integer constant.
-    mapstrings_binding(varlist, paramCount);
+    mapstrings_bind(varlist, paramCount);
 
     // Verify incoming arguments. There should at least
     // be a pointer for the property handle and an integer
@@ -182,7 +182,7 @@ HRESULT openbor_set_energy_status_property(ScriptVariant **varlist, ScriptVarian
     }
 
     // Populate local handle and property vars.
-    handle      = (s_energy_status *)varlist[ARG_HANDLE]->ptrVal;
+    handle      = (s_energy_state *)varlist[ARG_HANDLE]->ptrVal;
     property    = (LONG)varlist[ARG_PROPERTY]->lVal;
 
     // Which property to modify?
