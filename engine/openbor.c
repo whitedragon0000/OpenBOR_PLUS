@@ -33342,7 +33342,11 @@ entity *knife_spawn(char *name, int index, float x, float z, float a, int direct
 
     e->modeldata.subject_to_wall = e->modeldata.subject_to_platform = e->modeldata.subject_to_hole = e->modeldata.subject_to_gravity = 1;
     e->modeldata.no_adjust_base  = 1;
-    return e;
+    
+	// Execute the projectile's on spawn event.
+	execute_onspawn_script(e);
+	
+	return e;
 }
 
 
@@ -33546,7 +33550,11 @@ entity *bomb_spawn(char *name, int index, float x, float z, float a, int directi
     }
     e->modeldata.no_adjust_base = 0;
     e->modeldata.subject_to_basemap = e->modeldata.subject_to_wall = e->modeldata.subject_to_platform = e->modeldata.subject_to_hole = e->modeldata.subject_to_gravity = 1;
-    return e;
+    
+	// Execute the projectile's on spawn event.
+	execute_onspawn_script(e);
+	
+	return e;
 }
 
 // Spawn 3 stars
@@ -33628,6 +33636,9 @@ int star_spawn(float x, float z, float a, int direction)  // added entity to kno
         e->modeldata.no_adjust_base = 0;
 
         e->spawntype = SPAWN_TYPE_PROJECTILE_STAR;
+
+		// Execute the projectile's on spawn event.
+		execute_onspawn_script(e);
     }
     return 1;
 }
@@ -33673,6 +33684,9 @@ void steam_spawn(float x, float z, float a)
     e->base = a;
     e->modeldata.no_adjust_base = 1;
     e->think = steam_think;
+
+	// Execute the steams's on spawn event.
+	execute_onspawn_script(e);
 }
 
 
