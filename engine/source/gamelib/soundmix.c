@@ -1586,7 +1586,6 @@ int sound_start_playback()
     playbits = 16;
 //#if WIN || LINUX || DARWIN || SYMBIAN
 #if PS3
-    playbits = 16;
     playfrequency = 48000;
 #else
     // Most consoles support natively 16/44100
