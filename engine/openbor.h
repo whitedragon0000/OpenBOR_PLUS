@@ -1446,6 +1446,35 @@ typedef enum
     FOLLOW_CONDITION_HOSTILE_NOKILL_BLOCK,         //Perform if target is hostile, will not be killed and block.
 } e_follow_condition;
 
+// Caskey, Damon V.
+// 2019-05-31
+// Grab attack selection.
+typedef enum
+{
+	// Note these action constants are used as element IDs for
+	// an array of grab attack options.
+	//
+	// GRAB_ACTION_SELECT_FINISH is a special action not included 
+	// in the array of grab attacks, and GRAB_ACTION_SELECT_MAX
+	// is used as the array size. 
+	
+	// Also note that AI selects which grab attack to perform 
+	// by randomly generating a number from 0 to GRAB_ACTION_SELECT_MAX. 
+	// This means GRAB_ACTION_SELECT_MAX should reflect number 
+	// of options with exception of GRAB_ACTION_SELECT_FINISH, 
+	// and that the value GRAB_ACTION_SELECT_FINISH should always 
+	// fall outside of the 0 to GRAB_ACTION_SELECT_MAX range. Order
+	// of the options does not matter otherwise.
+
+	GRAB_ACTION_SELECT_ATTACK,	
+	GRAB_ACTION_SELECT_BACKWARD,
+	GRAB_ACTION_SELECT_FORWARD,
+	GRAB_ACTION_SELECT_DOWN,
+	GRAB_ACTION_SELECT_UP,
+	GRAB_ACTION_SELECT_MAX,
+	GRAB_ACTION_SELECT_FINISH
+} e_grab_action_select;
+
 typedef enum
 {
     /*
@@ -1583,14 +1612,6 @@ typedef enum
 #define get_tail_number(n, a, b) \
 n = atoi(a+strclen(b)); \
 if(n<1) n = 1;
-
-#define lut_mul ((level && current_palette)?(level->blendings[current_palette-1][BLEND_MULTIPLY]):(blendings[BLEND_MULTIPLY]))
-#define lut_screen ((level && current_palette)?(level->blendings[current_palette-1][BLEND_SCREEN]):(blendings[BLEND_SCREEN]))
-#define lut_overlay ((level && current_palette)?(level->blendings[current_palette-1][BLEND_OVERLAY]):(blendings[BLEND_OVERLAY]))
-#define lut_hl ((level && current_palette)?(level->blendings[current_palette-1][BLEND_HARDLIGHT]):(blendings[BLEND_HARDLIGHT]))
-#define lut_dodge ((level && current_palette)?(level->blendings[current_palette-1][BLEND_DODGE]):(blendings[BLEND_DODGE]))
-#define lut_half ((level && current_palette)?(level->blendings[current_palette-1][BLEND_HALF]):(blendings[BLEND_HALF]))
-#define lut ((level && current_palette)?(level->blendings[current_palette-1]):(blendings))
 
 #define ABS(x) ((x)>0?(x):(-(x)))
 
@@ -1978,10 +1999,12 @@ typedef struct
 // Last hit structure. Populated each time a collision is detected.
 typedef struct
 {
-    int                 confirm;    // Will engine's default hit handling be used?
-    s_axis_principal_float            position;   // X,Y,Z of last hit.
-    s_collision_attack  *attack;    // Collision attacking box.
-    s_collision_body    *body;      // Collision detect box.
+    int						confirm;    // Will engine's default hit handling be used?
+    s_axis_principal_float	position;   // X,Y,Z of last hit.
+    s_collision_attack		*attack;    // Collision attacking box.
+    s_collision_body		*body;      // Collision detect box.
+	struct entity			*target;	// Entity taking the hit.
+	struct entity			*attacker;	// Entity dishing out the hit.
 } s_lasthit;
 
 typedef struct
@@ -2951,7 +2974,6 @@ typedef struct
     unsigned bossmusic_offset;
     int numpalettes;
     unsigned char (*palettes)[1024];//dynamic palettes
-    unsigned char *(*blendings)[MAX_BLENDINGS];//blending tables
     int settime; // Set time limit per level
     int notime; // Used to specify if the time is displayed 1 = no, else yes
     int noreset; // If set, clock will not reset when players spawn/die
@@ -3101,7 +3123,7 @@ void standard_palette();
 void change_system_palette(int palindex);
 void unload_background();
 void lifebar_colors();
-void load_background(char *filename, int createtables);
+void load_background(char *filename);
 void unload_texture();
 void load_texture(char *filename);
 void freepanels();

@@ -55,6 +55,11 @@
 #include <gctypes.h>
 #include <ogc/conf.h>
 #include "wiiport.h"
+// For devkitPPC r29+
+#define stricmp strcasecmp
+#define strnicmp strncasecmp
+#endif
+
 #ifndef stricmp
     #define stricmp safe_stricmp
 #endif
