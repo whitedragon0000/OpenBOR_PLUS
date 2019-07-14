@@ -358,6 +358,7 @@ static int findPaks(void)
 		{
 			if(packfile_supported(ds->d_name))
 			{
+				fileliststruct *copy = NULL;
 				if(filelist == NULL) filelist = malloc(sizeof(fileliststruct));
 				else
 				{
@@ -367,7 +368,6 @@ static int findPaks(void)
 					filelist = malloc((i + 1) * sizeof(fileliststruct));
 					memcpy(filelist, copy, i * sizeof(fileliststruct));
 					free(copy); copy = NULL;
-				}
 				}
 				memset(&filelist[i], 0, sizeof(fileliststruct));
 				strcpy(filelist[i].filename, ds->d_name);
@@ -411,7 +411,7 @@ void drawScreens(s_screen *Image, int x, int y)
 	video_copy_screen(Screen);
 }
 
-static Image *getPreview(char *filename)
+/*static Image *getPreview(char *filename)
 {
 	int width = factor == 4 ? 640 : (factor == 2 ? 320 : 160);
 	int height = factor == 4 ? 480 : (factor == 2 ? 240 : 120);
@@ -468,7 +468,7 @@ static Image *getPreview(char *filename)
 	freescreen(&title);
 	freescreen(&scale);
 	return preview;
-}
+}*/
 
 static s_screen *getPreviewScreen(char *filename)
 {
@@ -505,7 +505,7 @@ static s_screen *getPreviewScreen(char *filename)
     return scale; // return scaled down screen
 }
 
-static void getAllPreviews()
+/*static void getAllPreviews()
 {
 	int i;
 	for(i=0; i<dListTotal; i++)
@@ -527,7 +527,7 @@ static void freeAllImages()
 {
     freeAllLogs();
 	if (!PREVIEW_SCREENSHOTS) freeAllPreviews();
-}
+}*/
 
 /* PARAMS:
  * key: pressed key flag

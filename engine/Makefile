@@ -356,7 +356,6 @@ SCRIPT_BUILTINS = source/openborscript/commands.o                               
 				  source/openborscript/axis.o                                           			\
 				  source/openborscript/binding.o                                           			\
 				  source/openborscript/drawmethod.o                                           		\
-				  source/openborscript/energy_status.o                                           	\
                   source/openborscript/collision_attack.o                                           \
                   source/openborscript/collision_body.o                                             \
 				  source/openborscript/collision_entity.o                                           \

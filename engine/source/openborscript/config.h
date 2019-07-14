@@ -16,7 +16,6 @@
 #include "binding.h"
 #include "drawmethod.h"
 #include "recursive_damage.h"
-#include "energy_status.h"
 #include "entity.h"
 
 #define MAX_GLOBAL_VAR 2048

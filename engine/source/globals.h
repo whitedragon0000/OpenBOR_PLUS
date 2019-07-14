@@ -66,7 +66,6 @@
 #ifndef strnicmp
     #define strnicmp safe_strnicmp
 #endif
-#endif
 
 #ifdef VITA
 #include <stdarg.h>
