@@ -60,12 +60,14 @@
 #define strnicmp strncasecmp
 #endif
 
+/*
 #ifndef stricmp
     #define stricmp safe_stricmp
 #endif
 #ifndef strnicmp
     #define strnicmp safe_strnicmp
 #endif
+*/
 
 #ifdef VITA
 #include <stdarg.h>
