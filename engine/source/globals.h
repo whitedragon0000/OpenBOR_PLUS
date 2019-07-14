@@ -55,13 +55,19 @@
 #include <gctypes.h>
 #include <ogc/conf.h>
 #include "wiiport.h"
+// For devkitPPC r29+
+#define stricmp strcasecmp
+#define strnicmp strncasecmp
+#endif
+
+/*
 #ifndef stricmp
     #define stricmp safe_stricmp
 #endif
 #ifndef strnicmp
     #define strnicmp safe_strnicmp
 #endif
-#endif
+*/
 
 #ifdef VITA
 #include <stdarg.h>

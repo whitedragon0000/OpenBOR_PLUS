@@ -85,7 +85,7 @@ void SB_exit()
 	sb_inited = 0;
 }
 
-static void SB_Callback(long int voice)
+static void SB_Callback(int voice)
 {
 	if (!sb_thread_running)
 	{

@@ -16,7 +16,6 @@
 #include "binding.h"
 #include "drawmethod.h"
 #include "recursive_damage.h"
-#include "energy_status.h"
 #include "entity.h"
 
 #define MAX_GLOBAL_VAR 2048
@@ -395,6 +394,8 @@ enum systemvariant_enum
     _sv_in_titlescreen,
     _sv_in_video_options,
 	_sv_lasthit_attack,
+	_sv_lasthit_attacker,
+	_sv_lasthit_target,
 	_sv_lasthita,
     _sv_lasthitc,
     _sv_lasthitt,
