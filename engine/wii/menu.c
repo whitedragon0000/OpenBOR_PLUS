@@ -351,6 +351,7 @@ static int findPaks(void)
 	DIR* dp = NULL;
 	struct dirent* ds;
 	dp = opendir(paksDir);
+
 	if(dp != NULL)
    	{
    	    filelist = NULL;
@@ -358,8 +359,7 @@ static int findPaks(void)
 		{
 			if(packfile_supported(ds->d_name))
 			{
-				fileliststruct *copy = NULL;
-				if(filelist == NULL) filelist = malloc(sizeof(fileliststruct));
+				if(filelist == NULL) filelist = malloc(sizeof(struct fileliststruct));
 				else
 				{
 					copy = malloc(i * sizeof(fileliststruct));
@@ -369,7 +369,7 @@ static int findPaks(void)
 					memcpy(filelist, copy, i * sizeof(fileliststruct));
 					free(copy); copy = NULL;
 				}
-				memset(&filelist[i], 0, sizeof(fileliststruct));
+				memset(&filelist[i], 0, sizeof(struct fileliststruct));
 				strcpy(filelist[i].filename, ds->d_name);
 				i++;
 			}
