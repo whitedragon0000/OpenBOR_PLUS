@@ -513,12 +513,14 @@ void _sprite_seek(int x, int y)
         {
             cur_src = dummyptrs;
             cur_src_mask = dummyptrs;
+            loop_break = 0;
             goto quit;
         }
         if(lx + count > x) // transparent pixel
         {
             cur_src = dummyptrs;
             cur_src_mask = dummyptrs;
+            loop_break = 0;
             goto quit;
         }
         lx += count;
@@ -531,6 +533,7 @@ void _sprite_seek(int x, int y)
         {
             cur_src = data + x - lx;
             cur_src_mask = mask_data + x - lx;
+            loop_break = 0;
             goto quit;
         }
         lx += count;
@@ -1685,7 +1688,7 @@ void gfx_draw_plane(s_screen *dest, gfx_entry *src, int x, int y, int centerx, i
         }
 
         sxstep = 1 / size;
-        
+
 		switch(drawmethod->water.perspective)
         {
         case WATER_PERSPECTIVE_TILE:
@@ -1698,12 +1701,12 @@ void gfx_draw_plane(s_screen *dest, gfx_entry *src, int x, int y, int centerx, i
 		default:
             systep = 1.0;
         }
-        
+
 		if(dy < 0)
         {
             continue;
         }
-        
+
 		sxpos = osxpos - cx * sxstep;
 
         //dest_seek(dx, dy);
