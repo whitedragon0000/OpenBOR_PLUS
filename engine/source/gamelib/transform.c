@@ -12,6 +12,7 @@
 #include <assert.h>
 #include "globals.h"
 #include "types.h"
+#include "sprite.h"
 #include "transform.h"
 
 static transpixelfunc pfp;
@@ -41,6 +42,8 @@ static int span_src;
 
 static unsigned char *ptr_src;
 static unsigned char *cur_src;
+static unsigned char *ptr_src_mask;
+static unsigned char *cur_src_mask;
 static unsigned char dummyptrs[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 //static unsigned char dummyptrd[8] = {0,0,0,0,0,0,0,0};
 static unsigned char *cur_spr; // for sprite only
@@ -309,7 +312,11 @@ void draw_pixel_sprite(s_screen *dest, gfx_entry *src, int dx, int dy, int sx, i
         {
             ps32 = table ? ((unsigned int *)table)[ps8] : ((unsigned int *)src->sprite->palette)[ps8];
         }
-        if(!pfp32)
+        if(src->sprite->mask)
+        {
+            *ptrd32 = blend_channel32(ps32, pd32, sprite_get_pixel(src->sprite->mask, sx, sy));
+        }
+        else if(!pfp32)
         {
             *ptrd32 = ps32;
         }
@@ -484,8 +491,8 @@ void dest_dec()
 
 void _sprite_seek(int x, int y)
 {
-    int *linetab;
-    unsigned char *data = NULL;
+    int *linetab, *mask_linetab = NULL;
+    unsigned char *data = NULL, *mask_data = NULL;
     register int lx = 0, count;
     short loop_break = 1;
 
@@ -493,18 +500,26 @@ void _sprite_seek(int x, int y)
 
     data = ((unsigned char *)linetab) + (*linetab);
 
+    if (ptr_src_mask)
+    {
+        mask_linetab = ((int *)ptr_src_mask) + y;
+        mask_data = ((unsigned char *)mask_linetab) + (*mask_linetab);
+    }
+
     while(loop_break)
     {
         count = *data++;
         if(count == 0xFF)
         {
             cur_src = dummyptrs;
+            cur_src_mask = dummyptrs;
             loop_break = 0;
             goto quit;
         }
         if(lx + count > x) // transparent pixel
         {
             cur_src = dummyptrs;
+            cur_src_mask = dummyptrs;
             loop_break = 0;
             goto quit;
         }
@@ -517,6 +532,7 @@ void _sprite_seek(int x, int y)
         if(lx + count > x)
         {
             cur_src = data + x - lx;
+            cur_src_mask = mask_data + x - lx;
             loop_break = 0;
             goto quit;
         }
@@ -594,6 +610,7 @@ void src_inc()
         if(cur_src != dummyptrs && cur_spr + *cur_spr > cur_src)
         {
             cur_src++;
+            cur_src_mask++;
         }
         else
         {
@@ -620,6 +637,7 @@ void src_dec()
         if(cur_src != dummyptrs && cur_spr + 1 < cur_src)
         {
             cur_src--;
+            cur_src_mask--;
         }
         else
         {
@@ -642,8 +660,8 @@ void calc_wp_cond()
         {{{0, 1}, {2, 3}}, {{4, 5}, {6, 7}}},
         {{{8, 9}, {10, 11}}, {{12, 13}, {14, 15}}},
         {{{16, 17}, {18, 19}}, {{20, 21}, {22, 23}}},
-        {{{24, 25}, {26, 27}}, {{28, 29}, {30, 31}}},
-        {{{32, 33}, {24, 35}}, {{36, 37}, {38, 39}}},
+        {{{24, 26}, {28, 30}}, {{32, 34}, {36, 38}}},
+        {{{40, 41}, {42, 43}}, {{44, 45}, {46, 47}}},
     };
     int c1;
     void *p;
@@ -664,6 +682,12 @@ void calc_wp_cond()
     }
 
     wpcond = wp_cond[c1][transbg != 0][fillcolor != 0][p != NULL];
+
+    // alpha masks can come into play when rendering sprite (PIXEL_x8) to screen (PIXEL_32)
+    if(c1 == 3 && ptr_src_mask != NULL)
+    {
+        wpcond += 1;
+    }
 }
 
 void init_gfx_global_draw_stuff(s_screen *dest, gfx_entry *src, s_drawmethod *drawmethod)
@@ -693,6 +717,7 @@ void init_gfx_global_draw_stuff(s_screen *dest, gfx_entry *src, s_drawmethod *dr
         trans_sw = src->screen->width;
         trans_sh = src->screen->height;
         cur_src = ptr_src = (unsigned char *)src->screen->data;
+        ptr_src_mask = NULL;
         table = drawmethod->table ? drawmethod->table : src->screen->palette;
         break;
     case bitmap_magic:
@@ -702,6 +727,7 @@ void init_gfx_global_draw_stuff(s_screen *dest, gfx_entry *src, s_drawmethod *dr
         trans_sw = src->bitmap->width;
         trans_sh = src->bitmap->height;
         cur_src = ptr_src = (unsigned char *)src->bitmap->data;
+        ptr_src_mask = NULL;
         table = drawmethod->table ? drawmethod->table : src->bitmap->palette;
         break;
     case sprite_magic:
@@ -713,6 +739,7 @@ void init_gfx_global_draw_stuff(s_screen *dest, gfx_entry *src, s_drawmethod *dr
         if(trans_sw)
         {
             ptr_src = (unsigned char *)src->sprite->data;
+            ptr_src_mask = src->sprite->mask ? (unsigned char *)src->sprite->mask->data : NULL;
             cur_spr = ptr_src + (*(int *)ptr_src);
         }
         table = drawmethod->table ? drawmethod->table : src->sprite->palette;
@@ -1661,7 +1688,7 @@ void gfx_draw_plane(s_screen *dest, gfx_entry *src, int x, int y, int centerx, i
         }
 
         sxstep = 1 / size;
-        
+
 		switch(drawmethod->water.perspective)
         {
         case WATER_PERSPECTIVE_TILE:
@@ -1674,12 +1701,12 @@ void gfx_draw_plane(s_screen *dest, gfx_entry *src, int x, int y, int centerx, i
 		default:
             systep = 1.0;
         }
-        
+
 		if(dy < 0)
         {
             continue;
         }
-        
+
 		sxpos = osxpos - cx * sxstep;
 
         //dest_seek(dx, dy);
