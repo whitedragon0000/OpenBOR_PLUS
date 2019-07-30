@@ -362,12 +362,14 @@ static int findPaks(void)
 				if(filelist == NULL) filelist = malloc(sizeof(struct fileliststruct));
 				else
 				{
-					copy = malloc(i * sizeof(fileliststruct));
-					memcpy(copy, filelist, i * sizeof(fileliststruct));
+				    filelist = (fileliststruct *)realloc(filelist, (i+1) * sizeof(struct fileliststruct));
+				    /*fileliststruct *copy = NULL;
+					copy = malloc((i + 1) * sizeof(struct fileliststruct));
+					memcpy(copy, filelist, (i + 1) * sizeof(struct fileliststruct));
 					free(filelist);
-					filelist = malloc((i + 1) * sizeof(fileliststruct));
-					memcpy(filelist, copy, i * sizeof(fileliststruct));
-					free(copy); copy = NULL;
+					filelist = malloc((i + 1) * sizeof(struct fileliststruct));
+					memcpy(filelist, copy, (i + 1) * sizeof(struct fileliststruct));
+					free(copy); copy = NULL;*/
 				}
 				memset(&filelist[i], 0, sizeof(struct fileliststruct));
 				strcpy(filelist[i].filename, ds->d_name);
