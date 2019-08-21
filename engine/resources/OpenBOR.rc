@@ -10,12 +10,12 @@ BEGIN
   BEGIN
     BLOCK "040904E4"
     BEGIN
-      VALUE "CompanyName", "www.ChronoCrash.com"
+      VALUE "CompanyName", "White Dragon Software"
       VALUE "FileDescription", "Ultimate 2D Game Engine"
-      VALUE "InternalName", "Open Beats of Rage"
-      VALUE "LegalCopyright", "OpenBOR"
-      VALUE "OriginalFilename", "BOR"
-      VALUE "ProductName", "OpenBOR"
+      VALUE "InternalName", "Open Beats of Rage PLUS"
+	  VALUE "LegalCopyright", "OpenBOR PLUS"
+      VALUE "OriginalFilename", "BOR PLUS"
+      VALUE "ProductName", "OpenBOR PLUS"
       VALUE "ProductVersion", BUILD
     END
   END
