@@ -116,10 +116,13 @@ movement restirctions are here!
 #define		DEFAULT_ATK_DROPV_Y 3.0
 #define		DEFAULT_ATK_DROPV_X 1.2
 #define		DEFAULT_ATK_DROPV_Z 0
+#define     T_X_PICKUP_ITEM     1.2
+#define     T_Z_PICKUP_ITEM     3
+#define     T_Y_PICKUP_ITEM     T_WALKOFF
 
 // Caskey, Damon V.
 // 2019-01-27
-// 
+//
 // Flags for animation status.
 typedef enum
 {
@@ -160,7 +163,7 @@ typedef enum
 
 // Caskey, Damon V.
 // 2019-01-25
-// 
+//
 // Flags for flags used to time update functions.
 typedef enum
 {
@@ -168,7 +171,7 @@ typedef enum
 	UPDATE_MARK_CHECK_AI			= (1 << 0),
 	UPDATE_MARK_CHECK_GRAVITY		= (1 << 1),
 	UPDATE_MARK_CHECK_MOVE			= (1 << 2),
-	UPDATE_MARK_UPDATE_ANIMATION	= (1 << 3)	
+	UPDATE_MARK_UPDATE_ANIMATION	= (1 << 3)
 } e_update_mark;
 
 // Caskey, Damon V.
@@ -1376,7 +1379,7 @@ typedef enum
 // Direction adjustment enum. Used for binding and changing direction of defender when hit.
 typedef enum
 {
-    
+
 
     DIRECTION_ADJUST_NONE,             //Leave as is.
     DIRECTION_ADJUST_SAME,             //Same as attacker/bind/etc.
@@ -1454,19 +1457,19 @@ typedef enum
 	// Note these action constants are used as element IDs for
 	// an array of grab attack options.
 	//
-	// GRAB_ACTION_SELECT_FINISH is a special action not included 
+	// GRAB_ACTION_SELECT_FINISH is a special action not included
 	// in the array of grab attacks, and GRAB_ACTION_SELECT_MAX
-	// is used as the array size. 
-	
-	// Also note that AI selects which grab attack to perform 
-	// by randomly generating a number from 0 to GRAB_ACTION_SELECT_MAX. 
-	// This means GRAB_ACTION_SELECT_MAX should reflect number 
-	// of options with exception of GRAB_ACTION_SELECT_FINISH, 
-	// and that the value GRAB_ACTION_SELECT_FINISH should always 
+	// is used as the array size.
+
+	// Also note that AI selects which grab attack to perform
+	// by randomly generating a number from 0 to GRAB_ACTION_SELECT_MAX.
+	// This means GRAB_ACTION_SELECT_MAX should reflect number
+	// of options with exception of GRAB_ACTION_SELECT_FINISH,
+	// and that the value GRAB_ACTION_SELECT_FINISH should always
 	// fall outside of the 0 to GRAB_ACTION_SELECT_MAX range. Order
 	// of the options does not matter otherwise.
 
-	GRAB_ACTION_SELECT_ATTACK,	
+	GRAB_ACTION_SELECT_ATTACK,
 	GRAB_ACTION_SELECT_BACKWARD,
 	GRAB_ACTION_SELECT_FORWARD,
 	GRAB_ACTION_SELECT_DOWN,
@@ -1854,7 +1857,7 @@ typedef struct
 // 2016-10-31
 //
 // Recursive damage structure
-// for attack boxes and damage 
+// for attack boxes and damage
 // recipient.
 typedef struct s_damage_recursive
 {
@@ -2593,17 +2596,17 @@ typedef struct entity
 	s_damage_on_landing		damage_on_landing;					// ~~
 	s_bind					binding;							// Binding self to another entity. ~~
 	s_axis_principal_float	position;							// x,y,z location. ~~
-	s_axis_principal_float	velocity;							// x,y,z movement speed. ~~ 
-	s_energy_state			energy_state;						// Health and MP. ~~	
+	s_axis_principal_float	velocity;							// x,y,z movement speed. ~~
+	s_energy_state			energy_state;						// Health and MP. ~~
 	s_model					modeldata;							// model data copied here ~~
-	s_jump					jump;								// Jumping velocity and animationnid. ~~	
+	s_jump					jump;								// Jumping velocity and animationnid. ~~
 	s_rush					rush;								// Rush combo display. ~~
 	unsigned int boomerang_loop;  // Count of boomerang passes.
 
 	// Structured pointers.
 	s_anim					*animation;							// Pointer to animation collection. ~~
 	s_drawmethod			*drawmethod;						// Graphic settings. ~~
-	s_item_properties		*item_properties;					// Properties copied to an item entity when it is dropped. ~~	
+	s_item_properties		*item_properties;					// Properties copied to an item entity when it is dropped. ~~
 	s_model					*defaultmodel;						// this is the default model ~~
 	s_defense				*defense;							// Resistance or vulnerability to certain attack types. ~~
 	s_model					*model;								// current model ~~
@@ -2618,7 +2621,7 @@ typedef struct entity
 	struct entity			*landed_on_platform;				// Platform entity this entity landed on. ~~
 	struct entity			*lasthit;							// Last entity this one hit. ~~
 	struct entity			*link;								// Used to link 2 entities together. ~~
-	struct entity			*opponent;							// Last entity interacted with. ~~	
+	struct entity			*opponent;							// Last entity interacted with. ~~
 	struct entity			*owner;								// Projectile knows its owner. ~~
 	struct entity			*parent;							// Its spawner (when a sub entity). ~~
 	struct entity			*subentity;							// Summoned sub entity. ~~
@@ -2658,7 +2661,7 @@ typedef struct entity
 	u32						nextthink;							// Time for next main AI update. ~~
 	u32						pausetime;							// 2012/4/30 UT: Remove lastanimpos and add this. Otherwise hit pause is always bound to frame and attack box. ~~
 	u32						releasetime;						// Delay letting go of grab when holding away command. ~~
-	u32						sealtime;							// When seal expires. ~~    
+	u32						sealtime;							// When seal expires. ~~
 	u32						sleeptime;							// When to start the SLEEP animation. ~~
 	u32						stalltime;							// AI waits to perform actions. ~~
 	s_staydown				staydown;							// Delay modifiers before rise or riseattack can take place. 2011_04_08, DC: moved to struct. ~~
@@ -2666,7 +2669,7 @@ typedef struct entity
     u32						toss_time;							// Used by gravity code (If > elapsed time, gravity has no effect). ~~
     u32						turntime;							// Time when entity can switch direction. ~~
     // -------------------------end of times ------------------------------
-	
+
 	// Unsigned integers
 	unsigned int			animpos;							// Current animation frame. ~~
 	unsigned int			attack_id_incoming;					// ~~
@@ -2735,14 +2738,14 @@ typedef struct entity
 	bool					tocost;								// Cost life on hit with special. ~~
 	bool					turning;							// Turning around. ~~
 	bool					walking;							// ~~
-	
+
 	// Signed char.
-	char					name[MAX_NAME_LEN];					// Display name (alias). ~~	
-       
+	char					name[MAX_NAME_LEN];					// Display name (alias). ~~
+
     // Function pointers.
 	void					(*takeaction)();					// Take an action (lie, attack, etc.). ~~
 	void					(*think)();							// Entity thinks. ~~
-    
+
 	int						(*takedamage)(struct entity *, s_collision_attack *, int);	// Entity applies damage to itself when hit, thrown, and so on. ~~
     int						(*trymove)(float, float);			// Attempts to move. Container for most movement logic. ~~
 } entity;
