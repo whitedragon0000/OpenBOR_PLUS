@@ -468,7 +468,7 @@ int                 grab_attacks[GRAB_ACTION_SELECT_MAX][2] =
 	[GRAB_ACTION_SELECT_BACKWARD] = {ANI_GRABBACKWARD, ANI_GRABBACKWARD2},
 	[GRAB_ACTION_SELECT_FORWARD] = {ANI_GRABFORWARD, ANI_GRABFORWARD2},
     [GRAB_ACTION_SELECT_DOWN] = {ANI_GRABDOWN, ANI_GRABDOWN2},
-	[GRAB_ACTION_SELECT_UP] = {ANI_GRABUP, ANI_GRABUP2}    
+	[GRAB_ACTION_SELECT_UP] = {ANI_GRABUP, ANI_GRABUP2}
 };
 
 int                 freespecials[MAX_SPECIALS] =
@@ -2314,11 +2314,11 @@ void execute_input_script_all(int player)
 
 		ScriptVariant_ChangeType(&tempvar, VT_INTEGER);
 		tempvar.lVal = (LONG)player;
-		
+
 		Script_Set_Local_Variant(cs, "player", &tempvar);
-		
+
 		Script_Execute(cs);
-		
+
 		//clear to save variant space
 		ScriptVariant_Clear(&tempvar);
 		Script_Set_Local_Variant(cs, "player", &tempvar);
@@ -18608,7 +18608,7 @@ entity *spawn(float x, float z, float a, e_direction direction, char *name, int 
 
             scripts = e->scripts;
             memset(e, 0, sizeof(*e));
-            
+
 			// e->drawmethod = plainmethod;
 			e->drawmethod = allocate_drawmethod();
 
@@ -19178,7 +19178,7 @@ int checkhole_in(float x, float z, float a)
     ind = -1;
     for(i = 0; i < level->numholes; i++)
     {
-        if(testhole(i, x, z) && level->holes[i].height+T_WALKOFF >= a && level->holes[i].height > maxa) // && level->holes[i].height+T_WALKOFF >= a
+        if(testhole(i, x, z) && level->holes[i].height + T_WALKOFF >= a && level->holes[i].height > maxa) // && level->holes[i].height+T_WALKOFF >= a
         {
             maxa = level->holes[i].height;
             ind = i;
@@ -19206,7 +19206,7 @@ int checkholeindex_in(float x, float z, float a)
     ind = -1;
     for(i = 0; i < level->numholes; i++)
     {
-        if(testhole(i, x, z) && level->holes[i].height+T_WALKOFF >= a && level->holes[i].height > maxa) // && level->holes[i].height+T_WALKOFF >= a
+        if(testhole(i, x, z) && level->holes[i].height+T_WALKOFF >= a && level->holes[i].height > maxa) // && level->holes[i].height + T_WALKOFF >= a
         {
             maxa = level->holes[i].height;
             ind = i;
@@ -19564,7 +19564,7 @@ float get_platform_base(entity *plat)
 
 int is_on_platform(entity *ent)
 {
-    entity *plat = check_platform_below(ent->position.x,ent->position.z,ent->position.y+T_WALKOFF,ent);
+    entity *plat = check_platform_below(ent->position.x,ent->position.z,ent->position.y + T_WALKOFF,ent);
     if (plat)
     {
         if ( diff(ent->base,get_platform_base(plat)) <= T_WALKOFF ) return 1;
@@ -19575,7 +19575,7 @@ int is_on_platform(entity *ent)
 
 entity *get_platform_on(entity *ent)
 {
-    entity *plat = check_platform_below(ent->position.x,ent->position.z,ent->position.y+T_WALKOFF,ent);
+    entity *plat = check_platform_below(ent->position.x,ent->position.z,ent->position.y + T_WALKOFF,ent);
     if (plat)
     {
         if ( diff(ent->base,get_platform_base(plat)) <= T_WALKOFF ) return plat;
@@ -19670,7 +19670,7 @@ int testmove(entity *ent, float sx, float sz, float x, float z)
     // Check for obstacles with platform code and adjust base accordingly
     if(ent->modeldata.subject_to_platform > 0 && (other = check_platform_between(x, z, ent->position.y, ent->position.y + heightvar, ent)) )
     {
-        platbelow = check_platform_below(x, z, ent->position.y+T_WALKOFF, ent);
+        platbelow = check_platform_below(x, z, ent->position.y + T_WALKOFF, ent);
         if ( !platbelow ) return 0;
         else
         {
@@ -20081,7 +20081,7 @@ entity *spawn_attack_flash(entity *ent, s_collision_attack *attack, int attack_f
 		return NULL;
 	}
 
-	// If the model doesn't allow incoming custom 
+	// If the model doesn't allow incoming custom
 	// flash  effects, default to the model's global flash.
 	//
 	// Otherwise we need to see if the custom
@@ -21312,7 +21312,10 @@ void adjust_base(entity *e, entity **pla)
         }
 
         //printf("stb:%d\n",self->modeldata.subject_to_basemap);
-        if(self->modeldata.subject_to_basemap > 0) maxbase = check_basemap(self->position.x, self->position.z);
+        if(self->modeldata.subject_to_basemap > 0)
+        {
+            maxbase = check_basemap(self->position.x, self->position.z);
+        }
 
         if(self->modeldata.subject_to_hole > 0 &&
            ( (self->modeldata.subject_to_basemap > 0 && maxbase == T_MIN_BASEMAP) || (self->modeldata.subject_to_basemap <= 0) )
@@ -22492,7 +22495,10 @@ void display_ents()
                 other = check_platform_below(e->position.x, e->position.z, e->position.y+eheight, e);
                 wall = checkwall_index(e->position.x, e->position.z);
 
-                if(e->modeldata.subject_to_basemap > 0) basemap = check_basemap(e->position.x, e->position.z);
+                if(e->modeldata.subject_to_basemap > 0)
+                {
+                    basemap = check_basemap(e->position.x, e->position.z);
+                }
 
                 if(f < sprites_loaded)
                 {
@@ -24509,7 +24515,7 @@ void doprethrow()
 // 1 grabattack 2 grabforward 3 grabup 4 grabdown 5 grabbackward
 // other means grab finisher at once
 
-// Unknown author (utunnels?). 
+// Unknown author (utunnels?).
 //
 // Retooled by Caskey, Damon V. to use named constants
 // for selecting which grab attack.
@@ -24524,7 +24530,7 @@ void dograbattack(int which)
     self->takeaction = common_grabattack;
     self->attacking = ATTACKING_ACTIVE;
     other->velocity.x = other->velocity.z = self->velocity.x = self->velocity.z = 0;
-    
+
 	// If we requested finish attack, do it now. Otherwise
 	// we'll look at current combostep for the selected grab
 	// attack. If we're at the combo limit, then we finish.
@@ -29653,11 +29659,11 @@ int common_move()
         }
 
         //pick up the item if possible
-        if(other && diff(other->position.x, self->position.x) < (self->modeldata.grabdistance * 0.83333)
-                && diff(other->position.z, self->position.z) < (self->modeldata.grabdistance / 3) &&
-                other->animation->vulnerable[other->animpos])//won't pickup an item that is not previous one
+        if(other && diff(other->position.x, self->position.x) <= (self->modeldata.grabdistance / T_X_PICKUP_ITEM)
+                && diff(other->position.z, self->position.z) <= (self->modeldata.grabdistance / T_Z_PICKUP_ITEM) &&
+                other->animation->vulnerable[other->animpos]) //won't pickup an item that is not previous one
         {
-            if(diff(self->base, other->position.y) < 0.1)
+            if(diff(self->base, other->position.y) <= T_Y_PICKUP_ITEM)
             {
                 common_pickupitem(other);
                 return 1;
@@ -33282,10 +33288,10 @@ entity *knife_spawn(char *name, int index, float x, float z, float a, int direct
 
     e->modeldata.subject_to_wall = e->modeldata.subject_to_platform = e->modeldata.subject_to_hole = e->modeldata.subject_to_gravity = 1;
     e->modeldata.no_adjust_base  = 1;
-    
+
 	// Execute the projectile's on spawn event.
 	execute_onspawn_script(e);
-	
+
 	return e;
 }
 
@@ -33490,10 +33496,10 @@ entity *bomb_spawn(char *name, int index, float x, float z, float a, int directi
     }
     e->modeldata.no_adjust_base = 0;
     e->modeldata.subject_to_basemap = e->modeldata.subject_to_wall = e->modeldata.subject_to_platform = e->modeldata.subject_to_hole = e->modeldata.subject_to_gravity = 1;
-    
+
 	// Execute the projectile's on spawn event.
 	execute_onspawn_script(e);
-	
+
 	return e;
 }
 
@@ -35143,7 +35149,7 @@ void draw_scrolled_bg()
         {
             j = 0;
         }
-        
+
 		if(layer->neon)
         {
             screenmethod.table = neontable;
@@ -35196,20 +35202,20 @@ u32 getinterval()
 
 // Caskey, Damon V.
 // 2019-04-22
-// 
+//
 // Run input scripts. Similar to keys, but
 // execute before processing any command functions.
 void execute_input_scripts(int player_index)
 {
 	s_player *player_obj = NULL;
-		
+
 	player_obj = player + player_index;
 
 	if (!player_obj)
 	{
 		return;
 	}
-	
+
 	if (player_obj->newkeys || (keyscriptrate && player->keys) || player->releasekeys)
 	{
 		// 2019-04-22 Don't exist yet
@@ -35262,8 +35268,8 @@ void inputrefresh(int playrecmode)
             pl->playkeys &= pl->keys;
             pl->playkeys &= ~pl->disablekeys;
         }
-				
-		execute_input_scripts(p);		
+
+		execute_input_scripts(p);
 
         if(pl->ent && pl->ent->movetime < _time)
         {
@@ -35272,7 +35278,7 @@ void inputrefresh(int playrecmode)
             pl->combostep = 0;
         }
         if(pl->newkeys)
-        {			
+        {
             k = pl->newkeys;
             if(pl->ent)
             {
@@ -36110,7 +36116,7 @@ void display_credits()
 		/*
         font_printf(col1, s + v * m, 0, 0, "OpenDingux");
         font_printf(col2, s + v * m, 0, 0, "Shin-NiL"); ++m;
-        
+
         font_printf(col1, s + v * m, 0, 0, "DreamCast");
         font_printf(col2, s + v * m, 0, 0, "Neill Corlett, SX"); ++m;
 		*/
