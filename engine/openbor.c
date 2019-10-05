@@ -2574,6 +2574,8 @@ void clearsettings()
 
     #ifdef ANDROID
     savedata.is_touchpad_vibration_enabled = 0;
+    savedata.touchpad_vibration_intensity = 100;
+    savedata.is_touchpad_visible = 1;
     #endif
 
     for (i = 0; i < MAX_PLAYERS; i++)
@@ -32838,14 +32840,14 @@ void dropweapon(int flag)
 		// weapons or weapons with shot ammo are dropped.  Anything else is simply discarded.
 		// Need to evaluate all weapon logic to get the workflow.
         if(self->weapent->modeldata.typeshot || (!self->weapent->modeldata.typeshot && self->weapent->modeldata.shootnum))
-        {            
+        {
 			// If the flag is 2 or below, we subtract the flag's
 			// value from weapon counter.
 			if(flag < 2)
             {
                 self->weapent->modeldata.counter -= flag;
             }
-            
+
 			// We're going to use our own position for the weapon.
 			self->weapent->direction = self->direction;
 			self->weapent->position.z = self->position.z;
@@ -32904,7 +32906,7 @@ void dropweapon(int flag)
         self->weapent = NULL;
     }
 
-	// Flag 2 means we're probably setting the weapon directly (ex: setweapon command). 
+	// Flag 2 means we're probably setting the weapon directly (ex: setweapon command).
 	// In that case we don't worry about a weapon entity. Just switch ourselves over
 	// to the weapon model.
     if(flag < 2)
@@ -32927,7 +32929,7 @@ void dropweapon(int flag)
     }
 
 	// Model override. If this is populated, we use its value
-	// to locate a model by index and revert to that instead 
+	// to locate a model by index and revert to that instead
 	// of the default model when a weapon is lost.
     if(self->modeldata.weaploss[1] > 0)
     {
@@ -39157,9 +39159,10 @@ void menu_options_input()
 {
     int quit = 0;
     int selector = 1; // 0
+    int dir = 0;
     int x_pos = -6;
     #if ANDROID
-    int OPTIONS_NUM = 6;
+    int OPTIONS_NUM = 8;
     #else
     int OPTIONS_NUM = 5;
     #endif
@@ -39217,13 +39220,23 @@ void menu_options_input()
         {
             _menutextm((selector == 5), 4, 0, Tr("Touchpad Vibration Disabled"));
         }
-        _menutextm((selector == 6), 6, 0, Tr("Back"));
+        _menutextm((selector == 6), 5, 0, Tr("Touchpad Vibration Intensity: %d%%"), savedata.touchpad_vibration_intensity);
+        if(savedata.is_touchpad_visible)
+        {
+            _menutextm((selector == 7), 6, 0, Tr("Touchpad Visible"));
+        }
+        else
+        {
+            _menutextm((selector == 7), 6, 0, Tr("Touchpad Hidden"));
+        }
+        _menutextm((selector == 8), 8, 0, Tr("Back"));
         #else
         _menutextm((selector == 5), 5, 0, Tr("Back"));
         #endif
 
         update((level != NULL), 0);
 
+        dir = 0;
         if(bothnewkeys & FLAG_ESC)
         {
             quit = 1;
@@ -39243,6 +39256,14 @@ void menu_options_input()
             {
                 sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
             }
+        }
+        if(bothnewkeys & FLAG_MOVELEFT)
+        {
+            dir = -1;
+        }
+        else if(bothnewkeys & FLAG_MOVERIGHT)
+        {
+            dir = 1;
         }
         if(selector < 0)
         {
@@ -39280,6 +39301,20 @@ void menu_options_input()
             #if ANDROID
             case 5:
                 savedata.is_touchpad_vibration_enabled ^= 1;
+                break;
+            case 6:
+                savedata.touchpad_vibration_intensity += 5 * dir;
+                if(savedata.touchpad_vibration_intensity < 0)
+                {
+                    savedata.touchpad_vibration_intensity = 0;
+                }
+                if(savedata.touchpad_vibration_intensity > 100)
+                {
+                    savedata.touchpad_vibration_intensity = 100;
+                }
+                break;
+            case 7:
+                savedata.is_touchpad_visible ^= 1;
                 break;
             #endif
             default:

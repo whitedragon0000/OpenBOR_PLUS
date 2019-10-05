@@ -95,7 +95,7 @@ void initSDL()
         nativeHeight = 480;
     }
 
-		//Hardcode full screen mode
+    // Hardcode full screen mode
     savedata.fullscreen = 1;
 
 }
@@ -257,7 +257,7 @@ static int setup_touch_txt()
 								//					for backwards compatibility.
                 else if((stricmp(command, "texture") == 0) || (stricmp(command, "skin") == 0))
                 {
-                    if(buffer_pakfile(GET_ARG(1), &pngb, &pngs))
+                    if(savedata.is_touchpad_visible && buffer_pakfile(GET_ARG(1), &pngb, &pngs))
                     {
                         ts = pngToSurface(pngb);
                         if(!ts || !(buttons = SDL_CreateTextureFromSurface(renderer, ts)))
@@ -434,7 +434,7 @@ int video_set_mode(s_videomodes videomodes)
 
     setup_touch();
 
-    if(!buttons)
+    if(!buttons && savedata.is_touchpad_visible)
     {
         SDL_Surface *btn_screen = pngToSurface(buttonpng);
         if(!btn_screen || !(buttons = SDL_CreateTextureFromSurface(renderer, btn_screen)))
@@ -515,7 +515,7 @@ void blit()
     for(i = 0, h = 0; i < MAXTOUCHB; i++)
     {
         h += touchstates[i];
-        if(!hide_touch && (i != SDID_SCREENSHOT || touchstates[i]))
+        if(!hide_touch && (i != SDID_SCREENSHOT || touchstates[i]) && savedata.is_touchpad_visible)
         {
             SDL_SetTextureAlphaMod(buttons, touchstates[i] ? 128 : 64);
             SDL_RenderCopy(renderer, buttons, &btnsrc[i], &btndes[i]);

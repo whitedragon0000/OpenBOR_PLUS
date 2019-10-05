@@ -1,8 +1,8 @@
-msgid 
+msgid
 "This file should be place in data folder"
 "msgid : this is original text in code."
 "msgstr : this is your translation."
-msgstr 
+msgstr
 "Leave this blank if you don't want to translate it."
 "Lines below this are what you need to modify."
 
@@ -125,6 +125,12 @@ msgstr ""
 msgid "Touchpad Vibration Enabled"
 msgstr ""
 msgid "Touchpad Vibration Disabled"
+msgstr ""
+msgid "Touchpad Vibration Intensity"
+msgstr ""
+msgid "Touchpad Visible"
+msgstr ""
+msgid "Touchpad Hidden"
 msgstr ""
 msgid "Rumble Enabled"
 msgstr ""

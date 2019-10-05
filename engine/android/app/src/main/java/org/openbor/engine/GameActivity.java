@@ -22,6 +22,8 @@ package org.openbor.engine;
 
 import org.libsdl.app.SDLActivity;
 
+import java.lang.String;
+
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -60,7 +62,7 @@ public class GameActivity extends SDLActivity {
    * Needed for permission check
    */
   public static final int STORAGE_PERMISSION_CODE = 23;
-  
+
   //White Dragon: added statics
   protected static WakeLock wakeLock;
   protected static View decorView;
@@ -72,7 +74,7 @@ public class GameActivity extends SDLActivity {
   //   (for reference: SDL finally registers event/action/x/y/etc into its C-code from Java code
   //   in onTouch() call, thus we do this logic in C code for efficient then provide vibration code
   //   in Java when we really need to vibrate the device)
-  
+
   // -- section of Java native solutions provided to be called from C code -- //
   /**
    * This will vibrate device if there's vibrator service.
@@ -80,31 +82,33 @@ public class GameActivity extends SDLActivity {
    *
    * Modified version from original by White Dragon
    */
-  public static void jni_vibrate() {
+  public static void jni_vibrate(int intensity) {
     Vibrator vibrator = (Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);
 
     if (vibrator.hasVibrator())
     {
-
       // wait for 3 ms, vibrate for 250 ms, then off for 1000 ms
       // note: consult api at two links below, it has two different meanings but in this case,
       // use case is the same
-      long[] pattern = {16, 250};
+      long[] mVibratePattern  = new long[]{16, 250};
 
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
       {
+        // calculate intensity ratio value
+        int amp = (int) ((intensity * 255) / 100);
+        int[] mAmplitudes = new int[]{0, amp};
         // API 26 and above
         // look for its api at https://developer.android.com/reference/android/os/VibrationEffect.html
-        vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1));
+        vibrator.vibrate(VibrationEffect.createWaveform(mVibratePattern, mAmplitudes, -1));
       }
       else
       {
         // below API 26
         // look for its api at https://developer.android.com/reference/android/os/Vibrator.html#vibrate(long%5B%5D,%2520int)
-        vibrator.vibrate(pattern, -1);
+        vibrator.vibrate(mVibratePattern, -1);
       }
     }
-  } 
+  }
   // ------------------------------------------------------------------------ //
 
   /**
@@ -154,7 +158,7 @@ public class GameActivity extends SDLActivity {
           Manifest.permission.READ_EXTERNAL_STORAGE
         }, STORAGE_PERMISSION_CODE);
       }
-      else 
+      else
       {
         CopyPak();
       }
@@ -178,7 +182,7 @@ public class GameActivity extends SDLActivity {
         {
           // permission was granted continue!
           CopyPak();
-        }          
+        }
         else
         {
           // needed permission denied end application!
