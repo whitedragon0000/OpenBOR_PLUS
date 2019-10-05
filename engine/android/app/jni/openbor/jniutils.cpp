@@ -1,10 +1,9 @@
 #include "jniutils.h"
-#include <jni.h>
 #include "SDL.h"
 
 #define ACTIVITY_CLS_NAME "GameActivity"
 
-void jniutils_vibrate_device()
+void jniutils_vibrate_device(jint intensity)
 {
   // retrieve the JNI environment
   JNIEnv  *env = (JNIEnv*)SDL_AndroidGetJNIEnv();
@@ -16,10 +15,10 @@ void jniutils_vibrate_device()
   jclass cls = env->GetObjectClass(activity);
 
   // find the identifier of the method to call
-  jmethodID method_id = env->GetStaticMethodID(cls, "jni_vibrate", "()V");
+  jmethodID method_id = env->GetStaticMethodID(cls, "jni_vibrate", "(I)V");
 
   // effectively call the Java method
-  env->CallStaticVoidMethod(cls, method_id);
+  env->CallStaticVoidMethod(cls, method_id, intensity);
 
   // clean up the local references
   env->DeleteLocalRef(cls);

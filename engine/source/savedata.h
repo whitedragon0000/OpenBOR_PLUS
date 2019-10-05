@@ -48,6 +48,8 @@ typedef struct
 #endif
 #if ANDROID
     int is_touchpad_vibration_enabled;
+    int touchpad_vibration_intensity;
+    int is_touchpad_visible;
 #endif
 } s_savedata;
 

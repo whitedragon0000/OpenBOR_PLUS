@@ -83,12 +83,12 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
 						touch_info.py[i] = ev.tfinger.y*nativeHeight;
 						touch_info.pstatus[i] = TOUCH_STATUS_DOWN;
 
-            // migration for White Dragon's vibration logic from SDLActivity.java
-            if (is_touchpad_vibration_enabled() &&
-                is_touch_area(touch_info.px[i], touch_info.py[i]))
-            {
-              jniutils_vibrate_device();
-            }
+                        // migration for White Dragon's vibration logic from SDLActivity.java
+                        if (is_touchpad_vibration_enabled() &&
+                            is_touch_area(touch_info.px[i], touch_info.py[i]))
+                        {
+                          jniutils_vibrate_device(savedata.touchpad_vibration_intensity);
+                        }
 
 						break;
 					}
