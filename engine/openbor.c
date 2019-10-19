@@ -21067,10 +21067,10 @@ int check_lost()
     s_collision_attack attack;
     int osk = self->modeldata.offscreenkill ? self->modeldata.offscreenkill : DEFAULT_OFFSCREEN_KILL;
 
-    if((self->position.z != 100000 && (advancex - self->position.x > osk || self->position.x - advancex - videomodes.hRes > osk ||
+    if((self->position.z != ITEM_HIDE_POSITION_Z && (advancex - self->position.x > osk || self->position.x - advancex - videomodes.hRes > osk ||
                               (level->scrolldir != SCROLL_UP && level->scrolldir != SCROLL_DOWN && (advancey - self->position.z + self->position.y > osk || self->position.z - self->position.y - advancey - videomodes.vRes > osk)) ||
                               ((level->scrolldir == SCROLL_UP || level->scrolldir == SCROLL_DOWN) && (self->position.z - self->position.y < -osk || self->position.z - self->position.y > videomodes.vRes + osk))		) )
-            || self->position.y < 2 * PIT_DEPTH) //self->position.z<100000, so weapon item won't be killed
+            || self->position.y < 2 * PIT_DEPTH) //self->position.z<ITEM_HIDE_POSITION_Z, so weapon item won't be killed
     {
         if(self->modeldata.type & TYPE_PLAYER)
         {
@@ -22468,12 +22468,13 @@ void display_ents()
             if(e->modeldata.hpbarstatus.size.x)
             {
                 drawenemystatus(e);
-
             }
-            sortid = e->sortid;
+            
+			sortid = e->sortid;
             scrx = o_scrx - ((e->modeldata.noquake & NO_QUAKEN) ? 0 : gfx_x_offset);
             scry = o_scry - ((e->modeldata.noquake & NO_QUAKEN) ? 0 : gfx_y_offset);
-            if(freezeall || !(e->blink && (_time % (GAME_SPEED / 10)) < (GAME_SPEED / 20)))
+            
+			if(freezeall || !(e->blink && (_time % (GAME_SPEED / 10)) < (GAME_SPEED / 20)))
             {
                 float eheight = T_WALKOFF, eplatheight = 0;
 
@@ -22509,27 +22510,7 @@ void display_ents()
                     // whether the entity is grabbing someone and has grabback set
 
                     z = (int)e->position.z;    // Set the layer offset
-
-                    /*if(e->binding.ent)
-                    {
-                        sortid = e->binding.ent->sortid + e->binding.sortid;
-                    }*/
-
-                    if(e->grabbing && e->modeldata.grabback)
-                    {
-                        sortid = e->link->sortid - 1;    // Grab animation displayed behind
-                    }
-                    else if(!e->modeldata.grabback && e->grabbing)
-                    {
-                        sortid = e->link->sortid + 1;
-                    }
-                    /*
-                    					if(e->binding.ent && e->binding.ent->grabbing==e)
-                    					{
-                    						if(e->binding.ent->modeldata.grabback) z--;
-                    						else                             z++;
-                    					}
-                    */
+					
                     if(other && e->position.y >= other->position.y + other->animation->platform[other->animpos][PLATFORM_HEIGHT] && !other->modeldata.setlayer)
                     {
                         float zdepth = (float)( (float)e->position.z - (float)other->position.z +
@@ -26376,15 +26357,18 @@ void npc_warp()
 
 int adjust_grabposition(entity *ent, entity *other, float dist, int grabin)
 {
-    float x1, z1, x2, z2, x;
+	float x1;
+	float z1;
+	float x2;
+	float z2;
+	float x;
 
-    //if(ent->position.y != other->position.y)
     if(diff(ent->position.y,other->position.y) > T_WALKOFF)
     {
         return 0;
     }
-    //if(ent->base != other->base)
-    if(diff(ent->base,other->base) > T_WALKOFF)
+   
+	if(diff(ent->base,other->base) > T_WALKOFF)
     {
         return 0;
     }
@@ -26414,6 +26398,23 @@ int adjust_grabposition(entity *ent, entity *other, float dist, int grabin)
     other->position.z = z2;
     //other->position.y = ent->position.y;
     //other->base = ent->base;
+
+	// Sort order control.
+	//
+	// If grabback is set (grabback = 1) the grabbed entity's 
+	// sort order is forced 1 greater than grappler so grappler 
+	// appears behind. Otherwise grabbed is moved one lower, 
+	// forcing grappler to appear in front.
+	if (ent->modeldata.grabback)
+	{
+		other->sortid = ent->sortid + 1;
+	}
+	else if (!ent->modeldata.grabback)
+	{
+		other->sortid = ent->sortid - 1;
+	}
+
+	
     return 1;
 }
 
@@ -28798,7 +28799,7 @@ void common_pickupitem(entity *other)
     {
         do_item_script(self, other);
 
-        other->position.z = 100000;
+        other->position.z = ITEM_HIDE_POSITION_Z;
     }
 }
 
@@ -31211,7 +31212,7 @@ void didfind_item(entity *other)
     {
         other->nextthink = other->nextanim = _time + GAME_SPEED * 999999;
     }
-    other->position.z = 100000;
+    other->position.z = ITEM_HIDE_POSITION_Z;
 }
 
 void player_fall_check()
@@ -34060,7 +34061,7 @@ entity *smartspawn(s_spawn_entry *props)      // 7-1-2005 Entire section replace
     // give the entity a weapon item
     if(props->weapon)
     {
-        wp = spawn(e->position.x, 100000, 0, 0, props->weapon, props->weaponindex, props->weaponmodel);
+        wp = spawn(e->position.x, ITEM_HIDE_POSITION_Z, 0, 0, props->weapon, props->weaponindex, props->weaponmodel);
         if(wp)
         {
             //ent_default_init(wp);
