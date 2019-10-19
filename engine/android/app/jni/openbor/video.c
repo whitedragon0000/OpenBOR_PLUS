@@ -23,6 +23,11 @@
 
 #include "pngdec.h"
 
+#define BUTTON_WIDTH    800
+#define BUTTON_HEIGHT   480
+#define NATIVE_WIDTH    640
+#define NATIVE_HEIGHT   480
+
 extern int videoMode;
 
 SDL_Window *window = NULL;
@@ -91,8 +96,8 @@ void initSDL()
     }
     else
     {
-        nativeWidth = 640;
-        nativeHeight = 480;
+        nativeWidth = NATIVE_WIDTH;
+        nativeHeight = NATIVE_HEIGHT;
     }
 
     // Hardcode full screen mode
@@ -131,7 +136,7 @@ static void setup_touch_default()
 {
     float w = nativeWidth;
     float h = nativeHeight;
-    float hh = w * 480 / 800;
+    float hh = w * BUTTON_HEIGHT / BUTTON_WIDTH;
     float ra = 0.15f, rb = ra / 1.75f;
     float cx1 = (ra + rb + rb / 5.0f) * hh, cy1 = h - cx1;
     float cy2 = cy1;
@@ -200,7 +205,7 @@ static int setup_touch_txt()
     char argbuf[MAX_ARG_LEN + 1] = "";
     float w = nativeWidth;
     float h = nativeHeight;
-    float hh = w * 480 / 800;
+    float hh = w * BUTTON_HEIGHT / BUTTON_WIDTH;
     SDL_Surface *ts;
     char *pngb;
     size_t pngs;
@@ -409,7 +414,7 @@ int video_set_mode(s_videomodes videomodes)
 
     if(!texture_base)
     {
-        SDL_Surface *tmp_surface = SDL_CreateRGBSurface(0, 800, 480, 32, 0, 0, 0, 0);
+        SDL_Surface *tmp_surface = SDL_CreateRGBSurface(0, BUTTON_WIDTH, BUTTON_HEIGHT, 32, 0, 0, 0, 0);
         if(!tmp_surface)
         {
             printf("error: %s\n", SDL_GetError());
