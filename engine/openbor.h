@@ -120,6 +120,8 @@ movement restirctions are here!
 #define     T_Z_PICKUP_ITEM     3
 #define     T_Y_PICKUP_ITEM     T_WALKOFF
 
+#define		ITEM_HIDE_POSITION_Z 100000	
+
 // Caskey, Damon V.
 // 2019-01-27
 //
@@ -2588,7 +2590,6 @@ typedef struct
     int player_count;               // int itemplayer_count;
     char alias[MAX_NAME_LEN];   // char itemalias[MAX_NAME_LEN]; // Now items spawned can have their properties changed
 } s_item_properties;
-
 
 typedef struct entity
 {
