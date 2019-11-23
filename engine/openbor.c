@@ -10398,7 +10398,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->range.z.max            = (int)newchar->grabdistance / 3;		//zmax
                 newanim->range.y.min            = 0;									//amin
 				newanim->range.y.max			= (int)newchar->jumpheight * 20;			// Same logic as X. Good for attacks, but not terrian. Author better remember to add jump ranges.
-                newanim->range.base.min         = 0;									// Base min.				
+                newanim->range.base.min         = 0;									// Base min.
 				newanim->range.base.max			= (int)newchar->jumpheight * 20;			// Just use same logic as range Y.
                 newanim->energycost             = NULL;
                 newanim->chargetime             = 2;			// Default for backwards compatibility
@@ -16679,16 +16679,16 @@ void draw_visual_debug()
         // Range debug requested?
         if(savedata.debuginfo & DEBUG_DISPLAY_RANGE)
         {
-			// Range is calculated a bit differently than body/attack 
+			// Range is calculated a bit differently than body/attack
 			// boxes, which is what the draw_box_on_entity() funciton
-			// is meant for. For Y axis, We need to invert the value, 
-			// and place them in opposiing parameters (Max Y into 
+			// is meant for. For Y axis, We need to invert the value,
+			// and place them in opposiing parameters (Max Y into
 			// function's min Y parameter, and and min Y into function's
 			// max Y parameter).
 
 			range_y_min =  -entity->animation->range.y.min;
 			range_y_max =  -entity->animation->range.y.max;
-			
+
             draw_box_on_entity(entity, entity->animation->range.x.min, range_y_max, entity->position.z+1, entity->animation->range.x.max, range_y_min, -1, LOCAL_COLOR_GREEN, &drawmethod);
         }
 
@@ -22482,11 +22482,11 @@ void display_ents()
             {
                 drawenemystatus(e);
             }
-            
+
 			sortid = e->sortid;
             scrx = o_scrx - ((e->modeldata.noquake & NO_QUAKEN) ? 0 : gfx_x_offset);
             scry = o_scry - ((e->modeldata.noquake & NO_QUAKEN) ? 0 : gfx_y_offset);
-            
+
 			if(freezeall || !(e->blink && (_time % (GAME_SPEED / 10)) < (GAME_SPEED / 20)))
             {
                 float eheight = T_WALKOFF, eplatheight = 0;
@@ -22523,7 +22523,7 @@ void display_ents()
                     // whether the entity is grabbing someone and has grabback set
 
                     z = (int)e->position.z;    // Set the layer offset
-					
+
                     if(other && e->position.y >= other->position.y + other->animation->platform[other->animpos][PLATFORM_HEIGHT] && !other->modeldata.setlayer)
                     {
                         float zdepth = (float)( (float)e->position.z - (float)other->position.z +
@@ -26380,7 +26380,7 @@ int adjust_grabposition(entity *ent, entity *other, float dist, int grabin)
     {
         return 0;
     }
-   
+
 	if(diff(ent->base,other->base) > T_WALKOFF)
     {
         return 0;
@@ -26414,9 +26414,9 @@ int adjust_grabposition(entity *ent, entity *other, float dist, int grabin)
 
 	// Sort order control.
 	//
-	// If grabback is set (grabback = 1) the grabbed entity's 
-	// sort order is forced 1 greater than grappler so grappler 
-	// appears behind. Otherwise grabbed is moved one lower, 
+	// If grabback is set (grabback = 1) the grabbed entity's
+	// sort order is forced 1 greater than grappler so grappler
+	// appears behind. Otherwise grabbed is moved one lower,
 	// forcing grappler to appear in front.
 	if (ent->modeldata.grabback)
 	{
@@ -26427,7 +26427,7 @@ int adjust_grabposition(entity *ent, entity *other, float dist, int grabin)
 		other->sortid = ent->sortid - 1;
 	}
 
-	
+
     return 1;
 }
 
@@ -39173,9 +39173,9 @@ void menu_options_input()
 {
     int quit = 0;
     int selector = 1; // 0
-    int dir = 0;
     int x_pos = -6;
     #if ANDROID
+    int dir = 0;
     int OPTIONS_NUM = 8;
     #else
     int OPTIONS_NUM = 5;
@@ -39250,7 +39250,9 @@ void menu_options_input()
 
         update((level != NULL), 0);
 
+        #if ANDROID
         dir = 0;
+        #endif
         if(bothnewkeys & FLAG_ESC)
         {
             quit = 1;
@@ -39271,6 +39273,7 @@ void menu_options_input()
                 sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
             }
         }
+        #if ANDROID
         if(bothnewkeys & FLAG_MOVELEFT)
         {
             dir = -1;
@@ -39279,6 +39282,7 @@ void menu_options_input()
         {
             dir = 1;
         }
+        #endif
         if(selector < 0)
         {
             selector = OPTIONS_NUM;
