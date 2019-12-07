@@ -56,10 +56,7 @@ int brightness = 0;
 
 void initSDL()
 {
-    SDL_DisplayMode mode;
     int init_flags = SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC;
-    const char *var = SDL_getenv("SDL_VIDEO_FULLSCREEN_DISPLAY");
-    int vm;
 
 
 #ifdef CUSTOM_SIGNAL_HANDLER
@@ -75,6 +72,18 @@ void initSDL()
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
     //atexit(SDL_Quit); //White Dragon: use SDL_Quit() into sdlport.c it's best practice!
 
+    setNativeScreenSize();
+
+    // Hardcode full screen mode
+    savedata.fullscreen = 1;
+}
+
+void setNativeScreenSize() {
+    SDL_DisplayMode mode;
+    const char *var = SDL_getenv("SDL_VIDEO_FULLSCREEN_DISPLAY");
+    int vm;
+    //int old_w = nativeWidth, old_h = nativeHeight;
+
     if ( !var )
     {
         var = SDL_getenv("SDL_VIDEO_FULLSCREEN_HEAD");
@@ -88,7 +97,7 @@ void initSDL()
         vm = 0;
     }
 
-    // Store the monitor's current resolution before setting the video mode for the first time
+    // Store the display's current resolution before setting the video mode for the first time
     if(SDL_GetDesktopDisplayMode(vm, &mode) == 0)
     {
         nativeWidth = mode.w;
@@ -100,9 +109,10 @@ void initSDL()
         nativeHeight = NATIVE_HEIGHT;
     }
 
-    // Hardcode full screen mode
-    savedata.fullscreen = 1;
-
+    /*if(window && (nativeWidth != old_w || nativeHeight != old_h))
+    {
+        SDL_SetWindowSize(window, nativeWidth, nativeHeight);
+    }*/
 }
 
 //Start of touch control UI code
@@ -470,6 +480,8 @@ void blit()
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
+
+    // set window
 
     //SDL_SetRenderTarget(renderer, NULL);
     //SDL_RenderSetLogicalSize(renderer, 0, 0);
