@@ -10,6 +10,8 @@
  * Modifications by CRxTRDude, White Dragon and msmalik681.
  */
 
+#include "jniutils.h"
+
 #include <math.h>
 #include "types.h"
 #include "video.h"
@@ -56,10 +58,7 @@ int brightness = 0;
 
 void initSDL()
 {
-    SDL_DisplayMode mode;
     int init_flags = SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC;
-    const char *var = SDL_getenv("SDL_VIDEO_FULLSCREEN_DISPLAY");
-    int vm;
 
 
 #ifdef CUSTOM_SIGNAL_HANDLER
@@ -75,11 +74,23 @@ void initSDL()
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
     //atexit(SDL_Quit); //White Dragon: use SDL_Quit() into sdlport.c it's best practice!
 
-    if ( !var )
+    setNativeScreenSize();
+
+    // Hardcode full screen mode
+    savedata.fullscreen = 1;
+}
+
+void setNativeScreenSize() {
+    SDL_DisplayMode mode;
+    const char *var = SDL_getenv("SDL_VIDEO_FULLSCREEN_DISPLAY");
+    int vm;
+    //int old_w = nativeWidth, old_h = nativeHeight;
+
+    if (!var)
     {
         var = SDL_getenv("SDL_VIDEO_FULLSCREEN_HEAD");
     }
-    if ( var )
+    if (var)
     {
         vm = SDL_atoi(var);
     }
@@ -88,21 +99,27 @@ void initSDL()
         vm = 0;
     }
 
-    // Store the monitor's current resolution before setting the video mode for the first time
-    if(SDL_GetDesktopDisplayMode(vm, &mode) == 0)
+    // Store the display's current resolution before setting the video mode for the first time
+    if (SDL_GetDesktopDisplayMode(vm, &mode) == 0)
     {
-        nativeWidth = mode.w;
-        nativeHeight = mode.h;
+        struct frame_borders frm_borders = jniutils_get_frame_borders();
+
+        if (frm_borders.left + frm_borders.right == mode.w)
+        {
+            nativeWidth = frm_borders.right - frm_borders.left;
+            nativeHeight = frm_borders.bottom - frm_borders.top;
+        }
+        else
+        {
+            nativeWidth = mode.w;
+            nativeHeight = mode.h;
+        }
     }
     else
     {
         nativeWidth = NATIVE_WIDTH;
         nativeHeight = NATIVE_HEIGHT;
     }
-
-    // Hardcode full screen mode
-    savedata.fullscreen = 1;
-
 }
 
 //Start of touch control UI code

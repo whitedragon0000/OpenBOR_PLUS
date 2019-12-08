@@ -33,5 +33,9 @@ int video_setup_yuv_overlay(const yuv_video_mode*);
 int video_prepare_yuv_frame(yuv_frame*);
 int video_display_yuv_frame(void);
 
+#ifdef ANDROID
+void setNativeScreenSize(void);
+#endif
+
 #endif
 
