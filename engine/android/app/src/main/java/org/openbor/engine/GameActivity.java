@@ -20,6 +20,8 @@
 
 package org.openbor.engine;
 
+import org.openbor.engine.utils.FrameBorders;
+
 import org.libsdl.app.SDLActivity;
 
 import java.lang.String;
@@ -40,8 +42,13 @@ import android.os.PowerManager;
 import android.os.PowerManager.*;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.Window;
 import android.content.res.*;
 import android.Manifest;
+import android.graphics.Point;
+import android.graphics.Rect;
+import android.util.DisplayMetrics;
+import android.app.Activity;
 //msmalik681 added imports for new pak copy!
 import android.os.Environment;
 import android.widget.Toast;
@@ -108,6 +115,31 @@ public class GameActivity extends SDLActivity {
         vibrator.vibrate(mVibratePattern, -1);
       }
     }
+  }
+
+  public static FrameBorders jni_get_frame_borders() {
+    Activity activity = (Activity)getContext();
+
+    Rect rectgle = new Rect();
+    activity.getWindow().getDecorView().getWindowVisibleDisplayFrame(rectgle);
+    FrameBorders frameBorders = new FrameBorders(rectgle.top, rectgle.left, rectgle.bottom, rectgle.right);
+
+    // include navigation bar dimensions
+    /*Resources resources = getContext().getResources();
+    int resourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android");
+    int nav_bar_h = resources.getDimensionPixelSize(resourceId);
+    if (resourceId > 0) {
+        int orientation = resources.getConfiguration().orientation;
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            // In landscape
+            frameBorders.setRight(frameBorders.getRight() + nav_bar_h);
+        } else {
+            // In portrait
+            frameBorders.setBottom(frameBorders.getBottom() + nav_bar_h);
+        }
+    }*/
+
+    return frameBorders;
   }
   // ------------------------------------------------------------------------ //
 

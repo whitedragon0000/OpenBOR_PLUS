@@ -10,6 +10,8 @@
  * Modifications by CRxTRDude, White Dragon and msmalik681.
  */
 
+#include "jniutils.h"
+
 #include <math.h>
 #include "types.h"
 #include "video.h"
@@ -84,11 +86,11 @@ void setNativeScreenSize() {
     int vm;
     //int old_w = nativeWidth, old_h = nativeHeight;
 
-    if ( !var )
+    if (!var)
     {
         var = SDL_getenv("SDL_VIDEO_FULLSCREEN_HEAD");
     }
-    if ( var )
+    if (var)
     {
         vm = SDL_atoi(var);
     }
@@ -98,21 +100,26 @@ void setNativeScreenSize() {
     }
 
     // Store the display's current resolution before setting the video mode for the first time
-    if(SDL_GetDesktopDisplayMode(vm, &mode) == 0)
+    if (SDL_GetDesktopDisplayMode(vm, &mode) == 0)
     {
-        nativeWidth = mode.w;
-        nativeHeight = mode.h;
+        struct frame_borders frm_borders = jniutils_get_frame_borders();
+
+        if (frm_borders.left + frm_borders.right == mode.w)
+        {
+            nativeWidth = frm_borders.right - frm_borders.left;
+            nativeHeight = frm_borders.bottom - frm_borders.top;
+        }
+        else
+        {
+            nativeWidth = mode.w;
+            nativeHeight = mode.h;
+        }
     }
     else
     {
         nativeWidth = NATIVE_WIDTH;
         nativeHeight = NATIVE_HEIGHT;
     }
-
-    /*if(window && (nativeWidth != old_w || nativeHeight != old_h))
-    {
-        SDL_SetWindowSize(window, nativeWidth, nativeHeight);
-    }*/
 }
 
 //Start of touch control UI code
@@ -480,8 +487,6 @@ void blit()
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
-
-    // set window
 
     //SDL_SetRenderTarget(renderer, NULL);
     //SDL_RenderSetLogicalSize(renderer, 0, 0);
