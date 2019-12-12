@@ -74,13 +74,14 @@ void initSDL()
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
     //atexit(SDL_Quit); //White Dragon: use SDL_Quit() into sdlport.c it's best practice!
 
-    setNativeScreenSize();
+    setNativeScreenSize(0);
 
     // Hardcode full screen mode
     savedata.fullscreen = 1;
 }
 
-void setNativeScreenSize() {
+void setNativeScreenSize(int is_system_bars_visible)
+{
     SDL_DisplayMode mode;
     const char *var = SDL_getenv("SDL_VIDEO_FULLSCREEN_DISPLAY");
     int vm;
@@ -102,12 +103,16 @@ void setNativeScreenSize() {
     // Store the display's current resolution before setting the video mode for the first time
     if (SDL_GetDesktopDisplayMode(vm, &mode) == 0)
     {
-        struct frame_borders frm_borders = jniutils_get_frame_borders();
+        struct frame_dimensions frm_dim = jniutils_get_frame_dimensions();
 
-        if (frm_borders.left + frm_borders.right == mode.w)
+        /*writeToLogFile("Changed Frame Dimensions - x: %i, y: %i, width: %i, height: %i, top: %i, left: %i, bottom: %i, right: %i\n",
+                       frm_dim.x, frm_dim.y, frm_dim.width, frm_dim.height,
+                       frm_dim.top, frm_dim.left, frm_dim.bottom, frm_dim.right);*/
+
+        if ((frm_dim.width < mode.w || frm_dim.height < mode.h)) //  || is_system_bars_visible
         {
-            nativeWidth = frm_borders.right - frm_borders.left;
-            nativeHeight = frm_borders.bottom - frm_borders.top;
+            nativeWidth = frm_dim.width;
+            nativeHeight = frm_dim.height;
         }
         else
         {
@@ -120,6 +125,13 @@ void setNativeScreenSize() {
         nativeWidth = NATIVE_WIDTH;
         nativeHeight = NATIVE_HEIGHT;
     }
+}
+
+void on_system_ui_visibility_change_event(int is_system_bars_visible)
+{
+    setNativeScreenSize(is_system_bars_visible);
+    SDL_SetWindowSize(window, nativeWidth, nativeHeight);
+    blit();
 }
 
 //Start of touch control UI code
