@@ -17,6 +17,7 @@
 #include "openbor.h"
 
 #define T_AXIS 7000
+#define T_NUM_BUTTONS 5
 
 #ifdef ANDROID
 #include "jniutils.h"
@@ -30,6 +31,7 @@ static int lastkey;						        // Last keyboard key Pressed
 static int lastjoy;                             // Last joystick button/axis/hat input
 
 int sdl_game_started  = 0;
+int android_accelerometer = 0;
 
 extern int default_keys[MAX_BTN_NUM];
 extern s_playercontrols default_control;
@@ -244,17 +246,33 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
 
             // PLUG AND PLAY
             case SDL_JOYDEVICEADDED:
-                if (ev.jdevice.which < JOY_LIST_TOTAL)
+                if (ev.jdevice.which - android_accelerometer < JOY_LIST_TOTAL)
                 {
                     int i = ev.jdevice.which;
                     char buffer[MAX_BUFFER_LEN];
                     char joy_name[MAX_BUFFER_LEN];
+                    char real_joy_name[MAX_BUFFER_LEN];
+
+                    strcpy(real_joy_name,SDL_JoystickNameForIndex(i));
+
+                    if (!android_accelerometer && strcmp(real_joy_name, "Android Accelerometer") == 0)
+                    {
+                        android_accelerometer = 1;
+                        break;
+                    }
+
+                    if (android_accelerometer)
+                    {
+                        i -= android_accelerometer;
+                    }
+
                     open_joystick(i);
                     //get_time_string(buffer, MAX_BUFFER_LEN, (time_t)ev.jdevice.timestamp, TIMESTAMP_PATTERN);
                     get_now_string(buffer, MAX_BUFFER_LEN, TIMESTAMP_PATTERN);
                     numjoy = SDL_NumJoysticks();
                     strcpy(joy_name,get_joystick_name(joysticks[i].Name));
-                    printf("Joystick: \"%s\" connected at port: %d at %s\n",joy_name,i,buffer);
+
+                    printf("Joystick: \"%s\" (%s) connected at port: %d at %s\n",joy_name,real_joy_name,i,buffer);
                 }
                 break;
 
@@ -266,11 +284,14 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
                     {
                         char buffer[MAX_BUFFER_LEN];
                         char joy_name[MAX_BUFFER_LEN];
+                        char real_joy_name[MAX_BUFFER_LEN];
+
+                        strcpy(real_joy_name,SDL_JoystickNameForIndex(i));
                         get_now_string(buffer, MAX_BUFFER_LEN, TIMESTAMP_PATTERN);
                         close_joystick(i);
                         numjoy = SDL_NumJoysticks();
                         strcpy(joy_name,get_joystick_name(joysticks[i].Name));
-                        printf("Joystick: \"%s\" disconnected from port: %d at %s\n",joy_name,i,buffer);
+                        printf("Joystick: \"%s\" (%s) disconnected from port: %d at %s\n",joy_name,real_joy_name,i,buffer);
                     }
                 }
                 break;
@@ -358,29 +379,59 @@ types, defaults and keynames.
 void joystick_scan(int scan)
 {
 	int i;
+	int android_acc = 0;
+	int numjoyNoAcc = 0;
 
 	if(!scan) return;
 
 	numjoy = SDL_NumJoysticks();
+	numjoyNoAcc = numjoy;
 
 	if (scan != 2)
     {
-        if(numjoy <= 0)
+
+        for(i = 0; i < numjoy; i++)
+        {
+            char real_joy_name[MAX_BUFFER_LEN];
+
+            strcpy(real_joy_name,SDL_JoystickNameForIndex(i));
+            if (strcmp(real_joy_name, "Android Accelerometer") == 0)
+            {
+                --numjoyNoAcc;
+            }
+        }
+        if(numjoyNoAcc <= 0)
         {
             printf("No Joystick(s) Found!\n");
             return;
         }
         else
         {
-            printf("\n%d joystick(s) found!\n", numjoy);
+            printf("\n%d joystick(s) found!\n", numjoyNoAcc);
         }
     }
 
-	if (numjoy > JOY_LIST_TOTAL) numjoy = JOY_LIST_TOTAL; // avoid overflow bug
+	if (numjoyNoAcc > JOY_LIST_TOTAL) numjoy = JOY_LIST_TOTAL; // avoid overflow bug
 
 	for(i = 0; i < numjoy; i++)
 	{
-        open_joystick(i);
+	    int joy_idx = i;
+        char real_joy_name[MAX_BUFFER_LEN];
+
+        strcpy(real_joy_name,SDL_JoystickNameForIndex(i));
+
+        if (!android_acc && strcmp(real_joy_name, "Android Accelerometer") == 0)
+        {
+            android_acc = 1;
+            continue;
+        }
+
+        if (android_acc)
+        {
+            joy_idx -= android_acc;
+        }
+
+        open_joystick(joy_idx);
 
         if(scan != 2)
         {
@@ -388,13 +439,13 @@ void joystick_scan(int scan)
             if(numjoy == 1)
             {
                 printf("%s - %d axes, %d buttons, %d hat(s)\n",
-                                    get_joystick_name(joysticks[i].Name), joysticks[i].NumAxes, joysticks[i].NumButtons, joysticks[i].NumHats);
+                                    get_joystick_name(joysticks[joy_idx].Name), joysticks[joy_idx].NumAxes, joysticks[joy_idx].NumButtons, joysticks[joy_idx].NumHats);
             }
             else if(numjoy > 1)
             {
-                if(i) printf("\n");
+                if(joy_idx) printf("\n");
                 printf("%d. %s - %d axes, %d buttons, %d hat(s)\n", i + 1,
-                        get_joystick_name(joysticks[i].Name), joysticks[i].NumAxes, joysticks[i].NumButtons, joysticks[i].NumHats);
+                        get_joystick_name(joysticks[joy_idx].Name), joysticks[joy_idx].NumAxes, joysticks[joy_idx].NumButtons, joysticks[joy_idx].NumHats);
             }
         }
 	}
@@ -417,6 +468,7 @@ void open_joystick(int i)
     joysticks[i].NumButtons = SDL_JoystickNumButtons(joystick[i]);
 
     strcpy(joysticks[i].Name, SDL_JoystickName(i));
+    //printf("Found new joystick (%i): %s with buttons: %i\n", i, joysticks[i].Name, joysticks[i].NumButtons);
 
     joystick_haptic[i] = SDL_HapticOpenFromJoystick(joystick[i]);
     if (joystick_haptic[i] != NULL)

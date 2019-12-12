@@ -48,7 +48,7 @@ typedef struct{
 	u32 Axes;
 	u32 Buttons;
 	u64 Data;
-}s_joysticks;
+} s_joysticks;
 extern s_joysticks joysticks[JOY_LIST_TOTAL];
 
 

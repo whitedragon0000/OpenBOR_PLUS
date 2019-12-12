@@ -20,7 +20,7 @@
 
 package org.openbor.engine;
 
-import org.openbor.engine.utils.FrameBorders;
+import org.openbor.engine.utils.FrameDimensions;
 
 import org.libsdl.app.SDLActivity;
 
@@ -72,7 +72,8 @@ public class GameActivity extends SDLActivity {
 
   //White Dragon: added statics
   protected static WakeLock wakeLock;
-  protected static View decorView;
+
+  public static native void fireSystemUiVisibilityChangeEvent(int isSystemBarsVisible);
 
   //note: White Dragon's vibrator is moved into C code for 2 reasons
   // - avoid modifying SDLActivity.java as it's platform support
@@ -117,12 +118,14 @@ public class GameActivity extends SDLActivity {
     }
   }
 
-  public static FrameBorders jni_get_frame_borders() {
+  public static FrameDimensions jni_get_frame_dimensions() {
     Activity activity = (Activity)getContext();
 
     Rect rectgle = new Rect();
-    activity.getWindow().getDecorView().getWindowVisibleDisplayFrame(rectgle);
-    FrameBorders frameBorders = new FrameBorders(rectgle.top, rectgle.left, rectgle.bottom, rectgle.right);
+    View view = activity.getWindow().getDecorView().getRootView();
+    view.getWindowVisibleDisplayFrame(rectgle);
+    FrameDimensions frameDimensions = new FrameDimensions((int)view.getTranslationX(), (int)view.getTranslationY(), view.getWidth(), view.getHeight(),
+                                                          rectgle.top, rectgle.left, rectgle.bottom, rectgle.right);
 
     // include navigation bar dimensions
     /*Resources resources = getContext().getResources();
@@ -132,14 +135,14 @@ public class GameActivity extends SDLActivity {
         int orientation = resources.getConfiguration().orientation;
         if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
             // In landscape
-            frameBorders.setRight(frameBorders.getRight() + nav_bar_h);
+            frameDimensions.setRight(frameDimensions.getRight() + nav_bar_h);
         } else {
             // In portrait
-            frameBorders.setBottom(frameBorders.getBottom() + nav_bar_h);
+            frameDimensions.setBottom(frameDimensions.getBottom() + nav_bar_h);
         }
     }*/
 
-    return frameBorders;
+    return frameDimensions;
   }
   // ------------------------------------------------------------------------ //
 
@@ -161,6 +164,8 @@ public class GameActivity extends SDLActivity {
     super.onCreate(savedInstanceState);
     Log.v("OpenBOR", "onCreate called");
 
+    Activity activity = (Activity)getContext();
+
     //msmalik681 setup storage access
     CheckPermissionForMovingPaks();
 
@@ -174,6 +179,43 @@ public class GameActivity extends SDLActivity {
     {
       GameActivity.wakeLock.acquire();
     }
+
+    View decorView = getWindow().getDecorView().getRootView();
+
+    decorView.setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener()
+    {
+        @Override
+        public void onSystemUiVisibilityChange(int visibility)
+        {
+            // Note that system bars will only be "visible" if none of the
+            // LOW_PROFILE, HIDE_NAVIGATION, or FULLSCREEN flags are set.
+            if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0)
+            {
+                // The system bars are visible.
+                fireSystemUiVisibilityChangeEvent(1);
+            }
+            else
+            {
+                // The system bars are NOT visible
+                fireSystemUiVisibilityChangeEvent(0);
+            }
+        }
+    });
+
+    decorView.addOnLayoutChangeListener(new View.OnLayoutChangeListener()
+    {
+        @Override
+        public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                int oldLeft, int oldTop, int oldRight, int oldBottom)
+        {
+            //compositorView.removeOnLayoutChangeListener(this);
+            if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom)
+            {
+                fireSystemUiVisibilityChangeEvent(0);
+            }
+        }
+    });
+
   }
 
   //msmalik681 added permission check for API 23+ for moving .paks

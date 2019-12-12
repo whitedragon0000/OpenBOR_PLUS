@@ -10,18 +10,22 @@
 extern "C" {
 #endif
 
-struct frame_borders {
-   int top;
-   int left;
-   int bottom;
-   int right;
+struct frame_dimensions {
+    int x;
+    int y;
+    int width;
+    int height;
+    int top;
+    int left;
+    int bottom;
+    int right;
 };
 
 /**
  * Vibrate device
  */
 void jniutils_vibrate_device(jint intensity);
-struct frame_borders jniutils_get_frame_borders();
+struct frame_dimensions jniutils_get_frame_dimensions();
 
 #ifdef __cplusplus
 }
