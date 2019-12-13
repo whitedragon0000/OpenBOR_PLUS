@@ -25,6 +25,8 @@
 
 #include "pngdec.h"
 
+#include "button_png_800x480.h" // default button skin
+
 #define BUTTON_WIDTH    800
 #define BUTTON_HEIGHT   480
 #define NATIVE_WIDTH    640
@@ -36,9 +38,7 @@ SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_Texture *texture = NULL;
 SDL_Texture *texture_base = NULL;
-
-//For Android - Textures and a surface for the buttons
-SDL_Texture *buttons = NULL;
+SDL_Texture *buttons = NULL; // Textures and a surface for the buttons
 
 s_videomodes stored_videomodes;
 yuv_video_mode stored_yuv_mode;
@@ -53,7 +53,8 @@ static int textureWidth, textureHeight;  // dimensions of game screen and textur
 
 int brightness = 0;
 
-#include "button_png_800x480.h" // default button skin
+// private functions
+void blit(void);
 
 
 void initSDL()
@@ -125,13 +126,6 @@ void setNativeScreenSize(int is_system_bars_visible)
         nativeWidth = NATIVE_WIDTH;
         nativeHeight = NATIVE_HEIGHT;
     }
-}
-
-void on_system_ui_visibility_change_event(int is_system_bars_visible)
-{
-    setNativeScreenSize(is_system_bars_visible);
-    SDL_SetWindowSize(window, nativeWidth, nativeHeight);
-    blit();
 }
 
 //Start of touch control UI code
@@ -214,7 +208,6 @@ static void setup_touch_default()
     by[SDID_SCREENSHOT] = h / 2.0f;
     br[SDID_SCREENSHOT] = br[SDID_MOVEDOWN];
 
-
     screendocking = DOCKTOP;
 }
 
@@ -225,9 +218,9 @@ Code to use touch.txt to displace buttons and set up skin.
 static int setup_touch_txt()
 {
     int pos, i, sdid, t;
-    static char filename[MAX_FILENAME_LEN];
-    static char pakname[MAX_FILENAME_LEN];
-    static char touchfilename[MAX_FILENAME_LEN];
+    char filename[MAX_FILENAME_LEN];
+    char pakname[MAX_FILENAME_LEN];
+    char touchfilename[MAX_FILENAME_LEN];
     char *buf, *command, *value;
     size_t size;
     ArgList arglist;
@@ -356,9 +349,10 @@ static int setup_touch_txt()
     return 1;
 }
 
-static void setup_touch()
+static int setup_touch()
 {
     int i;
+
     setup_touch_default();
     setup_touch_txt();
 
@@ -368,6 +362,39 @@ static void setup_touch()
         btndes[i].y = by[i] - br[i];
         btndes[i].h = btndes[i].w = 2 * br[i];
     }
+
+    if(savedata.is_touchpad_visible)
+    {
+        SDL_Surface *btn_screen = pngToSurface(buttonpng);
+
+        if (!btn_screen)
+        {
+            printf("error: %s\n", SDL_GetError());
+            return 0;
+        }
+        else
+        {
+            if (!buttons)
+            {
+                if (!(buttons = SDL_CreateTextureFromSurface(renderer, btn_screen)))
+                {
+                    printf("error: %s\n", SDL_GetError());
+                    return 0;
+                }
+            }
+            else
+            {
+                SDL_UpdateTexture(buttons, NULL, btn_screen->pixels, btn_screen->pitch);
+            }
+        }
+
+        SDL_FreeSurface(btn_screen);
+        btn_screen = NULL;
+    }
+
+
+
+	return 1;
 }
 //End of touch control UI code
 
@@ -466,7 +493,10 @@ int video_set_mode(s_videomodes videomodes)
         return 0;
     }
 
-    setup_touch();
+    if (!setup_touch())
+	{
+		return 0;
+	}
 
     if(!buttons && savedata.is_touchpad_visible)
     {
@@ -628,4 +658,21 @@ int video_display_yuv_frame(void)
 {
 	blit();
 	return 1;
+}
+
+void on_system_ui_visibility_change_event(int is_system_bars_visible)
+{
+	if (window && renderer && buttons)
+	{
+		setNativeScreenSize(is_system_bars_visible);
+		SDL_SetWindowSize(window, nativeWidth, nativeHeight);
+		//if (!isLogo)
+		//{
+			if (!setup_touch())
+			{
+				return;
+			}
+			blit();
+		//}
+	}
 }
