@@ -282,7 +282,7 @@ static int setup_touch_txt()
 								//					for backwards compatibility.
                 else if((stricmp(command, "texture") == 0) || (stricmp(command, "skin") == 0))
                 {
-                    if(savedata.is_touchpad_visible && buffer_pakfile(GET_ARG(1), &pngb, &pngs))
+                    if(buffer_pakfile(GET_ARG(1), &pngb, &pngs))
                     {
                         ts = pngToSurface(pngb);
                         if(!ts || !(buttons = SDL_CreateTextureFromSurface(renderer, ts)))
@@ -361,36 +361,31 @@ static int setup_touch()
         btndes[i].h = btndes[i].w = 2 * br[i];
     }
 
-    if(savedata.is_touchpad_visible)
-    {
-        SDL_Surface *btn_screen = pngToSurface(buttonpng);
+    SDL_Surface *btn_screen = pngToSurface(buttonpng);
 
-        if (!btn_screen)
+    if (!btn_screen)
+    {
+        printf("error: %s\n", SDL_GetError());
+        return 0;
+    }
+    else
+    {
+        if (!buttons)
         {
-            printf("error: %s\n", SDL_GetError());
-            return 0;
+            if (!(buttons = SDL_CreateTextureFromSurface(renderer, btn_screen)))
+            {
+                printf("error: %s\n", SDL_GetError());
+                return 0;
+            }
         }
         else
         {
-            if (!buttons)
-            {
-                if (!(buttons = SDL_CreateTextureFromSurface(renderer, btn_screen)))
-                {
-                    printf("error: %s\n", SDL_GetError());
-                    return 0;
-                }
-            }
-            else
-            {
-                SDL_UpdateTexture(buttons, NULL, btn_screen->pixels, btn_screen->pitch);
-            }
+            SDL_UpdateTexture(buttons, NULL, btn_screen->pixels, btn_screen->pitch);
         }
-
-        SDL_FreeSurface(btn_screen);
-        btn_screen = NULL;
     }
 
-
+    SDL_FreeSurface(btn_screen);
+    btn_screen = NULL;
 
 	return 1;
 }
@@ -496,7 +491,7 @@ int video_set_mode(s_videomodes videomodes)
 		return 0;
 	}
 
-    if(!buttons && savedata.is_touchpad_visible)
+    if(!buttons)
     {
         SDL_Surface *btn_screen = pngToSurface(buttonpng);
         if(!btn_screen || !(buttons = SDL_CreateTextureFromSurface(renderer, btn_screen)))
