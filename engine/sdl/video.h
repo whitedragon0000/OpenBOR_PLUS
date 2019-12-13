@@ -36,7 +36,6 @@ int video_display_yuv_frame(void);
 #ifdef ANDROID
 void setNativeScreenSize(int);
 void on_system_ui_visibility_change_event(int);
-void blit(void);
 #endif
 
 #endif
