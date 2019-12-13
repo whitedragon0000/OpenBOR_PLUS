@@ -86,7 +86,6 @@ void setNativeScreenSize(int is_system_bars_visible)
     SDL_DisplayMode mode;
     const char *var = SDL_getenv("SDL_VIDEO_FULLSCREEN_DISPLAY");
     int vm;
-    //int old_w = nativeWidth, old_h = nativeHeight;
 
     if (!var)
     {
@@ -104,28 +103,27 @@ void setNativeScreenSize(int is_system_bars_visible)
     // Store the display's current resolution before setting the video mode for the first time
     if (SDL_GetDesktopDisplayMode(vm, &mode) == 0)
     {
-        struct frame_dimensions frm_dim = jniutils_get_frame_dimensions();
-
-        /*writeToLogFile("Changed Frame Dimensions - x: %i, y: %i, width: %i, height: %i, top: %i, left: %i, bottom: %i, right: %i\n",
-                       frm_dim.x, frm_dim.y, frm_dim.width, frm_dim.height,
-                       frm_dim.top, frm_dim.left, frm_dim.bottom, frm_dim.right);*/
-
-        if ((frm_dim.width < mode.w || frm_dim.height < mode.h)) //  || is_system_bars_visible
-        {
-            nativeWidth = frm_dim.width;
-            nativeHeight = frm_dim.height;
-        }
-        else
-        {
-            nativeWidth = mode.w;
-            nativeHeight = mode.h;
-        }
+        nativeWidth = mode.w;
+        nativeHeight = mode.h;
     }
     else
     {
         nativeWidth = NATIVE_WIDTH;
         nativeHeight = NATIVE_HEIGHT;
     }
+
+    struct frame_dimensions frm_dim = jniutils_get_frame_dimensions();
+
+    /*writeToLogFile("Changed Frame Dimensions - x: %i, y: %i, width: %i, height: %i, top: %i, left: %i, bottom: %i, right: %i\n",
+               frm_dim.x, frm_dim.y, frm_dim.width, frm_dim.height,
+               frm_dim.top, frm_dim.left, frm_dim.bottom, frm_dim.right);*/
+
+    if ((frm_dim.width < nativeWidth || frm_dim.height < nativeHeight)) //  || is_system_bars_visible
+    {
+        nativeWidth = frm_dim.width;
+        nativeHeight = frm_dim.height;
+    }
+
 }
 
 //Start of touch control UI code
@@ -284,7 +282,7 @@ static int setup_touch_txt()
 								//					for backwards compatibility.
                 else if((stricmp(command, "texture") == 0) || (stricmp(command, "skin") == 0))
                 {
-                    if(savedata.is_touchpad_visible && buffer_pakfile(GET_ARG(1), &pngb, &pngs))
+                    if(buffer_pakfile(GET_ARG(1), &pngb, &pngs))
                     {
                         ts = pngToSurface(pngb);
                         if(!ts || !(buttons = SDL_CreateTextureFromSurface(renderer, ts)))
@@ -363,36 +361,31 @@ static int setup_touch()
         btndes[i].h = btndes[i].w = 2 * br[i];
     }
 
-    if(savedata.is_touchpad_visible)
-    {
-        SDL_Surface *btn_screen = pngToSurface(buttonpng);
+    SDL_Surface *btn_screen = pngToSurface(buttonpng);
 
-        if (!btn_screen)
+    if (!btn_screen)
+    {
+        printf("error: %s\n", SDL_GetError());
+        return 0;
+    }
+    else
+    {
+        if (!buttons)
         {
-            printf("error: %s\n", SDL_GetError());
-            return 0;
+            if (!(buttons = SDL_CreateTextureFromSurface(renderer, btn_screen)))
+            {
+                printf("error: %s\n", SDL_GetError());
+                return 0;
+            }
         }
         else
         {
-            if (!buttons)
-            {
-                if (!(buttons = SDL_CreateTextureFromSurface(renderer, btn_screen)))
-                {
-                    printf("error: %s\n", SDL_GetError());
-                    return 0;
-                }
-            }
-            else
-            {
-                SDL_UpdateTexture(buttons, NULL, btn_screen->pixels, btn_screen->pitch);
-            }
+            SDL_UpdateTexture(buttons, NULL, btn_screen->pixels, btn_screen->pitch);
         }
-
-        SDL_FreeSurface(btn_screen);
-        btn_screen = NULL;
     }
 
-
+    SDL_FreeSurface(btn_screen);
+    btn_screen = NULL;
 
 	return 1;
 }
@@ -498,7 +491,7 @@ int video_set_mode(s_videomodes videomodes)
 		return 0;
 	}
 
-    if(!buttons && savedata.is_touchpad_visible)
+    if(!buttons)
     {
         SDL_Surface *btn_screen = pngToSurface(buttonpng);
         if(!btn_screen || !(buttons = SDL_CreateTextureFromSurface(renderer, btn_screen)))
@@ -662,17 +655,14 @@ int video_display_yuv_frame(void)
 
 void on_system_ui_visibility_change_event(int is_system_bars_visible)
 {
-	if (window && renderer && buttons)
+	if (window && renderer)
 	{
 		setNativeScreenSize(is_system_bars_visible);
 		SDL_SetWindowSize(window, nativeWidth, nativeHeight);
-		//if (!isLogo)
-		//{
-			if (!setup_touch())
-			{
-				return;
-			}
-			blit();
-		//}
+        if (!setup_touch())
+        {
+            return;
+        }
+        blit();
 	}
 }

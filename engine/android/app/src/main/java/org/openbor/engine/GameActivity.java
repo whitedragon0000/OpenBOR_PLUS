@@ -208,7 +208,7 @@ public class GameActivity extends SDLActivity {
         public void onLayoutChange(View v, int left, int top, int right, int bottom,
                 int oldLeft, int oldTop, int oldRight, int oldBottom)
         {
-            //compositorView.removeOnLayoutChangeListener(this);
+            //decorView.removeOnLayoutChangeListener(this);
             if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom)
             {
                 fireSystemUiVisibilityChangeEvent(0);
