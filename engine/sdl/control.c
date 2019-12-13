@@ -438,14 +438,14 @@ void joystick_scan(int scan)
             // print JOY_MAX_INPUTS (32) spaces for alignment
             if(numjoy == 1)
             {
-                printf("%s - %d axes, %d buttons, %d hat(s)\n",
-                                    get_joystick_name(joysticks[joy_idx].Name), joysticks[joy_idx].NumAxes, joysticks[joy_idx].NumButtons, joysticks[joy_idx].NumHats);
+                printf("%s (%s) - %d axes, %d buttons, %d hat(s)\n",
+                                    get_joystick_name(joysticks[joy_idx].Name), SDL_JoystickName(i), joysticks[joy_idx].NumAxes, joysticks[joy_idx].NumButtons, joysticks[joy_idx].NumHats);
             }
             else if(numjoy > 1)
             {
                 if(joy_idx) printf("\n");
-                printf("%d. %s - %d axes, %d buttons, %d hat(s)\n", i + 1,
-                        get_joystick_name(joysticks[joy_idx].Name), joysticks[joy_idx].NumAxes, joysticks[joy_idx].NumButtons, joysticks[joy_idx].NumHats);
+                printf("%d. %s (%s) - %d axes, %d buttons, %d hat(s)\n", i + 1,
+                        get_joystick_name(joysticks[joy_idx].Name), SDL_JoystickName(i), joysticks[joy_idx].NumAxes, joysticks[joy_idx].NumButtons, joysticks[joy_idx].NumHats);
             }
         }
 	}

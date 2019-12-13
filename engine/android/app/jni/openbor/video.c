@@ -86,7 +86,6 @@ void setNativeScreenSize(int is_system_bars_visible)
     SDL_DisplayMode mode;
     const char *var = SDL_getenv("SDL_VIDEO_FULLSCREEN_DISPLAY");
     int vm;
-    //int old_w = nativeWidth, old_h = nativeHeight;
 
     if (!var)
     {
@@ -104,28 +103,27 @@ void setNativeScreenSize(int is_system_bars_visible)
     // Store the display's current resolution before setting the video mode for the first time
     if (SDL_GetDesktopDisplayMode(vm, &mode) == 0)
     {
-        struct frame_dimensions frm_dim = jniutils_get_frame_dimensions();
-
-        /*writeToLogFile("Changed Frame Dimensions - x: %i, y: %i, width: %i, height: %i, top: %i, left: %i, bottom: %i, right: %i\n",
-                       frm_dim.x, frm_dim.y, frm_dim.width, frm_dim.height,
-                       frm_dim.top, frm_dim.left, frm_dim.bottom, frm_dim.right);*/
-
-        if ((frm_dim.width < mode.w || frm_dim.height < mode.h)) //  || is_system_bars_visible
-        {
-            nativeWidth = frm_dim.width;
-            nativeHeight = frm_dim.height;
-        }
-        else
-        {
-            nativeWidth = mode.w;
-            nativeHeight = mode.h;
-        }
+        nativeWidth = mode.w;
+        nativeHeight = mode.h;
     }
     else
     {
         nativeWidth = NATIVE_WIDTH;
         nativeHeight = NATIVE_HEIGHT;
     }
+
+    struct frame_dimensions frm_dim = jniutils_get_frame_dimensions();
+
+    /*writeToLogFile("Changed Frame Dimensions - x: %i, y: %i, width: %i, height: %i, top: %i, left: %i, bottom: %i, right: %i\n",
+               frm_dim.x, frm_dim.y, frm_dim.width, frm_dim.height,
+               frm_dim.top, frm_dim.left, frm_dim.bottom, frm_dim.right);*/
+
+    if ((frm_dim.width < nativeWidth || frm_dim.height < nativeHeight)) //  || is_system_bars_visible
+    {
+        nativeWidth = frm_dim.width;
+        nativeHeight = frm_dim.height;
+    }
+
 }
 
 //Start of touch control UI code
@@ -662,17 +660,14 @@ int video_display_yuv_frame(void)
 
 void on_system_ui_visibility_change_event(int is_system_bars_visible)
 {
-	if (window && renderer && buttons)
+	if (window && renderer)
 	{
 		setNativeScreenSize(is_system_bars_visible);
 		SDL_SetWindowSize(window, nativeWidth, nativeHeight);
-		//if (!isLogo)
-		//{
-			if (!setup_touch())
-			{
-				return;
-			}
-			blit();
-		//}
+        if (!setup_touch())
+        {
+            return;
+        }
+        blit();
 	}
 }
