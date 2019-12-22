@@ -278,3 +278,10 @@ implemented hold key impulse for all menus to scroll menu with many mods more ea
 
 #### ***NEW PORTS***
 PS3 port
+
+#### ***ANDROID PORT***
+Display resizeing support
+Virtual gamepad vibration
+Hiding virtual gamepad support
+Improved gamepad support
+
