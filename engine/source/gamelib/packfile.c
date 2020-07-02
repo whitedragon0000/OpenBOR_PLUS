@@ -444,7 +444,7 @@ int openPackfile(const char *filename, const char *packfilename)
     packfilepointer[h] = 0;
 
     // Separate file present?
-    if((handle = open(filename, O_CREAT | O_RDONLY | O_BINARY, 777)) != -1)
+    if((handle = open(filename, O_RDONLY | O_BINARY, 777)) != -1)
     {
         if((packfilesize[h] = lseek(handle, 0, SEEK_END)) == -1)
         {
@@ -471,7 +471,7 @@ int openPackfile(const char *filename, const char *packfilename)
     fspath = casesearch(".", filename);
     if (fspath != NULL)
     {
-        if((handle = open(fspath, O_CREAT | O_RDONLY | O_BINARY, 777)) != -1)
+        if((handle = open(fspath, O_RDONLY | O_BINARY, 777)) != -1)
         {
             if((packfilesize[h] = lseek(handle, 0, SEEK_END)) == -1)
             {
@@ -1256,7 +1256,7 @@ int pak_init()
     {
 #endif
 
-        pakfd = open(packfile, O_CREAT | O_RDONLY | O_BINARY, 777);
+        pakfd = open(packfile, O_RDONLY | O_BINARY, 777);
 
         if(pakfd < 0)
         {
@@ -1272,7 +1272,7 @@ int pak_init()
 
     // Is it a valid Packfile
     close(pakfd);
-    pakfd = open(packfile, O_CREAT | O_RDONLY | O_BINARY, 777);
+    pakfd = open(packfile, O_RDONLY | O_BINARY, 777);
 
     // Read magic dword ("PACK")
     if(read(pakfd, &magic, 4) != 4 || magic != SwapLSB32(PACKMAGIC))
