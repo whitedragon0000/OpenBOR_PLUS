@@ -10396,9 +10396,9 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->range.x.max            = (int)newchar->jumpheight * 20;		// 30-12-2004 default range affected by jump height
                 newanim->range.z.min            = (int) - newchar->grabdistance / 3;	//zmin
                 newanim->range.z.max            = (int)newchar->grabdistance / 3;		//zmax
-                newanim->range.y.min            = 0;									//amin
+                newanim->range.y.min            = T_MIN_BASEMAP;									//amin
 				newanim->range.y.max			= (int)newchar->jumpheight * 20;			// Same logic as X. Good for attacks, but not terrian. Author better remember to add jump ranges.
-                newanim->range.base.min         = 0;									// Base min.
+                newanim->range.base.min         = T_MIN_BASEMAP;									// Base min.
 				newanim->range.base.max			= (int)newchar->jumpheight * 20;			// Just use same logic as range Y.
                 newanim->energycost             = NULL;
                 newanim->chargetime             = 2;			// Default for backwards compatibility

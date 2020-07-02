@@ -501,7 +501,7 @@ int openPackfile(const char *filename, const char *packfilename)
 #endif
 
     // Try to open packfile
-    if((handle = open(packfilename, O_CREAT | O_RDONLY | O_BINARY, 777)) == -1)
+    if((handle = open(packfilename, O_RDONLY | O_BINARY, 777)) == -1) //O_CREAT
     {
 #ifdef VERBOSE
         printf ("perm err\n");
