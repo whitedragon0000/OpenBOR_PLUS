@@ -65,6 +65,13 @@ List *levelordercmdlist = NULL;
 
 int atkchoices[MAX_ANIS]; //tempory values for ai functions, should be well enough LOL
 
+#ifdef ANDROID
+#elif PS3
+#else
+extern int argFullscreen;
+extern int argKeepAspectRatio;
+#endif
+
 //see types.h
 const s_drawmethod plainmethod =
 {
@@ -40651,7 +40658,19 @@ void openborMain(int argc, char **argv)
 
     // Load necessary components.
     printf("Game Selected: %s\n\n", packfile);
+
     loadsettings();
+
+#ifdef ANDROID
+#elif PS3
+#else
+    if (argc > 1)
+    {
+        savedata.fullscreen = argFullscreen;
+        savedata.stretch = !argKeepAspectRatio;
+    }
+#endif
+
     startup();
 	bothnewkeys = 0;
 

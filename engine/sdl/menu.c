@@ -543,6 +543,8 @@ static void initMenu(int type)
 	isFull = 1;
 	bpp = 32;
 	savedata.hwscale = 0.0f;
+#elif PS3
+#else
 #endif
 
 	pixelformat = PIXEL_x8;
