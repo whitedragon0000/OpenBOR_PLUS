@@ -18140,13 +18140,14 @@ void update_frame(entity *ent, unsigned int f)
 
     if(anim->quakeframe.framestart + anim->quakeframe.cnt == f)
     {
+        int diff = level->quake;
         if(level)
         {
             if(anim->quakeframe.cnt % 2 || anim->quakeframe.v > 0)
             {
                 level->quake = anim->quakeframe.v;
             }
-            else
+            else if (anim->quakeframe.repeat > 0)
             {
                 level->quake = anim->quakeframe.v * -1;
             }
@@ -18158,6 +18159,10 @@ void update_frame(entity *ent, unsigned int f)
         else
         {
             anim->quakeframe.cnt = 0;
+        }
+        if (diff != level->quake) {
+            printf("cazzo0 %d %d %d %d ", anim->quakeframe.cnt, anim->quakeframe.framestart, anim->quakeframe.repeat,anim->quakeframe.v);
+            printf("cazzo1 %d %d %s", level->quake, anim->quakeframe.v, ent->name);
         }
     }
 
