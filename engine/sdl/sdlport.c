@@ -11,7 +11,6 @@
 #include "ram.h"
 #include "video.h"
 #include "menu.h"
-#include "savedata.h"
 #ifdef PS3
 #include <lv2/sysfs.h>
 #include <sys/time.h>
@@ -66,18 +65,6 @@ void _usleep(u32 usec)
 }
 #endif
 
-#if ANDROID
-char* AndroidRoot(char *relPath)
-{
-	static char filename[MAX_FILENAME_LEN];
-	strcpy(filename, rootDir);
-	strcat(filename, relPath);
-	return filename;
-}
-#elif PS3
-#else
-int argFullscreen = 0;
-int argKeepAspectRatio = 0;
 char* getRootPath(char *relPath)
 {
 	static char filename[MAX_FILENAME_LEN];
@@ -85,6 +72,15 @@ char* getRootPath(char *relPath)
 	strcat(filename, relPath);
 	return filename;
 }
+
+#if ANDROID
+#elif PS3
+#elif WII
+#elif VITA
+#elif PSP
+#else
+int argFullscreen = 0;
+int argKeepAspectRatio = 0;
 #endif
 
 void borExit(int reset)
@@ -249,8 +245,6 @@ int main(int argc, char *argv[])
                 {
                     argKeepAspectRatio = 0;
                 }
-                savedata.fullscreen = argFullscreen;
-                savedata.stretch = !argKeepAspectRatio;
             }
         }
 

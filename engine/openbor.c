@@ -40663,6 +40663,9 @@ void openborMain(int argc, char **argv)
 
 #ifdef ANDROID
 #elif PS3
+#elif PSP
+#elif VITA
+#elif WII
 #else
     if (argc > 1)
     {

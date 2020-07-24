@@ -113,22 +113,23 @@ typedef void DIR;
 #define COPY_ROOT_PATH(buf, name) strcpy(buf, "/dev_hdd0/OpenBOR/"); strcat(buf, name); strcat(buf, "/");
 #define COPY_PAKS_PATH(buf, name) strcpy(buf, "/dev_hdd0/OpenBOR/Paks/"); strcat(buf, name);
 #elif ANDROID
-//msmalik681 now using AndroidRoot fuction from sdlport.c to update all android paths.
-#define Alog AndroidRoot("Logs/OpenBorLog.txt")
-#define Aslog AndroidRoot("Logs/ScriptLog.txt")
+//msmalik681 now using getRootPath fuction from sdlport.c to update all android paths.
+#define Alog getRootPath("Logs/OpenBorLog.txt")
+#define Aslog getRootPath("Logs/ScriptLog.txt")
 #define CHECK_LOGFILE(type)  type ? fileExists(Alog) : fileExists(Aslog)
 #define OPEN_LOGFILE(type)   type ? fopen(Alog, "wt") : fopen(Aslog, "wt")
 #define APPEND_LOGFILE(type) type ? fopen(Alog, "at") : fopen(Aslog, "at")
 #define READ_LOGFILE(type)   type ? fopen(Alog, "rt") : fopen(Aslog, "rt")
 #define COPY_ROOT_PATH(buf, name) strncpy(buf, rootDir, strlen(rootDir)); strncat(buf, name, strlen(name)); strncat(buf, "/", 1);
 #define COPY_PAKS_PATH(buf, name) strncpy(buf, paksDir, strlen(paksDir)); strncat(buf, "/", 1); strncat(buf, name, strlen(name));
-#else
-/*#define CHECK_LOGFILE(type)  type ? fileExists("./Logs/OpenBorLog.txt") : fileExists("./Logs/ScriptLog.txt")
+#elif PSP
+#define CHECK_LOGFILE(type)  type ? fileExists("./Logs/OpenBorLog.txt") : fileExists("./Logs/ScriptLog.txt")
 #define OPEN_LOGFILE(type)   type ? fopen("./Logs/OpenBorLog.txt", "wt") : fopen("./Logs/ScriptLog.txt", "wt")
 #define APPEND_LOGFILE(type) type ? fopen("./Logs/OpenBorLog.txt", "at") : fopen("./Logs/ScriptLog.txt", "at")
 #define READ_LOGFILE(type)   type ? fopen("./Logs/OpenBorLog.txt", "rt") : fopen("./Logs/ScriptLog.txt", "rt")
 #define COPY_ROOT_PATH(buf, name) strcpy(buf, "./"); strcat(buf, name); strcat(buf, "/");
-#define COPY_PAKS_PATH(buf, name) strcpy(buf, "./Paks/"); strcat(buf, name);*/
+#define COPY_PAKS_PATH(buf, name) strcpy(buf, "./Paks/"); strcat(buf, name);
+#else
 #define Alog getRootPath("Logs/OpenBorLog.txt")
 #define Aslog getRootPath("Logs/ScriptLog.txt")
 #define CHECK_LOGFILE(type)  type ? fileExists(Alog) : fileExists(Aslog)

@@ -51,13 +51,11 @@ void initSDL();
 
 extern char rootDir[MAX_BUFFER_LEN];
 
-#ifdef ANDROID
-char* AndroidRoot(char *relPath);
-//extern char rootDir[MAX_BUFFER_LEN];
-#elif PS3
-//extern char rootDir[MAX_BUFFER_LEN];
-#else
 char* getRootPath(char *relPath);
+
+#ifdef ANDROID
+#elif PS3
+#else
 extern int argFullscreen;
 extern int argKeepAspectRatio;
 #endif
