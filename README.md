@@ -288,7 +288,7 @@ Improved gamepad support
 #### 3RD PART FRONT-END SUPPORT FOR WINDOWS
 Command line example:
 ```
-"X:\XXX\YYY\ZZZ\OpenBOR.exe" -fullscreen -keepaspectratio "X:\XXX\YYY\ZZZ\data\XYZ.pak"
+"X:\XXX\YYY\ZZZ\OpenBOR.exe" -fullscreen -keepaspectratio "X:\XXX\YYY\ZZZ\OPENBOR_DIR\PAKS\XYZ.pak"
 ```
 Options:
 -fullscreen -> Open game into fullscreen
