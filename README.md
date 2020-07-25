@@ -285,3 +285,11 @@ Virtual gamepad vibration
 Hiding virtual gamepad support
 Improved gamepad support
 
+## 3rd Part Front-End Support for Windows
+Command line example:
+```
+"X:\XXX\YYY\ZZZ\OpenBOR.exe" -fullscreen -keepaspectratio "X:\XXX\YYY\ZZZ\data\XYZ.pak"
+```
+Options:
+-fullscreen -> Open game into fullscreen
+-keepaspectratio -> avoid stretch mode leaving the real game aspect ratio
