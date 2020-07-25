@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
             break;
         }
     }
-    if (strcmp(_getcwd(NULL, 0), pathname) != 0) {
+    if (strcmp(getcwd(NULL, 0), pathname) != 0) {
         strcpy(rootDir, pathname);
         strcat(rootDir, "/");
         strcpy(paksDir, pathname);
