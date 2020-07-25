@@ -285,7 +285,7 @@ Virtual gamepad vibration
 Hiding virtual gamepad support
 Improved gamepad support
 
-#### 3rd Part Front-End Support for Windows
+#### 3RD PART FRONT-END SUPPORT FOR WINDOWS
 Command line example:
 ```
 "X:\XXX\YYY\ZZZ\OpenBOR.exe" -fullscreen -keepaspectratio "X:\XXX\YYY\ZZZ\data\XYZ.pak"
