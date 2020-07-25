@@ -23,6 +23,12 @@
 #define OPENBOR_LOG 1
 #define TIMESTAMP_PATTERN "%Y-%m-%d %H:%M:%S"
 
+#ifdef WIN
+#define PATH_SLASH "\\"
+#else
+#define PATH_SLASH "/"
+#endif
+
 // *** VARIABLE DECLARATIONS ***
 extern char debug_msg[2048];
 extern u32 debug_time;

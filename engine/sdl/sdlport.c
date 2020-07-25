@@ -178,24 +178,30 @@ int main(int argc, char *argv[])
 #else
     char pathname[MAX_FILENAME_LEN] = {""};
     for (int i = strlen(argv[0]); i >= 0; i--) {
-        if (argv[0][i] == '\\') {
+        if (argv[0][i] == '\\' || argv[0][i] == '/') {
             strncpy(pathname, argv[0], i);
             break;
         }
     }
-    if (strcmp(getcwd(NULL, 0), pathname) != 0) {
+    if (strcmp(getcwd(NULL, 0), pathname) != 0 && strlen(pathname) > 0)
+    {
         strcpy(rootDir, pathname);
-        strcat(rootDir, "/");
+        strcat(rootDir, PATH_SLASH);
         strcpy(paksDir, pathname);
-        strcat(paksDir, "/Paks");
+        strcat(paksDir, PATH_SLASH);
+        strcat(paksDir, "Paks");
         strcpy(savesDir, pathname);
-        strcat(savesDir, "/Saves");
+        strcat(savesDir, PATH_SLASH);
+        strcat(savesDir, "Saves");
         strcpy(logsDir, pathname);
-        strcat(logsDir, "/Logs");
+        strcat(logsDir, PATH_SLASH);
+        strcat(logsDir, "Logs");
         strcpy(screenShotsDir, pathname);
-        strcat(screenShotsDir, "/ScreenShots");
+        strcat(screenShotsDir, PATH_SLASH);
+        strcat(screenShotsDir, "ScreenShots");
         strcpy(packfile, pathname);
-        strcat(packfile, "/bor.pak");
+        strcat(packfile, PATH_SLASH);
+        strcat(packfile, "bor.pak");
     }
 #endif
 
@@ -250,7 +256,7 @@ int main(int argc, char *argv[])
         if (strlen(game_absolute_filename) > 0)
         {
             for (int i = strlen(argv[0]); i >= 0; i--) {
-                if (game_absolute_filename[i] == '\\') {
+                if (game_absolute_filename[i] == '\\' || game_absolute_filename[i] == '/') {
                     strncpy(game_filename, game_absolute_filename + i, strlen(game_absolute_filename) - 1);
                     break;
                 }

@@ -130,8 +130,8 @@ typedef void DIR;
 #define COPY_ROOT_PATH(buf, name) strcpy(buf, "./"); strcat(buf, name); strcat(buf, "/");
 #define COPY_PAKS_PATH(buf, name) strcpy(buf, "./Paks/"); strcat(buf, name);
 #else
-#define Alog getRootPath("Logs/OpenBorLog.txt")
-#define Aslog getRootPath("Logs/ScriptLog.txt")
+#define Alog getRootPath("Logs" PATH_SLASH "OpenBorLog.txt")
+#define Aslog getRootPath("Logs" PATH_SLASH "ScriptLog.txt")
 #define CHECK_LOGFILE(type)  type ? fileExists(Alog) : fileExists(Aslog)
 #define OPEN_LOGFILE(type)   type ? fopen(Alog, "wt") : fopen(Aslog, "wt")
 #define APPEND_LOGFILE(type) type ? fopen(Alog, "at") : fopen(Aslog, "at")
