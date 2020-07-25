@@ -236,14 +236,13 @@ int main(int argc, char *argv[])
             }
             else
             {
-                argKeepAspectRatio = 1;
                 if (strcmp(argv[i], "-fullscreen") == 0)
                 {
                     argFullscreen = 1;
                 }
                 else if (strcmp(argv[i], "-keepaspectratio") == 0)
                 {
-                    argKeepAspectRatio = 0;
+                    argKeepAspectRatio = 1;
                 }
             }
         }
