@@ -65,6 +65,13 @@ List *levelordercmdlist = NULL;
 
 int atkchoices[MAX_ANIS]; //tempory values for ai functions, should be well enough LOL
 
+#ifdef ANDROID
+#elif PS3
+#else
+extern int argFullscreen;
+extern int argKeepAspectRatio;
+#endif
+
 //see types.h
 const s_drawmethod plainmethod =
 {
@@ -18146,7 +18153,7 @@ void update_frame(entity *ent, unsigned int f)
             {
                 level->quake = anim->quakeframe.v;
             }
-            else
+            else if (anim->quakeframe.repeat > 0)
             {
                 level->quake = anim->quakeframe.v * -1;
             }
@@ -40651,7 +40658,22 @@ void openborMain(int argc, char **argv)
 
     // Load necessary components.
     printf("Game Selected: %s\n\n", packfile);
+
     loadsettings();
+
+#ifdef ANDROID
+#elif PS3
+#elif PSP
+#elif VITA
+#elif WII
+#else
+    if (argc > 1)
+    {
+        savedata.fullscreen = argFullscreen;
+        savedata.stretch = !argKeepAspectRatio;
+    }
+#endif
+
     startup();
 	bothnewkeys = 0;
 

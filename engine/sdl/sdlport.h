@@ -48,12 +48,18 @@ void _usleep(u32 usec);
 #endif
 
 void initSDL();
+
+extern char rootDir[MAX_BUFFER_LEN];
+
+char* getRootPath(char *relPath);
+
 #ifdef ANDROID
-char* AndroidRoot(char *relPath);
-extern char rootDir[MAX_BUFFER_LEN];
 #elif PS3
-extern char rootDir[MAX_BUFFER_LEN];
+#else
+extern int argFullscreen;
+extern int argKeepAspectRatio;
 #endif
+
 void borExit(int reset);
 void openborMain(int argc, char** argv);
 

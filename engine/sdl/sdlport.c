@@ -46,9 +46,9 @@ SYS_PROCESS_PARAM_OPENBOR(1001, 0x00100000)
 #endif
 
 char packfile[MAX_FILENAME_LEN] = {"bor.pak"};
-#if ANDROID || PS3
+//#if ANDROID || PS3
 char rootDir[MAX_BUFFER_LEN] = {""};
-#endif
+//#endif
 char paksDir[MAX_FILENAME_LEN] = {"Paks"};
 char savesDir[MAX_FILENAME_LEN] = {"Saves"};
 char logsDir[MAX_FILENAME_LEN] = {"Logs"};
@@ -65,14 +65,22 @@ void _usleep(u32 usec)
 }
 #endif
 
-#if ANDROID
-char* AndroidRoot(char *relPath)
+char* getRootPath(char *relPath)
 {
 	static char filename[MAX_FILENAME_LEN];
 	strcpy(filename, rootDir);
 	strcat(filename, relPath);
 	return filename;
 }
+
+#if ANDROID
+#elif PS3
+#elif WII
+#elif VITA
+#elif PSP
+#else
+int argFullscreen = 0;
+int argKeepAspectRatio = 0;
 #endif
 
 void borExit(int reset)
@@ -167,6 +175,28 @@ int main(int argc, char *argv[])
     strcpy(screenShotsDir, "/dev_hdd0/OpenBOR/ScreenShots");
 
 	dirExists(rootDir, 1);
+#else
+    char pathname[MAX_FILENAME_LEN] = {""};
+    for (int i = strlen(argv[0]); i >= 0; i--) {
+        if (argv[0][i] == '\\') {
+            strncpy(pathname, argv[0], i);
+            break;
+        }
+    }
+    if (strcmp(getcwd(NULL, 0), pathname) != 0) {
+        strcpy(rootDir, pathname);
+        strcat(rootDir, "/");
+        strcpy(paksDir, pathname);
+        strcat(paksDir, "/Paks");
+        strcpy(savesDir, pathname);
+        strcat(savesDir, "/Saves");
+        strcpy(logsDir, pathname);
+        strcat(logsDir, "/Logs");
+        strcpy(screenShotsDir, pathname);
+        strcat(screenShotsDir, "/ScreenShots");
+        strcpy(packfile, pathname);
+        strcat(packfile, "/bor.pak");
+    }
 #endif
 
 	dirExists(paksDir, 1);
@@ -189,7 +219,59 @@ int main(int argc, char *argv[])
 	while (!dir_exists_flag && retry <= 12);
 #endif
 
-	Menu();
+#ifdef ANDROID
+    Menu();
+#elif PS3
+    Menu();
+#else
+    if (argc > 1)
+    {
+        char game_absolute_filename[MAX_FILENAME_LEN] = {""};
+        char game_filename[MAX_FILENAME_LEN] = {""};
+        for (int i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "-fullscreen") != 0 &&
+                strcmp(argv[i], "-keepaspectratio") != 0)
+            {
+                strcpy(game_absolute_filename, argv[i]);
+            }
+            else
+            {
+                argKeepAspectRatio = 1;
+                if (strcmp(argv[i], "-fullscreen") == 0)
+                {
+                    argFullscreen = 1;
+                }
+                else if (strcmp(argv[i], "-keepaspectratio") == 0)
+                {
+                    argKeepAspectRatio = 0;
+                }
+            }
+        }
+
+        if (strlen(game_absolute_filename) > 0)
+        {
+            for (int i = strlen(argv[0]); i >= 0; i--) {
+                if (game_absolute_filename[i] == '\\') {
+                    strncpy(game_filename, game_absolute_filename + i, strlen(game_absolute_filename) - 1);
+                    break;
+                }
+            }
+            if (strlen(game_filename) <= 0)
+            {
+               strcpy(game_filename, game_absolute_filename);
+            }
+
+            getBasePath(packfile, game_filename, 1);
+            // Restore pixelformat default value.
+            pixelformat = PIXEL_x8;
+        }
+    }
+    else
+    {
+        Menu();
+    }
+#endif
+
 #ifndef SKIP_CODE
 	getPakName(pakname, -1);
     video_set_window_title(pakname);
