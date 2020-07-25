@@ -278,3 +278,18 @@ implemented hold key impulse for all menus to scroll menu with many mods more ea
 
 #### ***NEW PORTS***
 PS3 port
+
+#### ***ANDROID PORT***
+Display resizeing support
+Virtual gamepad vibration
+Hiding virtual gamepad support
+Improved gamepad support
+
+#### 3RD PART FRONT-END SUPPORT FOR WINDOWS
+Command line example:
+```
+"X:\XXX\YYY\ZZZ\OpenBOR.exe" -fullscreen -keepaspectratio "X:\XXX\YYY\ZZZ\data\XYZ.pak"
+```
+Options:
+-fullscreen -> Open game into fullscreen
+-keepaspectratio -> avoid stretch mode leaving the real game aspect ratio
