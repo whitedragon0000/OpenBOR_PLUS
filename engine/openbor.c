@@ -10426,7 +10426,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->subentity              = newanim->projectile.bomb = newanim->projectile.knife =
                                                   newanim->projectile.star = newanim->projectile.boomerang =
                                                   newanim->projectile.flash = -1;
-                newanim->quakeframe.framestart  = 0;
+                newanim->quakeframe.framestart  = -1;
                 newanim->sync                   = -1;
 
                 if((ani_id = translate_ani_id(value, newchar, newanim, attack)) < 0)
@@ -16693,8 +16693,8 @@ void draw_visual_debug()
 			// function's min Y parameter, and and min Y into function's
 			// max Y parameter).
 
-			range_y_min =  -entity->animation->range.y.min;
-			range_y_max =  -entity->animation->range.y.max;
+			range_y_min =  -1 * (entity->animation->range.y.min + T_MIN_BASEMAP);
+			range_y_max =  -1 * entity->animation->range.y.max;
 
             draw_box_on_entity(entity, entity->animation->range.x.min, range_y_max, entity->position.z+1, entity->animation->range.x.max, range_y_min, -1, LOCAL_COLOR_GREEN, &drawmethod);
         }
@@ -18145,7 +18145,7 @@ void update_frame(entity *ent, unsigned int f)
         }
     }
 
-    if(anim->quakeframe.framestart + anim->quakeframe.cnt == f)
+    if(anim->quakeframe.framestart >= 0 && (anim->quakeframe.framestart + anim->quakeframe.cnt == f))
     {
         if(level)
         {
@@ -18153,7 +18153,7 @@ void update_frame(entity *ent, unsigned int f)
             {
                 level->quake = anim->quakeframe.v;
             }
-            else if (anim->quakeframe.repeat > 0)
+            else
             {
                 level->quake = anim->quakeframe.v * -1;
             }
