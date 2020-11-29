@@ -99,8 +99,8 @@ movement restirctions are here!
 #define		FRONTPANEL_Z		(PLAYER_MAX_Z+50)
 #define     HUD_Z               (FRONTPANEL_Z+10000)
 #define		HOLE_Z				(PLAYER_MIN_Z-46)
-#define		NEONPANEL_Z			(PLAYER_MIN_Z-47)
-#define		SHADOW_Z			(PLAYER_MIN_Z-48)
+#define		SHADOW_Z			(PLAYER_MIN_Z-47)
+#define		NEONPANEL_Z			(PLAYER_MIN_Z-48)
 #define		SCREENPANEL_Z		(PLAYER_MIN_Z-49)
 #define		PANEL_Z				(PLAYER_MIN_Z-50)
 #define		MIRROR_Z			(PLAYER_MIN_Z-5)
@@ -120,7 +120,7 @@ movement restirctions are here!
 #define     T_Z_PICKUP_ITEM     3
 #define     T_Y_PICKUP_ITEM     T_WALKOFF
 
-#define		ITEM_HIDE_POSITION_Z 100000	
+#define		ITEM_HIDE_POSITION_Z 100000
 
 // Caskey, Damon V.
 // 2019-01-27
