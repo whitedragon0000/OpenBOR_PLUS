@@ -442,9 +442,13 @@ int openPackfile(const char *filename, const char *packfilename)
 #endif
 
     packfilepointer[h] = 0;
-
+	int per = 666;
     // Separate file present?
+<<<<<<< HEAD
     if((handle = open(filename, O_RDONLY | O_BINARY, 777)) != -1)
+=======
+    if((handle = open(filename, O_RDONLY | O_BINARY, per)) != -1)
+>>>>>>> remotes/origin/official
     {
         if((packfilesize[h] = lseek(handle, 0, SEEK_END)) == -1)
         {
@@ -471,7 +475,11 @@ int openPackfile(const char *filename, const char *packfilename)
     fspath = casesearch(".", filename);
     if (fspath != NULL)
     {
+<<<<<<< HEAD
         if((handle = open(fspath, O_RDONLY | O_BINARY, 777)) != -1)
+=======
+        if((handle = open(fspath, O_RDONLY | O_BINARY, per)) != -1)
+>>>>>>> remotes/origin/official
         {
             if((packfilesize[h] = lseek(handle, 0, SEEK_END)) == -1)
             {
@@ -501,7 +509,11 @@ int openPackfile(const char *filename, const char *packfilename)
 #endif
 
     // Try to open packfile
+<<<<<<< HEAD
     if((handle = open(packfilename, O_RDONLY | O_BINARY, 777)) == -1) //O_CREAT
+=======
+    if((handle = open(packfilename, O_RDONLY | O_BINARY, per) == -1)
+>>>>>>> remotes/origin/official
     {
 #ifdef VERBOSE
         printf ("perm err\n");
@@ -1255,8 +1267,13 @@ int pak_init()
     else
     {
 #endif
+<<<<<<< HEAD
 
         pakfd = open(packfile, O_RDONLY | O_BINARY, 777);
+=======
+	int per = 666;
+        pakfd = open(packfile, O_RDONLY | O_BINARY, per);
+>>>>>>> remotes/origin/official
 
         if(pakfd < 0)
         {
@@ -1272,7 +1289,11 @@ int pak_init()
 
     // Is it a valid Packfile
     close(pakfd);
+<<<<<<< HEAD
     pakfd = open(packfile, O_RDONLY | O_BINARY, 777);
+=======
+    pakfd = open(packfile, O_RDONLY | O_BINARY, per);
+>>>>>>> remotes/origin/official
 
     // Read magic dword ("PACK")
     if(read(pakfd, &magic, 4) != 4 || magic != SwapLSB32(PACKMAGIC))
