@@ -239,20 +239,20 @@ void control_update(s_playercontrols ** playercontrols, int numplayers)
 	if (hwbutton) respondToPowerReset();
 }
 
-void control_rumble(int port, int ratio, int msec)
+void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec)
 {
 	WPADData *wpad;
 	struct WUPCData *wupc;
-	wpad = WPAD_Data(port);
-	wupc = WUPC_Data(port);
+	wpad = WPAD_Data(player);
+	wupc = WUPC_Data(player);
 
-	rumbling[port] = 1;
-	rumble_msec[port] = msec * 3;
-	time2rumble[port] = ticks_to_millisecs(gettime());
+	rumbling[player] = 1;
+	rumble_msec[player] = msec * 3;
+	time2rumble[player] = ticks_to_millisecs(gettime());
 
-	if (using_gc[port])                             PAD_ControlMotor(port, 1);
-	else if(wupc != NULL)							WUPC_Rumble(port, true);
-	else if (wpad->exp.type != WPAD_EXP_CLASSIC)    WPAD_Rumble(port, 1);
+	if (using_gc[player])                             PAD_ControlMotor(player, 1);
+	else if(wupc != NULL)							WUPC_Rumble(player, true);
+	else if (wpad->exp.type != WPAD_EXP_CLASSIC)    WPAD_Rumble(player, 1);
 }
 
 unsigned long getPad(int port)

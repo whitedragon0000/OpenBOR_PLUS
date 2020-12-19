@@ -31,7 +31,6 @@ static int lastkey;						        // Last keyboard key Pressed
 static int lastjoy;                             // Last joystick button/axis/hat input
 
 int sdl_game_started  = 0;
-int android_accelerometer = 0;
 
 extern int default_keys[MAX_BTN_NUM];
 extern s_playercontrols default_control;
@@ -246,7 +245,7 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
 
             // PLUG AND PLAY
             case SDL_JOYDEVICEADDED:
-                if (ev.jdevice.which - android_accelerometer < JOY_LIST_TOTAL)
+                if (ev.jdevice.which < JOY_LIST_TOTAL)
                 {
                     int i = ev.jdevice.which;
                     char buffer[MAX_BUFFER_LEN];
@@ -255,15 +254,9 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
 
                     strcpy(real_joy_name,SDL_JoystickNameForIndex(i));
 
-                    if (!android_accelerometer && strcmp(real_joy_name, "Android Accelerometer") == 0)
+                    if (strcmp(real_joy_name, "Android Accelerometer") == 0)
                     {
-                        android_accelerometer = 1;
                         break;
-                    }
-
-                    if (android_accelerometer)
-                    {
-                        i -= android_accelerometer;
                     }
 
                     open_joystick(i);
@@ -379,7 +372,6 @@ types, defaults and keynames.
 void joystick_scan(int scan)
 {
 	int i;
-	int android_acc = 0;
 	int numjoyNoAcc = 0;
 
 	if(!scan) return;
@@ -389,7 +381,6 @@ void joystick_scan(int scan)
 
 	if (scan != 2)
     {
-
         for(i = 0; i < numjoy; i++)
         {
             char real_joy_name[MAX_BUFFER_LEN];
@@ -420,32 +411,29 @@ void joystick_scan(int scan)
 
         strcpy(real_joy_name,SDL_JoystickNameForIndex(i));
 
-        if (!android_acc && strcmp(real_joy_name, "Android Accelerometer") == 0)
+        if (strcmp(real_joy_name, "Android Accelerometer") == 0)
         {
-            android_acc = 1;
             continue;
-        }
-
-        if (android_acc)
-        {
-            joy_idx -= android_acc;
         }
 
         open_joystick(joy_idx);
 
         if(scan != 2)
         {
-            // print JOY_MAX_INPUTS (32) spaces for alignment
+            int is_rumble_support = (joystick_haptic[i] != NULL && SDL_HapticRumbleSupported(joystick_haptic[i])) ? 1 : 0;
+            char* rumble_support = (is_rumble_support) ? "yes" : "no";
+
+            // print JOY_MAX_INPUTS (64) spaces for alignment
             if(numjoy == 1)
             {
-                printf("%s (%s) - %d axes, %d buttons, %d hat(s)\n",
-                                    get_joystick_name(joysticks[joy_idx].Name), SDL_JoystickName(i), joysticks[joy_idx].NumAxes, joysticks[joy_idx].NumButtons, joysticks[joy_idx].NumHats);
+                printf("%s (%s) - %d axes, %d buttons, %d hat(s), rumble support: %s\n",
+                        get_joystick_name(joysticks[joy_idx].Name), SDL_JoystickName(i), joysticks[joy_idx].NumAxes, joysticks[joy_idx].NumButtons, joysticks[joy_idx].NumHats, rumble_support);
             }
             else if(numjoy > 1)
             {
                 if(joy_idx) printf("\n");
-                printf("%d. %s (%s) - %d axes, %d buttons, %d hat(s)\n", i + 1,
-                        get_joystick_name(joysticks[joy_idx].Name), SDL_JoystickName(i), joysticks[joy_idx].NumAxes, joysticks[joy_idx].NumButtons, joysticks[joy_idx].NumHats);
+                printf("%d. %s (%s) - %d axes, %d buttons, %d hat(s), rumble support: %s\n", i + 1,
+                        get_joystick_name(joysticks[joy_idx].Name), SDL_JoystickName(i), joysticks[joy_idx].NumAxes, joysticks[joy_idx].NumButtons, joysticks[joy_idx].NumHats, rumble_support);
             }
         }
 	}
@@ -458,7 +446,16 @@ void open_joystick(int i)
 {
     int j;
 
-    if ( ( joystick[i] = SDL_JoystickOpen(i) ) == NULL )
+    /*if (SDL_IsGameController(i))
+    {
+        SDL_GameController* controller = SDL_GameControllerOpen(i);
+        if ( ( joystick[i] = SDL_GameControllerGetJoystick(controller) ) == NULL )
+        {
+           printf("\nWarning: Unable to initialize joystick in port: %d! SDL Error: %s\n", i, SDL_GetError());
+           return;
+        }
+    }
+    else */if ( ( joystick[i] = SDL_JoystickOpen(i) ) == NULL )
     {
        printf("\nWarning: Unable to initialize joystick in port: %d! SDL Error: %s\n", i, SDL_GetError());
        return;
@@ -470,15 +467,20 @@ void open_joystick(int i)
     strcpy(joysticks[i].Name, SDL_JoystickName(i));
     //printf("Found new joystick (%i): %s with buttons: %i\n", i, joysticks[i].Name, joysticks[i].NumButtons);
 
-    joystick_haptic[i] = SDL_HapticOpenFromJoystick(joystick[i]);
-    if (joystick_haptic[i] != NULL)
+    if (SDL_JoystickIsHaptic(joystick[i]))
     {
-        //Get initialize rumble
-        if( SDL_HapticRumbleInit( joystick_haptic[i] ) < 0 )
+        joystick_haptic[i] = SDL_HapticOpenFromJoystick(joystick[i]);
+
+        if (joystick_haptic[i] != NULL && SDL_HapticRumbleSupported(joystick_haptic[i]))
         {
-            printf("\nWarning: Unable to initialize rumble for joystick: %s in port: %d! SDL Error: %s\n", joysticks[i].Name, i, SDL_GetError());
+            //Get initialize rumble
+            if( SDL_HapticRumbleInit( joystick_haptic[i] ) < 0 )
+            {
+                printf("\nWarning: Unable to initialize rumble for joystick: %s in port: %d! SDL Error: %s\n", joysticks[i].Name, i, SDL_GetError());
+            }
         }
-    }
+    } else joystick_haptic[i] = NULL;
+
 
     #if GP2X
     joysticks[i].Type = JOY_TYPE_GAMEPARK;
@@ -998,13 +1000,19 @@ void control_update(s_playercontrols ** playercontrols, int numplayers)
 	}
 }
 
-void control_rumble(int port, int ratio, int msec)
+void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec)
 {
-    #if SDL
-    if (joystick[port] != NULL && joystick_haptic[port] != NULL) {
-        if(SDL_HapticRumblePlay(joystick_haptic[port], ratio, msec) != 0)
-        {
-            //printf( "Warning: Unable to play rumble! %s\n", SDL_GetError() );
+    #if SDL2 || SDL
+    s_playercontrols * pcontrols = playercontrols[player];
+    int key = pcontrols->settings[flag_to_index(FLAG_MOVEUP)]; //joy key
+    int portnum = (key-JOY_LIST_FIRST-1) / JOY_MAX_INPUTS;
+
+    if (portnum >= 0 && portnum < JOY_LIST_TOTAL) {
+        if (joystick[portnum] != NULL && joystick_haptic[portnum] != NULL) {
+            if(SDL_HapticRumblePlay(joystick_haptic[portnum], ratio, msec * 10) != 0)
+            {
+                //printf( "Warning: Unable to play rumble! %s\n", SDL_GetError() );
+            }
         }
     }
     #endif

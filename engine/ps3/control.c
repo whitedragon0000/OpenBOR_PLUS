@@ -177,12 +177,12 @@ void control_update(s_playercontrols ** playercontrols, int numplayers)
 	}
 }
 
-void control_rumble(int port, int ratio, int msec)
+void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec)
 {
     padActParam actparam;
     actparam.small_motor = 1;
     actparam.large_motor = (255 * ratio) / 100;
-    ioPadSetActDirect(port, &actparam);
+    ioPadSetActDirect(player, &actparam);
 }
 
 unsigned int getPad(int port)
