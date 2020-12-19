@@ -163,7 +163,7 @@ void control_update(s_playercontrols ** playercontrols, int numplayers)
 	}
 }
 
-void control_rumble(int port, int ratio, int msec)
+void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec)
 {
 }
 
