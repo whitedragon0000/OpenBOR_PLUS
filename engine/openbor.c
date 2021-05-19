@@ -37988,20 +37988,6 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 					player[i].colourmap = ((player[i].newkeys & FLAG_MOVEUP) ? nextcolourmapn : prevcolourmapn)(example[i]->model, player[i].colourmap, i);
 					ent_set_colourmap(example[i], player[i].colourmap);
 				}
-				else if ((player[i].newkeys & FLAG_ANYBUTTON) && example[i])
-				{
-					if (SAMPLE_BEEP2 >= 0)
-					{
-						sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
-					}
-					// yay you picked me!
-					if (validanim(example[i], ANI_PICK))
-					{
-						ent_set_anim(example[i], ANI_PICK, 0);
-					}
-					example[i]->stalltime = _time + GAME_SPEED * 2;
-					ready[i] = 1;
-				}
 			}
 			else if (ready[i] == 1)
 			{

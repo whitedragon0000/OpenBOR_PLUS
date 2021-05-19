@@ -276,14 +276,11 @@ static s_screen *getPreview(char *filename)
 	getBasePath(packfile, filename, 1);
 
 	// Create & Load & Scale Image
-	if(!loadscreen("data/bgs/title", packfile, NULL, PIXEL_x8, &title) &&
-	   !loadscreen32("data/bgs/title", packfile, &title))
+	if(!loadscreen("data/bgs/title", packfile, NULL, PIXEL_x8, &title)/* && !loadscreen32("data/bgs/title", packfile, &title)*/)
 	{
 		return NULL;
 	}
 	if((scale = allocscreen(width, height, title->pixelformat)) == NULL) return NULL;
-	if(!loadscreen("data/bgs/title", packfile, NULL, PIXEL_x8, &title)) return NULL; //Kratus (13-03-21) avoid engine "close" bug
-	if((scale = allocscreen(160, 120, title->pixelformat)) == NULL) return NULL;
 
 	if (title->pixelformat == PIXEL_32)
 	{
