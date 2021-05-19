@@ -281,7 +281,7 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
 
                         strcpy(real_joy_name,SDL_JoystickNameForIndex(i));
                         get_now_string(buffer, MAX_BUFFER_LEN, TIMESTAMP_PATTERN);
-                        close_joystick(i);
+                        //close_joystick(i); //Kratus (20-04-21) disable the entire code to maintain joystick IDs
                         numjoy = SDL_NumJoysticks();
                         strcpy(joy_name,get_joystick_name(joysticks[i].Name));
                         printf("Joystick: \"%s\" (%s) disconnected from port: %d at %s\n",joy_name,real_joy_name,i,buffer);
@@ -371,6 +371,7 @@ types, defaults and keynames.
 */
 void joystick_scan(int scan)
 {
+	//Kratus (20-04-21) new joystick scan, avoid accelerometer detection as buttons in Android
 	int i;
 	int numjoyNoAcc = 0;
 
@@ -577,8 +578,9 @@ void set_default_joystick_keynames(int i)
     int j;
     for(j = 0; j < JOY_MAX_INPUTS + 1; j++)
     {
-        if(j) strcpy(joysticks[i].KeyName[j], JoystickKeyName[j + i * JOY_MAX_INPUTS]);
-        else  strcpy(joysticks[i].KeyName[j], JoystickKeyName[j]);
+        if(j) strcpy(joysticks[i].KeyName[j], "DISCONNECTED"); //Kratus (20-04-21) rename all keys when disconnected
+		// if(j) strcpy(joysticks[i].KeyName[j], JoystickKeyName[j + i * JOY_MAX_INPUTS]);
+        // else  strcpy(joysticks[i].KeyName[j], JoystickKeyName[j]);
     }
 }
 
@@ -593,6 +595,9 @@ char *control_getkeyname(unsigned int keycode)
 
 	if(keycode > SDLK_FIRST && keycode < SDLK_LAST)
 		return JOY_GetKeyName(keycode);
+	else
+	if(keycode == CONTROL_NONE) //Kratus (20-04-21) value used to clear all keys
+		return "NONE";
 	else
 		return "...";
 }
