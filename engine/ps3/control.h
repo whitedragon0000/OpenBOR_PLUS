@@ -86,6 +86,8 @@
 #define CONTROL_DEFAULT4_START		(11+(BTN_NUM*3))
 #define CONTROL_DEFAULT4_SCREENSHOT (16+(BTN_NUM*3))
 
+#define	CONTROL_NONE				(1+(BTN_NUM*99)) //Kratus (20-04-21) value used to clear all keys
+
 typedef struct
 {
 	int	settings[MAX_INPUT];

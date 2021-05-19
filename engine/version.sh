@@ -35,7 +35,10 @@ function get_revnum {
 	VERSION_BUILD=0000
 	VERSION_COMMIT=0000000
 	#read -p "missing build numer please enter: " VERSION_BUILD
+	echo "Missing version build, please add it manually and press ENTER: "; read -r VERSION_BUILD
+	echo "Missing version commit, please add it manually and press ENTER: "; read -r VERSION_COMMIT
 	echo "VERSION_BUILD is set to: $VERSION_BUILD"
+	echo "VERSION_COMMIT is set to: $VERSION_COMMIT"
   fi
 }
 
