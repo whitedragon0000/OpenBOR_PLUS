@@ -276,17 +276,14 @@ static s_screen *getPreview(char *filename)
 	getBasePath(packfile, filename, 1);
 
 	// Create & Load & Scale Image
-<<<<<<< HEAD
 	if(!loadscreen("data/bgs/title", packfile, NULL, PIXEL_x8, &title) &&
 	   !loadscreen32("data/bgs/title", packfile, &title))
 	{
 		return NULL;
 	}
 	if((scale = allocscreen(width, height, title->pixelformat)) == NULL) return NULL;
-=======
 	if(!loadscreen("data/bgs/title", packfile, NULL, PIXEL_x8, &title)) return NULL; //Kratus (13-03-21) avoid engine "close" bug
 	if((scale = allocscreen(160, 120, title->pixelformat)) == NULL) return NULL;
->>>>>>> remotes/origin/official
 
 	if (title->pixelformat == PIXEL_32)
 	{
@@ -643,11 +640,8 @@ static void drawMenu()
 	if(dListTotal < 1) printText((isWide ? 30 : 8), (isWide ? 33 : 24), RED, 0, 0, "No Mods In Paks Folder!");
 	for(list = 0; list < dListTotal; list++)
 	{
-<<<<<<< HEAD
 		if(list < MAX_PAGE_MODS_LENGTH)
-=======
-		if(list < MAX_MODS_NUM) //Kratus (13-03-21) avoid engine "close" bug
->>>>>>> remotes/origin/official
+		//if(list < MAX_MODS_NUM) //Kratus (13-03-21) avoid engine "close" bug
 		{
 		    int len = strlen(filelist[list+dListScrollPosition].filename)-4;
 			shift = 0;
@@ -716,11 +710,8 @@ static void drawBGMPlayer()
 
 	for(list = 0; list < dListTotal; list++)
 	{
-<<<<<<< HEAD
 		if(list < MAX_PAGE_MODS_LENGTH)
-=======
-		if(list < MAX_MODS_NUM) //Kratus (13-03-21) avoid engine "close" bug
->>>>>>> remotes/origin/official
+		//if(list < MAX_MODS_NUM) //Kratus (13-03-21) avoid engine "close" bug
 		{
 		    int len = strlen(filelist[list+dListScrollPosition].filename)-4;
 			shift = 0;

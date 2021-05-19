@@ -37988,7 +37988,6 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 					player[i].colourmap = ((player[i].newkeys & FLAG_MOVEUP) ? nextcolourmapn : prevcolourmapn)(example[i]->model, player[i].colourmap, i);
 					ent_set_colourmap(example[i], player[i].colourmap);
 				}
-<<<<<<< HEAD
 				else if ((player[i].newkeys & FLAG_ANYBUTTON) && example[i])
 				{
 					if (SAMPLE_BEEP2 >= 0)
@@ -38003,9 +38002,6 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 					example[i]->stalltime = _time + GAME_SPEED * 2;
 					ready[i] = 1;
 				}
-
-=======
->>>>>>> remotes/origin/official
 			}
 			else if (ready[i] == 1)
 			{
