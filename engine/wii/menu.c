@@ -106,7 +106,7 @@ int buttonsHeld = 0;
 int buttonsPressed = 0;
 FILE *bgmFile = NULL;
 fileliststruct *filelist;
-s_videomodes videomodes;
+static s_videomodes videomodes;
 extern u64 bothkeys, bothnewkeys;
 
 typedef struct{
