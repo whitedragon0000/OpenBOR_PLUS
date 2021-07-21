@@ -237,9 +237,11 @@ BUILD_WEBM      = 1
 BUILD_ELM       = 1
 BUILDING        = 1
 INCLUDES        = $(DEVKITPRO)/portlibs/ppc/include \
-                  $(DEVKITPRO)/libogc/include
+				  $(DEVKITPRO)/portlibs/include \
+				  $(DEVKITPRO)/libogc/include 
 LIBRARIES       = $(DEVKITPRO)/portlibs/ppc/lib \
-                  $(DEVKITPRO)/libogc/lib/wii
+				  $(DEVKITPRO)/portlibs/lib \
+				  $(DEVKITPRO)/libogc/lib/wii 
 ifeq ($(BUILD_WII), 0)
 BUILD_DEBUG     = 1
 endif
@@ -534,15 +536,8 @@ OBJS            = $(MAIN)                                                       
 # Compiler Flags
 #----------------------------------------------------------------------------------------------------
 
-<<<<<<< HEAD
-
-CFLAGS 	       += $(addprefix -I", $(addsuffix ", $(INCS)))
-CFLAGS 	       += $(ARCHFLAGS) -D$(TARGET_PLATFORM)
-CFLAGS 	       += -g -Wall -Werror -fsigned-char -std=gnu99
-=======
 CFLAGS 	       += $(addprefix -I", $(addsuffix ", $(INCS))) $(ARCHFLAGS) -D$(TARGET_PLATFORM)
 CFLAGS 	       += -g -Wall -Werror -Wno-format-truncation -Wno-stringop-truncation -fsigned-char -std=gnu99
->>>>>>> remotes/origin/official
 
 
 ifndef BUILD_DARWIN

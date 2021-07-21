@@ -39083,14 +39083,13 @@ void keyboard_setup(int player)
             if (selector == OPTIONS_NUM - 3 && (bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON)))
             #else
             if(bothnewkeys & (FLAG_ANYBUTTON))
-            #endif
             {
                 // TODO: make rumble enable/disable a property of device, not player
                 sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
                 savedata.joyrumble[player] = !savedata.joyrumble[player];
             }
             else
-#endif
+			#endif
             if (bothnewkeys & FLAG_ANYBUTTON)
             {
                 sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);

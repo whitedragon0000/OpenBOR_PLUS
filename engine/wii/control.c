@@ -495,7 +495,7 @@ const char *control_getdevicename(int deviceID)
     return devices[deviceID].deviceType == DEVICE_TYPE_NONE ? "None" : devices[deviceID].name;
 }
 
-void control_rumble(int deviceID, int ratio, int msec)
+void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec)
 {
     // TODO
 }

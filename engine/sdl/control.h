@@ -42,7 +42,6 @@ void control_update_keyboard(s_playercontrols *keyboardControls);
 const char *control_getkeyname(int deviceID, int keycode);
 bool control_isvaliddevice(int deviceID);
 const char *control_getdevicename(int deviceID);
-void control_rumble(int deviceID, int ratio, int msec);
 
 bool control_loadmappings(const char *filename);
 bool control_savemappings(const char *filename);

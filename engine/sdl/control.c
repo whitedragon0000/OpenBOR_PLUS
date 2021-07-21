@@ -17,7 +17,6 @@
 #include "List.h"
 
 #define AXIS_THRESHOLD 7000
-#define T_NUM_BUTTONS 5
 
 typedef enum {
     DEVICE_TYPE_NONE,
@@ -125,12 +124,6 @@ static void clear_saved_mappings()
     List_Clear(&savedMappings);
 }
 
-                        // migration for White Dragon's vibration logic from SDLActivity.java
-                        if (is_touchpad_vibration_enabled() &&
-                            is_touch_area(touch_info.px[i], touch_info.py[i]))
-                        {
-                          jniutils_vibrate_device(savedata.touchpad_vibration_intensity);
-                        }
 /* If 2 or more of the same type of controller are plugged in, we need to disambiguate them so that a player assigning
    devices in the options menu can tell them apart. Do this by appending "#2", "#3", etc. to the names. */
 static void set_device_name(int deviceID, const char *name)
@@ -616,6 +609,14 @@ static void handle_events()
                         touch_info.px[i] = ev.tfinger.x * nativeWidth;
                         touch_info.py[i] = ev.tfinger.y * nativeHeight;
                         touch_info.pstatus[i] = TOUCH_STATUS_DOWN;
+						
+                        // migration for White Dragon's vibration logic from SDLActivity.java
+                        if (is_touchpad_vibration_enabled() &&
+                            is_touch_area(touch_info.px[i], touch_info.py[i]))
+                        {
+                          jniutils_vibrate_device(savedata.touchpad_vibration_intensity);
+                        }
+						
                         break;
                     }
                 }
@@ -751,7 +752,7 @@ void control_update(s_playercontrols **playerControls, int numPlayers)
     for (int i = 0; i < numPlayers; i++)
     {
         control_update_player(playerControls[i]);
-    } else joystick_haptic[i] = NULL;
+    }
 }
 
 void control_remapdevice(int deviceID)
@@ -864,13 +865,15 @@ const char *control_getdevicename(int deviceID)
     return devices[deviceID].deviceType == DEVICE_TYPE_NONE ? "None" : devices[deviceID].name;
 }
 
-void control_rumble(int deviceID, int ratio, int msec)
+void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec)
 {
+	s_playercontrols * pcontrols = playercontrols[player];
+	int deviceID = pcontrols->deviceID;
     if (msec > 0 && devices[deviceID].haptic)
     {
         if (SDL_HapticRumblePlay(devices[deviceID].haptic, ratio, msec) != 0)
         {
-            printf("Warning: Unable to play rumble! %s\n", SDL_GetError());
+            //printf("Warning: Unable to play rumble! %s\n", SDL_GetError());
         }
     }
 }

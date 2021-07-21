@@ -47,21 +47,10 @@ void control_update_keyboard(s_playercontrols *keyboardControls);
 const char *control_getkeyname(int deviceID, int keycode);
 bool control_isvaliddevice(int deviceID);
 const char *control_getdevicename(int deviceID);
-void control_rumble(int deviceID, int ratio, int msec);
 
 bool control_loadmappings(const char *filename);
 bool control_savemappings(const char *filename);
-void control_exit();
-void control_init(int joy_enable);
-int control_usejoy(int enable);
-int control_getjoyenabled();
-int keyboard_getlastkey();
-void control_setkey(s_playercontrols * pcontrols, unsigned int flag, int key);
-int control_scankey();
-char* control_getkeyname(unsigned int keycode);
-void control_update(s_playercontrols ** playercontrols, int numplayers);
 void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec);
-unsigned long getPad(int port);
 
 // clears saved mappings and resets every device's mappings to defaults
 void control_clearmappings();
