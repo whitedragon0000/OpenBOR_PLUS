@@ -151,7 +151,7 @@ ARCHFLAGS       = -m64
 LIBRARIES       = $(SDKPATH)/usr/lib
 CFLAGS          += -DAMD64
 # Workaround for GCC 9
-CFLAGS          += -Wno-error=format-overflow -Wno-error=stringop-truncation -Wno-error=stringop-overflow
+CFLAGS          +=  -Wno-error=stringop-overflow
 endif
 
 ifdef BUILD_LINUX_LE_arm
@@ -171,7 +171,7 @@ INCLUDES        = $(SDKPATH)/usr/include \
 OBJTYPE         = elf
 LIBRARIES       = $(SDKPATH)/usr/lib
 # Workaround for GCC 9
-CFLAGS          += -Wno-error=format-overflow -Wno-error=stringop-truncation -Wno-error=implicit-function-declaration -Wno-error=unused-variable -Wno-error=unused-label -Wno-error=stringop-overflow
+CFLAGS          += -Wno-error=format-overflow -Wno-error=implicit-function-declaration -Wno-error=unused-variable -Wno-error=unused-label -Wno-error=stringop-overflow
 endif
 
 ifdef BUILD_DARWIN
@@ -237,9 +237,9 @@ BUILD_WEBM      = 1
 BUILD_ELM       = 1
 BUILDING        = 1
 INCLUDES        = $(DEVKITPRO)/portlibs/ppc/include \
-                  $(DEVKITPRO)/libogc/include
+				  $(DEVKITPRO)/libogc/include 
 LIBRARIES       = $(DEVKITPRO)/portlibs/ppc/lib \
-                  $(DEVKITPRO)/libogc/lib/wii
+				  $(DEVKITPRO)/libogc/lib/wii 
 ifeq ($(BUILD_WII), 0)
 BUILD_DEBUG     = 1
 endif
@@ -275,7 +275,7 @@ ifdef BUILD_PANDORA
 STRIP 	        = $(PNDDEV)/bin/arm-none-linux-gnueabi-strip $(TARGET) -o $(TARGET_FINAL)
 endif
 ifdef BUILD_WII
-STRIP           = elf2dol $< $@
+ELF2DOL         = elf2dol $< $@
 endif
 endif
 endif
@@ -471,8 +471,7 @@ GAME	       += source/gamelib/filters.o
 endif
 
 ifdef BUILD_SDL_IO
-GAME_CONSOLE   += sdl/joysticks.o                                                                   \
-                  sdl/control.o                                                                     \
+GAME_CONSOLE   += sdl/control.o                                                                     \
                   sdl/sblaster.o                                                                    \
                   sdl/timer.o                                                                       \
                   sdl/sdlport.o                                                                     \
@@ -535,10 +534,12 @@ OBJS            = $(MAIN)                                                       
 # Compiler Flags
 #----------------------------------------------------------------------------------------------------
 
-
-CFLAGS 	       += $(addprefix -I", $(addsuffix ", $(INCS)))
-CFLAGS 	       += $(ARCHFLAGS) -D$(TARGET_PLATFORM)
-CFLAGS 	       += -g -Wall -Werror -fsigned-char -std=gnu99
+CFLAGS 	       += $(addprefix -I", $(addsuffix ", $(INCS))) $(ARCHFLAGS) -D$(TARGET_PLATFORM)
+CFLAGS 	       += -g -Wall -Werror
+ifndef BUILD_PS3
+CFLAGS 	       += -Wno-format-truncation -Wno-stringop-truncation
+endif
+CFLAGS 	       += -fsigned-char -std=gnu99
 
 
 ifndef BUILD_DARWIN
@@ -666,11 +667,11 @@ endif
 
 ifdef BUILD_SDL
 ifeq ($(findstring DGE, $(SDKPATH)), DGE)
-LIBS           += -lSDL -lSDL_gfx -lts #Kratus (29-04-21) Reversed the FPS limit to reduce CPU usage
+LIBS           += -lSDL
 else
 COMMA		=,
 RPATH_LIBS	= $(addprefix -Wl$(COMMA)-rpath$(COMMA),"$(LIBRARIES)")
-LIBS	       += $(RPATH_LIBS) -lSDL2 -lSDL2_gfx #Kratus (29-04-21) Reversed the FPS limit to reduce CPU usage
+LIBS	       += $(RPATH_LIBS) -lSDL2
 
 ifdef CROSSCOMPILE_LINUX_WIN
 LIBS	       += -lsetupapi
@@ -804,7 +805,7 @@ $(TARGET) : $(OBJS) $(RES)
 	@$(CC) $(CFLAGS) -o $(TARGET) $(OBJS) $(TARGET_RESOURCE) $(LIBS)
 $(TARGET_FINAL) : $(TARGET)
 	@echo Stripping $(TARGET_PLATFORM) Port: $(TARGET_FINAL)...
-	@$(STRIP)
+	@$(ELF2DOL)
 	@echo
 	@echo Completed $(TARGET_PLATFORM) Port!
 	@echo $(TARGET_FINAL) is now ready!
