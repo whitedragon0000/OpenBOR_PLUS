@@ -535,7 +535,11 @@ OBJS            = $(MAIN)                                                       
 #----------------------------------------------------------------------------------------------------
 
 CFLAGS 	       += $(addprefix -I", $(addsuffix ", $(INCS))) $(ARCHFLAGS) -D$(TARGET_PLATFORM)
-CFLAGS 	       += -g -Wall -Werror -Wno-format-truncation -Wno-stringop-truncation -fsigned-char -std=gnu99
+CFLAGS 	       += -g -Wall -Werror
+ifndef BUILD_PS3
+CFLAGS 	       += -Wno-format-truncation -Wno-stringop-truncation
+endif
+CFLAGS 	       += -fsigned-char -std=gnu99
 
 
 ifndef BUILD_DARWIN
