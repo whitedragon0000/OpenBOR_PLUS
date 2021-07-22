@@ -237,10 +237,8 @@ BUILD_WEBM      = 1
 BUILD_ELM       = 1
 BUILDING        = 1
 INCLUDES        = $(DEVKITPRO)/portlibs/ppc/include \
-				  $(DEVKITPRO)/portlibs/include \
 				  $(DEVKITPRO)/libogc/include 
 LIBRARIES       = $(DEVKITPRO)/portlibs/ppc/lib \
-				  $(DEVKITPRO)/portlibs/lib \
 				  $(DEVKITPRO)/libogc/lib/wii 
 ifeq ($(BUILD_WII), 0)
 BUILD_DEBUG     = 1
