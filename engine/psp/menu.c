@@ -1,9 +1,9 @@
 /*
- * OpenBOR - http://www.LavaLit.com
+ * OpenBOR - http://www.chronocrash.com
  * -----------------------------------------------------------------------
  * Licensed under the BSD license, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2011 OpenBOR Team
+ * Copyright (c) 2004 - 2019 OpenBOR Team
  */
 
 #include <stdio.h>
@@ -372,7 +372,7 @@ void drawMenu()
 	printText(text, 150, 251, WHITE, 0, 0, "BGM Player");    // Triangle
 	printText(text, 268, 251, WHITE, 0, 0, "Image Viewer");  // Circle
 	printText(text, 392, 251, WHITE, 0, 0, "View Logs");     // Cross
-	printText(text, 328, 170, BLACK, 0, 0, "www.LavaLit.com");
+	printText(text, 328, 170, BLACK, 0, 0, "www.chronocrash.com");
 	printText(text, 320, 180, BLACK, 0, 0, "www.SenileTeam.com");
 
 #ifdef SPK_SUPPORTED
@@ -425,7 +425,7 @@ void drawBGMPlayer()
 	printText(text, 151, 251, WHITE, 0, 0, "%s", bgmLoop ? "Repeat On" : "Repeat Off");  // Triangle
 	printText(text, 274, 251, WHITE, 0, 0, "%s", bgmCycle ? "Cycle On" : "Cycle Off");   // Circle
 	printText(text, 390, 251, WHITE, 0, 0, "Exit Player");                               // Cross
-	printText(text, 328, 170, BLACK, 0, 0, "www.LavaLit.com");
+	printText(text, 328, 170, BLACK, 0, 0, "www.chronocrash.com");
 	printText(text, 320, 180, BLACK, 0, 0, "www.SenileTeam.com");
 
 #ifdef SPK_SUPPORTED
