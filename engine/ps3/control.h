@@ -11,9 +11,11 @@
 
 #include <stdint.h>
 
-#define	MAX_BOR_PADS		        4
 #define MAX_INPUT                   32
 #define BTN_NUM                     16
+
+#define ANAG_STAND          0x80
+#define PAD_STICK_DEADZONE  0x70
 
 #define PS3_DPAD_UP         0x00000001 //1..
 #define PS3_DPAD_RIGHT      0x00000002
@@ -34,78 +36,48 @@
 
 #define	CONTROL_ESC			        15
 
-#define	CONTROL_DEFAULT1_UP			1
-#define	CONTROL_DEFAULT1_RIGHT		2
-#define	CONTROL_DEFAULT1_DOWN		3
-#define	CONTROL_DEFAULT1_LEFT		4
-#define CONTROL_DEFAULT1_FIRE1		5
-#define CONTROL_DEFAULT1_FIRE2		8
-#define	CONTROL_DEFAULT1_FIRE3		13
-#define	CONTROL_DEFAULT1_FIRE4		14
-#define	CONTROL_DEFAULT1_FIRE5		7
-#define	CONTROL_DEFAULT1_FIRE6		6
-#define CONTROL_DEFAULT1_START		11
-#define CONTROL_DEFAULT1_SCREENSHOT 16
-
-#define	CONTROL_DEFAULT2_UP			(1+BTN_NUM)
-#define	CONTROL_DEFAULT2_RIGHT		(2+BTN_NUM)
-#define	CONTROL_DEFAULT2_DOWN		(3+BTN_NUM)
-#define	CONTROL_DEFAULT2_LEFT		(4+BTN_NUM)
-#define CONTROL_DEFAULT2_FIRE1		(5+BTN_NUM)
-#define CONTROL_DEFAULT2_FIRE2		(8+BTN_NUM)
-#define	CONTROL_DEFAULT2_FIRE3		(13+BTN_NUM)
-#define	CONTROL_DEFAULT2_FIRE4		(14+BTN_NUM)
-#define	CONTROL_DEFAULT2_FIRE5		(7+BTN_NUM)
-#define	CONTROL_DEFAULT2_FIRE6		(6+BTN_NUM)
-#define CONTROL_DEFAULT2_START		(11+BTN_NUM)
-#define CONTROL_DEFAULT2_SCREENSHOT (16+BTN_NUM)
-
-#define	CONTROL_DEFAULT3_UP			(1+(BTN_NUM*2))
-#define	CONTROL_DEFAULT3_RIGHT		(2+(BTN_NUM*2))
-#define	CONTROL_DEFAULT3_DOWN		(3+(BTN_NUM*2))
-#define	CONTROL_DEFAULT3_LEFT		(4+(BTN_NUM*2))
-#define CONTROL_DEFAULT3_FIRE1		(5+(BTN_NUM*2))
-#define CONTROL_DEFAULT3_FIRE2		(8+(BTN_NUM*2))
-#define	CONTROL_DEFAULT3_FIRE3		(13+(BTN_NUM*2))
-#define	CONTROL_DEFAULT3_FIRE4		(14+(BTN_NUM*2))
-#define	CONTROL_DEFAULT3_FIRE5		(7+(BTN_NUM*2))
-#define	CONTROL_DEFAULT3_FIRE6		(6+(BTN_NUM*2))
-#define CONTROL_DEFAULT3_START		(11+(BTN_NUM*2))
-#define CONTROL_DEFAULT3_SCREENSHOT (16+(BTN_NUM*2))
-
-#define	CONTROL_DEFAULT4_UP			(1+(BTN_NUM*3))
-#define	CONTROL_DEFAULT4_RIGHT		(2+(BTN_NUM*3))
-#define	CONTROL_DEFAULT4_DOWN		(3+(BTN_NUM*3))
-#define	CONTROL_DEFAULT4_LEFT		(4+(BTN_NUM*3))
-#define CONTROL_DEFAULT4_FIRE1		(5+(BTN_NUM*3))
-#define CONTROL_DEFAULT4_FIRE2		(8+(BTN_NUM*3))
-#define	CONTROL_DEFAULT4_FIRE3		(13+(BTN_NUM*3))
-#define	CONTROL_DEFAULT4_FIRE4		(14+(BTN_NUM*3))
-#define	CONTROL_DEFAULT4_FIRE5		(7+(BTN_NUM*3))
-#define	CONTROL_DEFAULT4_FIRE6		(6+(BTN_NUM*3))
-#define CONTROL_DEFAULT4_START		(11+(BTN_NUM*3))
-#define CONTROL_DEFAULT4_SCREENSHOT (16+(BTN_NUM*3))
+// 32 is an arbitrary number larger than the number of input devices that will ever be available
+#define MAX_DEVICES                4
+#define CONTROL_DEVICE_NAME_SIZE   64
 
 #define	CONTROL_NONE				(1+(BTN_NUM*99)) //Kratus (20-04-21) value used to clear all keys
 
-typedef struct
-{
-	int	settings[MAX_INPUT];
-	unsigned int keyflags, newkeyflags;
-	int kb_break;
-}
-s_playercontrols;
+typedef struct {
+    int deviceID;
+    uint32_t keyflags;
+    uint32_t newkeyflags;
+} s_playercontrols;
 
+void control_init();
 void control_exit();
-void control_init(int joy_enable);
-int control_usejoy(int enable);
-int control_getjoyenabled();
-int keyboard_getlastkey();
-void control_setkey(s_playercontrols * pcontrols, unsigned int flag, int key);
-int control_scankey();
-char* control_getkeyname(unsigned int keycode);
-void control_update(s_playercontrols ** playercontrols, int numplayers);
+
+/* Listen to input from deviceID. The first input from deviceID will be returned by the next call to
+   control_getremappedkey(). Call with deviceID=-1 to finish remapping. */
+void control_remapdevice(int deviceID);
+
+// Returns the keycode of the first key pressed on the device being remapped, or -1 if nothing has been pressed yet
+int control_getremappedkey();
+
+// Returns an array of size SDID_COUNT
+int *control_getmappings(int deviceID);
+
+// Resets mappings for device to default
+void control_resetmappings(int deviceID);
+void control_update(s_playercontrols **allPlayerControls, int numPlayers);
+void control_update_keyboard(s_playercontrols *keyboardControls);
+const char *control_getkeyname(int deviceID, int keycode);
+bool control_isvaliddevice(int deviceID);
+const char *control_getdevicename(int deviceID);
+
+bool control_loadmappings(const char *filename);
+bool control_savemappings(const char *filename);
 void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec);
+
+// clears saved mappings and resets every device's mappings to defaults
+void control_clearmappings();
+
 unsigned int getPad(int port);
+
+#define control_getmappedkeyname(deviceID, key) control_getkeyname(deviceID, control_getmappings(deviceID)[key])
 
 #endif

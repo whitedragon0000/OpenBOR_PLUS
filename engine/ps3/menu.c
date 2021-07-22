@@ -12,6 +12,7 @@
 #include "SDL.h"
 #include "sdlport.h"
 #include "video.h"
+#include "control.h"
 #include "soundmix.h"
 #include "packfile.h"
 //#include "gfx.h"
@@ -107,13 +108,13 @@ static int Control()
 static void refreshInput()
 {
     unsigned int buttons = 0;
-	padInfo padinfo;
+	padInfo2 padinfo2;
 	int i;
 
-	ioPadGetInfo (&padinfo);
-	for (i = 0; i < MAX_BOR_PADS; i++)
+	ioPadGetInfo2(&padinfo2);
+	for (i = 0; i < MAX_DEVICES; i++)
     {
-        if (padinfo.status[i])
+        if (padinfo2.port_status[i])
         {
             buttons |= getPad(i);
         }
@@ -673,10 +674,10 @@ static void drawMenu()
 
 	printText((isWide ? 26 : 5), (isWide ? 11 : 4), WHITE, 0, 0, "OpenBoR %s", VERSION);
 	printText((isWide ? 392 : 261),(isWide ? 11 : 4), WHITE, 0, 0, __DATE__);
-	printText((isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "Start Game", control_getkeyname(savedata.keys[0][SDID_ATTACK]));
-	printText((isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "BGM Player", control_getkeyname(savedata.keys[0][SDID_ATTACK2]));
-	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "View Logs", control_getkeyname(savedata.keys[0][SDID_JUMP]));
-	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "Quit Game", control_getkeyname(savedata.keys[0][SDID_SPECIAL]));
+	printText((isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "Start Game",   control_getmappedkeyname(0, SDID_ATTACK));
+	printText((isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "BGM Player", control_getmappedkeyname(0, SDID_ATTACK2));
+	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "View Logs", control_getmappedkeyname(0, SDID_JUMP));
+	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "Quit Game", control_getmappedkeyname(0, SDID_SPECIAL));
     printText((isWide ? 320 : 188),(isWide ? 175 : 158), BLACK, 0, 0, "www.chronocrash.com");
 	printText((isWide ? 322 : 190),(isWide ? 185 : 168), BLACK, 0, 0, "www.SenileTeam.com");
 
