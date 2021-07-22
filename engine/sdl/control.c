@@ -18,6 +18,10 @@
 
 #define AXIS_THRESHOLD 7000
 
+#ifdef ANDROID
+#include "jniutils.h"
+#endif
+
 typedef enum {
     DEVICE_TYPE_NONE,
     DEVICE_TYPE_KEYBOARD,

@@ -39158,9 +39158,9 @@ void menu_options_input()
     int selected_device = playercontrolpointers[0]->deviceID;
     #if ANDROID
     int dir = 0;
-    int OPTIONS_NUM = 9;
+    int OPTIONS_NUM = 10;
     #else
-    const int OPTIONS_NUM = 8;
+    const int OPTIONS_NUM = 7;
     #endif
 
     controloptionsMenu = 1;
@@ -39348,7 +39348,7 @@ void menu_options_input()
             case 8:
                 savedata.is_touchpad_vibration_enabled = !savedata.is_touchpad_vibration_enabled;
                 break;
-            case 6:
+            case 9:
                 savedata.touchpad_vibration_intensity += 5 * dir;
                 if(savedata.touchpad_vibration_intensity < 0)
                 {
@@ -39359,7 +39359,7 @@ void menu_options_input()
                     savedata.touchpad_vibration_intensity = 100;
                 }
                 break;
-            case 7:
+            case 10:
                 savedata.is_touchpad_visible ^= 1;
                 break;
             #endif
