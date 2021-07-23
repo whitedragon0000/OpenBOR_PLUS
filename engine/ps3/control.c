@@ -280,7 +280,7 @@ static void handle_events()
                 assert(controllerIDs[port] != -1);
             }
 			
-            if (newType != devices[controllerIDs[port]].deviceType) // wiimote connected or expansion type changed
+            if (newType != devices[controllerIDs[port]].deviceType) // controller connected or expansion type changed
             {
                 setup_device(controllerIDs[port], newType, deviceTypeNames[newType], port);
             }
@@ -355,22 +355,22 @@ static unsigned int is_key_pressed(InputDevice *device, int keycode)
         ioPadGetData(port, &paddata[port]);
         switch (keycode)
         {
-            case PS3_DPAD_UP:    	return (paddata[port].ANA_L_V < ANAG_STAND - PAD_STICK_DEADZONE) | paddata[port].BTN_UP;
-            case PS3_DPAD_DOWN:  	return (paddata[port].ANA_L_V > ANAG_STAND + PAD_STICK_DEADZONE) | paddata[port].BTN_DOWN;
-            case PS3_DPAD_LEFT:  	return (paddata[port].ANA_L_H < ANAG_STAND - PAD_STICK_DEADZONE) | paddata[port].BTN_LEFT;
-            case PS3_DPAD_RIGHT: 	return (paddata[port].ANA_L_H > ANAG_STAND + PAD_STICK_DEADZONE) | paddata[port].BTN_RIGHT;
-			case PS3_SELECT: 		return paddata[port].BTN_SELECT;
-			case PS3_START: 		return paddata[port].BTN_START;
-			case PS3_SQUARE: 		return paddata[port].BTN_SQUARE;
-			case PS3_TRIANGLE: 		return paddata[port].BTN_TRIANGLE;
-			case PS3_CROSS: 		return paddata[port].BTN_CROSS;
-			case PS3_CIRCLE: 		return paddata[port].BTN_CIRCLE;
-			case PS3_L1: 			return paddata[port].BTN_L1;
-			case PS3_L2: 			return paddata[port].BTN_L2;
-			case PS3_L3: 			return paddata[port].BTN_L3;
-			case PS3_R1: 			return paddata[port].BTN_R1;
-			case PS3_R2: 			return paddata[port].BTN_R2;
-			case PS3_R3: 			return paddata[port].BTN_R3;
+            case PS3_DPAD_UP:    	return (paddata[port].ANA_L_V < ANAG_STAND - PAD_STICK_DEADZONE) | !!paddata[port].BTN_UP;
+            case PS3_DPAD_DOWN:  	return (paddata[port].ANA_L_V > ANAG_STAND + PAD_STICK_DEADZONE) | !!paddata[port].BTN_DOWN;
+            case PS3_DPAD_LEFT:  	return (paddata[port].ANA_L_H < ANAG_STAND - PAD_STICK_DEADZONE) | !!paddata[port].BTN_LEFT;
+            case PS3_DPAD_RIGHT: 	return (paddata[port].ANA_L_H > ANAG_STAND + PAD_STICK_DEADZONE) | !!paddata[port].BTN_RIGHT;
+			case PS3_SELECT: 		return !!paddata[port].BTN_SELECT;
+			case PS3_START: 		return !!paddata[port].BTN_START;
+			case PS3_SQUARE: 		return !!paddata[port].BTN_SQUARE;
+			case PS3_TRIANGLE: 		return !!paddata[port].BTN_TRIANGLE;
+			case PS3_CROSS: 		return !!paddata[port].BTN_CROSS;
+			case PS3_CIRCLE: 		return !!paddata[port].BTN_CIRCLE;
+			case PS3_L1: 			return !!paddata[port].BTN_L1;
+			case PS3_L2: 			return !!paddata[port].BTN_L2;
+			case PS3_L3: 			return !!paddata[port].BTN_L3;
+			case PS3_R1: 			return !!paddata[port].BTN_R1;
+			case PS3_R2: 			return !!paddata[port].BTN_R2;
+			case PS3_R3: 			return !!paddata[port].BTN_R3;
             default:             	return 0;
         }
     }
