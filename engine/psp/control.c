@@ -18,8 +18,6 @@
 typedef enum {
     DEVICE_TYPE_NONE,
     DEVICE_TYPE_STANDARD_CONTROLLER,
-	DEVICE_TYPE_REMOTE_CONTROLLER,
-	DEVICE_TYPE_LDD_CONTROLLER,
 } DeviceType;
 
 typedef struct {
@@ -41,6 +39,11 @@ static int remapKeycode = -1;
 // each list member is an array of SDID_COUNT ints, dynamically allocated
 static List savedMappings;
 static bool savedMappingsInited = false;
+
+static const char *deviceTypeNames[] = {
+    "None",
+    "Standard Controller",
+};
 
 static void handle_events();
 
@@ -94,6 +97,15 @@ static void clear_saved_mappings()
         List_GotoNext(&savedMappings);
     }
     List_Clear(&savedMappings);
+}
+
+static void setup_device(int deviceID, DeviceType type, const char *name, int port)
+{
+    devices[deviceID].deviceType = type;
+    devices[deviceID].port = port;
+    snprintf(devices[deviceID].name, sizeof(devices[deviceID].name), "%s #%i", name, port+1);
+    load_from_saved_mapping(deviceID);
+    printf("Set up device: %s\n", devices[deviceID].name);
 }
 
 void control_init()
@@ -154,11 +166,44 @@ void control_resetmappings(int deviceID)
     if (deviceID < 0) return;
 
     InputDevice *device = &devices[deviceID];
-    set_default_standard_controller_mappings(device);
+    switch (device->deviceType)
+    {
+        case DEVICE_TYPE_STANDARD_CONTROLLER:
+            set_default_standard_controller_mappings(device);
+            break;
+        default:
+            memset(device->mappings, 0, sizeof(device->mappings));
+            break;
+    }
 }
 
 static void handle_events()
 {
+	if (!controlInited)
+	{
+		int port = 0;
+		DeviceType newType = DEVICE_TYPE_STANDARD_CONTROLLER;
+		
+		if (controllerIDs[port] == -1)
+		{
+			for (size_t i = 0; i < MAX_DEVICES; i++)
+			{
+				if (devices[i].deviceType == DEVICE_TYPE_NONE)
+				{
+					controllerIDs[port] = i;
+					break;
+				}
+			}
+
+			// MAX_DEVICES is 32 and there are a maximum of 12 devices supported, so this should be safe
+			assert(controllerIDs[port] != -1);
+		}
+		
+		if (newType != devices[controllerIDs[port]].deviceType) // controller connected or expansion type changed
+		{
+			setup_device(controllerIDs[port], newType, deviceTypeNames[newType], port);
+		}
+	}
 }
 
 unsigned int getPad(int port)
@@ -202,33 +247,37 @@ unsigned int getPad(int port)
 static unsigned int is_key_pressed(InputDevice *device, int keycode)
 {
 	int port = device->port;
-	SceCtrlData data;
-	getCtrlData(&data);
 	
 	if(port != 0) return 0;
 	
-	switch (keycode)
-	{
-		case PSP_DPAD_UP:    		return (data.Ly <= PAD_LOW_BOUND)  | (data.Buttons & PSP_CTRL_UP);
-		case PSP_DPAD_DOWN:  		return (data.Ly >= PAD_HIGH_BOUND) | (data.Buttons & PSP_CTRL_DOWN);
-		case PSP_DPAD_LEFT:  		return (data.Lx <= PAD_LOW_BOUND)  | (data.Buttons & PSP_CTRL_LEFT);
-		case PSP_DPAD_RIGHT: 		return (data.Lx >= PAD_HIGH_BOUND) | (data.Buttons & PSP_CTRL_RIGHT);
-		case PSP_SELECT: 			return (data.Buttons & PSP_CTRL_SELECT);
-		case PSP_START: 			return (data.Buttons & PSP_CTRL_START);
-		case PSP_SQUARE: 			return (data.Buttons & PSP_CTRL_SQUARE);
-		case PSP_TRIANGLE: 			return (data.Buttons & PSP_CTRL_TRIANGLE);
-		case PSP_CROSS: 			return (data.Buttons & PSP_CTRL_CROSS);
-		case PSP_CIRCLE: 			return (data.Buttons & PSP_CTRL_CIRCLE);
-		case PSP_LEFT_TRIGGER: 		return (data.Buttons & PSP_CTRL_LTRIGGER);
-		case PSP_RIGHT_TRIGGER: 	return (data.Buttons & PSP_CTRL_RTRIGGER);
-		case PSP_NOTE: 				return (data.Buttons & PSP_CTRL_NOTE);
-		case PSP_HOME: 				return (data.Buttons & PSP_CTRL_HOME);
-		case PSP_HOLD: 				return (data.Buttons & PSP_CTRL_HOLD);
-		case PSP_SCREEN: 			return (data.Buttons & PSP_CTRL_SCREEN);
-		case PSP_VOLUP: 			return (data.Buttons & PSP_CTRL_VOLUP);
-		case PSP_VOLDOWN: 			return (data.Buttons & PSP_CTRL_VOLDOWN);
-		default:             		return 0;
-	}
+	if (device->deviceType == DEVICE_TYPE_STANDARD_CONTROLLER)
+    {
+		SceCtrlData data;
+		getCtrlData(&data);
+		
+		switch (keycode)
+		{
+			case PSP_DPAD_UP:    		return (data.Ly <= PAD_LOW_BOUND)  | !!(data.Buttons & PSP_CTRL_UP);
+			case PSP_DPAD_DOWN:  		return (data.Ly >= PAD_HIGH_BOUND) | !!(data.Buttons & PSP_CTRL_DOWN);
+			case PSP_DPAD_LEFT:  		return (data.Lx <= PAD_LOW_BOUND)  | !!(data.Buttons & PSP_CTRL_LEFT);
+			case PSP_DPAD_RIGHT: 		return (data.Lx >= PAD_HIGH_BOUND) | !!(data.Buttons & PSP_CTRL_RIGHT);
+			case PSP_SELECT: 			return !!(data.Buttons & PSP_CTRL_SELECT);
+			case PSP_START: 			return !!(data.Buttons & PSP_CTRL_START);
+			case PSP_SQUARE: 			return !!(data.Buttons & PSP_CTRL_SQUARE);
+			case PSP_TRIANGLE: 			return !!(data.Buttons & PSP_CTRL_TRIANGLE);
+			case PSP_CROSS: 			return !!(data.Buttons & PSP_CTRL_CROSS);
+			case PSP_CIRCLE: 			return !!(data.Buttons & PSP_CTRL_CIRCLE);
+			case PSP_LEFT_TRIGGER: 		return !!(data.Buttons & PSP_CTRL_LTRIGGER);
+			case PSP_RIGHT_TRIGGER: 	return !!(data.Buttons & PSP_CTRL_RTRIGGER);
+			case PSP_NOTE: 				return !!(data.Buttons & PSP_CTRL_NOTE);
+			case PSP_HOME: 				return !!(data.Buttons & PSP_CTRL_HOME);
+			case PSP_HOLD: 				return !!(data.Buttons & PSP_CTRL_HOLD);
+			case PSP_SCREEN: 			return !!(data.Buttons & PSP_CTRL_SCREEN);
+			case PSP_VOLUP: 			return !!(data.Buttons & PSP_CTRL_VOLUP);
+			case PSP_VOLDOWN: 			return !!(data.Buttons & PSP_CTRL_VOLDOWN);
+			default:             		return 0;
+		}
+    }
 
     return 0;
 }
