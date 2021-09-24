@@ -28,15 +28,18 @@ To find out more, stop into the OpenBOR community at [ChronoCrash.com](chronocra
 [![Mortal Kombat Outworld Assassins](http://img.youtube.com/vi/FTkayebZK9w/0.jpg)](https://www.youtube.com/watch?v=FTkayebZK9w&t=1m27s "Mortal Kombat Outworld Assassins")
 
 ## History
-In 2004, [Senile Team](http://www.senileteam.com) released Beats of Rage, a free beat-'em-up for DOS inspired
-by SEGA's Streets of Rage series and using sprites from SNK Playmore's King of
-Fighters series.  The game spread only by word of mouth, but it nonetheless
-amassed popularity very quickly.  Senile Team soon released an edit pack allowing
-anyone interested to create a module for the BOR engine.
 
-In 2005, Kirby2000 asked Senile Team to open the source code to BOR.  They
-agreed, and OpenBOR was born.  Development on the engine was continued by the
-community, and still is to this day.
+* **2003 -** [Senile Team](http://www.senileteam.com) releases Beats of Rage, a free beat-'em-up for DOS inspired by SEGA's Streets of Rage series using assets from SNK Playmore's King of Fighters series. The game quickly achieves mass popularity through word of mouth. Senile Team releases an edit pack allowing anyone interested to create a module for the BOR engine.
+
+* **2005 -** Developer *Kirby2000* asks Senile Team to open the source code to BOR. They agreed, and the project is named OpenBOR. The project quickly spawns numerous ports and branches, each with unique features.
+
+* **2006 -** Developer *[Sumo1X (SX)](https://github.com/SumolX)* reorganizes the loose coalition of developers into what is now known as the OpenBOR Team. Features from the various branches are backported into the original OpenBOR.
+
+* **2011 -** *[Sumo1X](https://github.com/SumolX)* retires from the OpenBOR Team, and hands management duties to [DCurrent (Damon Caskey)](https://github.com/DCurrent).
+
+* **2017 -** OpenBOR repository migrates from SourceForge to Github.
+
+* **2021 -** Development continues on OpenBOR 4.0, with various internal source cleanups, a more object centric script engine, and fixes for long standing issues.
 
 ## Platforms
 OpenBOR has a very modular and portable design inherited from Beats of Rage - several ports have been made available.
@@ -76,11 +79,14 @@ OpenBOR project manager and site owner of the OpenBOR community. Primary contrib
 #### [Plombo](https://github.com/plombo) (2009-)
 A developer who prefers to work on OpenBOR's supporting libraries and platform-specific backends.  Known for maintaining the Wii port, writing the GPU-accelerated video code for Wii and OpenGL, and a few engine features.
 
-#### [Douglas Baldan](https://github.com/dbaldan) (2018-)
-Known as O'Ilusionista, Douglas is a highly respected administrator of the OpenBOR community and also a prolific member of the Mugen scene. Douglas is new to coding but brings a plethoera of graphic and game design experience to the team. We look for exciting things from Mr. Baldan soon!
-
 #### [Malik](https://github.com/msmalik681) (2018-)
 Malik came to the team with a strong OpenBOR scripting background, and quickly established himself as a resident go-to for the Android Port. Malik dedicates himself to keeping the Android port of OpenBOR a commercially viable platform for authors who wish to sell their original IP projects.
+
+#### [Douglas Baldan](https://github.com/dbaldan) (2018-2021)
+Known as O'Ilusionista, Douglas was a highly respected administrator of the OpenBOR community and a prolific member of the Mugen scene. His professional background in graphic design brought a plethora of graphic and game development experience to the team. Citing personal reasons, Douglas officially retired from the OpenBOR team mid-2021.
+
+#### [Wasin Thonkaew](https://github.com/haxpor) (2019)
+Haxpor in the forums, a Linux centric developer who works hard to ensure our penguin crowd has the proper tools for development and underlying libraries of OpenBOR remain compatible to compile for mobile platforms.
 
 #### [crxtrdude](https://github.com/crxtrdude) (2016-2018)
 crxtrdude focused on the android port in particular on the module Activity, Manifest and on the virtual gamepad.
