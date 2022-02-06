@@ -1,14 +1,15 @@
 #include "jniutils.h"
 #include "SDL.h"
 
-#define ACTIVITY_CLS_NAME "GameActivity"
+//#define ACTIVITY_CLS_NAME "GameActivity"
 
 extern "C"
 {
     #include "video.h"
 }
 
-extern "C" JNIEXPORT void JNICALL Java_org_openbor_engine_GameActivity_fireSystemUiVisibilityChangeEvent(JNIEnv* env, jobject obj, jint isSystemBarsVisible)
+extern "C" JNIEXPORT void JNICALL Java_org_openbor_engine_GameActivity_fireSystemUiVisibilityChangeEvent(
+        __attribute__((unused)) JNIEnv* env, __attribute__((unused)) jclass obj, jint isSystemBarsVisible)
 {
     return on_system_ui_visibility_change_event(isSystemBarsVisible);
 }
@@ -65,7 +66,7 @@ struct frame_dimensions jniutils_get_frame_dimensions()
     jfieldID bottomFieldId = env->GetFieldID(javaDataClass, "bottom", "I");
     jfieldID rightFieldId = env->GetFieldID(javaDataClass, "right", "I");
 
-    struct frame_dimensions frm_dim;
+    struct frame_dimensions frm_dim = {};
 
     // get the data from the field
     frm_dim.x = env->GetIntField(jData, xFieldId);

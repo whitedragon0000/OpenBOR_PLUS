@@ -20,44 +20,37 @@
 
 package org.openbor.engine;
 
-import org.openbor.engine.utils.FrameDimensions;
-
-import org.libsdl.app.SDLActivity;
-
-import java.lang.String;
-
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-
-import android.util.Log;
-import android.os.Bundle;
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Context;
-import android.os.Build;
 import android.content.pm.PackageManager;
-import android.content.pm.ApplicationInfo;
+import android.graphics.Rect;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
 import android.os.PowerManager;
-import android.os.PowerManager.*;
+import android.os.PowerManager.WakeLock;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
-import android.view.Window;
-import android.content.res.*;
-import android.Manifest;
-import android.graphics.Point;
-import android.graphics.Rect;
-import android.util.DisplayMetrics;
-import android.app.Activity;
-//msmalik681 added imports for new pak copy!
-import android.os.Environment;
 import android.widget.Toast;
+
+import org.libsdl.app.SDLActivity;
+import org.openbor.engine.utils.FrameDimensions;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
+//msmalik681 added imports for new pak copy!
 //msmalik681 added import for permission check
-import android.support.v4.content.ContextCompat;
-import android.support.v4.app.ActivityCompat;
-import android.os.Vibrator;
-import android.os.VibrationEffect;
-import android.view.*;
 
 /**
  * Extended functionality from SDLActivity.
@@ -73,6 +66,7 @@ public class GameActivity extends SDLActivity {
   //White Dragon: added statics
   protected static WakeLock wakeLock;
 
+  @SuppressWarnings("JavaJniMissingFunction")
   public static native void fireSystemUiVisibilityChangeEvent(int isSystemBarsVisible);
 
   //note: White Dragon's vibrator is moved into C code for 2 reasons
@@ -90,11 +84,10 @@ public class GameActivity extends SDLActivity {
    *
    * Modified version from original by White Dragon
    */
+  @SuppressWarnings("unused")
   public static void jni_vibrate(int intensity) {
     Vibrator vibrator = (Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);
 
-    if (vibrator.hasVibrator())
-    {
       // wait for 3 ms, vibrate for 250 ms, then off for 1000 ms
       // note: consult api at two links below, it has two different meanings but in this case,
       // use case is the same
@@ -102,12 +95,14 @@ public class GameActivity extends SDLActivity {
 
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
       {
-        // calculate intensity ratio value
-        int amp = (int) ((intensity * 255) / 100);
-        int[] mAmplitudes = new int[]{0, amp};
-        // API 26 and above
-        // look for its api at https://developer.android.com/reference/android/os/VibrationEffect.html
-        vibrator.vibrate(VibrationEffect.createWaveform(mVibratePattern, mAmplitudes, -1));
+        if (vibrator.hasVibrator()) {
+          // calculate intensity ratio value
+          int amp = (intensity * 255) / 100;
+          int[] mAmplitudes = new int[]{0, amp};
+          // API 26 and above
+          // look for its api at https://developer.android.com/reference/android/os/VibrationEffect.html
+          vibrator.vibrate(VibrationEffect.createWaveform(mVibratePattern, mAmplitudes, -1));
+        }
       }
       else
       {
@@ -115,18 +110,10 @@ public class GameActivity extends SDLActivity {
         // look for its api at https://developer.android.com/reference/android/os/Vibrator.html#vibrate(long%5B%5D,%2520int)
         vibrator.vibrate(mVibratePattern, -1);
       }
-    }
   }
 
+  @SuppressWarnings("unused")
   public static FrameDimensions jni_get_frame_dimensions() {
-    Activity activity = (Activity)getContext();
-
-    Rect rectgle = new Rect();
-    View view = activity.getWindow().getDecorView().getRootView();
-    view.getWindowVisibleDisplayFrame(rectgle);
-    FrameDimensions frameDimensions = new FrameDimensions((int)view.getTranslationX(), (int)view.getTranslationY(), view.getWidth(), view.getHeight(),
-                                                          rectgle.top, rectgle.left, rectgle.bottom, rectgle.right);
-
     // include navigation bar dimensions
     /*Resources resources = getContext().getResources();
     int resourceId = resources.getIdentifier("navigation_bar_height", "dimen", "android");
@@ -141,8 +128,16 @@ public class GameActivity extends SDLActivity {
             frameDimensions.setBottom(frameDimensions.getBottom() + nav_bar_h);
         }
     }*/
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
+    {
+      Activity activity = (Activity) getContext();
 
-    return frameDimensions;
+      Rect rectangle = new Rect();
+      View view = activity.getWindow().getDecorView().getRootView();
+      view.getWindowVisibleDisplayFrame(rectangle);
+      return new FrameDimensions((int) view.getTranslationX(), (int) view.getTranslationY(), view.getWidth(), view.getHeight(),
+              rectangle.top, rectangle.left, rectangle.bottom, rectangle.right);
+    } else return null;
   }
   // ------------------------------------------------------------------------ //
 
@@ -158,13 +153,22 @@ public class GameActivity extends SDLActivity {
     };
   }
 
+  @SuppressLint("InvalidWakeLockTag")
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     // call parent's implementation
     super.onCreate(savedInstanceState);
     Log.v("OpenBOR", "onCreate called");
 
-    Activity activity = (Activity)getContext();
+    /*Activity activity = (Activity)getContext();
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD
+            && Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) {
+      activity.setRequestedOrientation(
+              ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+    } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.GINGERBREAD) {
+      activity.setRequestedOrientation(
+              ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+    }*/
 
     //msmalik681 setup storage access
     CheckPermissionForMovingPaks();
@@ -177,44 +181,47 @@ public class GameActivity extends SDLActivity {
     GameActivity.wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "BOR");
     if (!GameActivity.wakeLock.isHeld())
     {
-      GameActivity.wakeLock.acquire();
+      GameActivity.wakeLock.acquire(10*60*1000L /*10 minutes*/);
     }
 
     View decorView = getWindow().getDecorView().getRootView();
 
-    decorView.setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener()
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB)
     {
+      decorView.setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener()
+      {
         @Override
         public void onSystemUiVisibilityChange(int visibility)
         {
-            // Note that system bars will only be "visible" if none of the
-            // LOW_PROFILE, HIDE_NAVIGATION, or FULLSCREEN flags are set.
-            if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0)
-            {
-                // The system bars are visible.
-                fireSystemUiVisibilityChangeEvent(1);
-            }
-            else
-            {
-                // The system bars are NOT visible
-                fireSystemUiVisibilityChangeEvent(0);
-            }
+          // Note that system bars will only be "visible" if none of the
+          // LOW_PROFILE, HIDE_NAVIGATION, or FULLSCREEN flags are set.
+          if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0)
+          {
+            // The system bars are visible.
+            fireSystemUiVisibilityChangeEvent(1);
+          }
+          else
+          {
+            // The system bars are NOT visible
+            fireSystemUiVisibilityChangeEvent(0);
+          }
         }
-    });
+      });
 
-    decorView.addOnLayoutChangeListener(new View.OnLayoutChangeListener()
-    {
+      decorView.addOnLayoutChangeListener(new View.OnLayoutChangeListener()
+      {
         @Override
         public void onLayoutChange(View v, int left, int top, int right, int bottom,
-                int oldLeft, int oldTop, int oldRight, int oldBottom)
+                                   int oldLeft, int oldTop, int oldRight, int oldBottom)
         {
-            //decorView.removeOnLayoutChangeListener(this);
-            if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom)
-            {
-                fireSystemUiVisibilityChangeEvent(0);
-            }
+          //decorView.removeOnLayoutChangeListener(this);
+          if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom)
+          {
+            fireSystemUiVisibilityChangeEvent(0);
+          }
         }
-    });
+      });
+    }
 
   }
 
@@ -243,25 +250,38 @@ public class GameActivity extends SDLActivity {
     }
   }
 
+  /*@Override
+  public void onConfigurationChanged(Configuration newConfig)
+  {
+    super.onConfigurationChanged(newConfig);
+
+    if (newConfig.orientation != Configuration.ORIENTATION_LANDSCAPE)
+    {
+      Toast.makeText(this, "not landscape", Toast.LENGTH_SHORT).show();
+      Activity activity = (Activity)getContext();
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD
+              && Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR2) {
+        activity.setRequestedOrientation(
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+      } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.GINGERBREAD) {
+        activity.setRequestedOrientation(
+                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+      }
+    }
+  }*/
+
+  @SuppressWarnings("NullableProblems")
   @Override
   public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
   {
-    switch (requestCode)
-    {
-      case STORAGE_PERMISSION_CODE:
-      {
-        // If request is cancelled, the result arrays are empty.
-        if (grantResults.length > 0 &&
-            grantResults[0] == PackageManager.PERMISSION_GRANTED)
-        {
-          // permission was granted continue!
-          CopyPak();
-        }
-        else
-        {
-          // needed permission denied end application!
-          finish();
-        }
+    if (requestCode == STORAGE_PERMISSION_CODE) {// If request is cancelled, the result arrays are empty.
+      if (grantResults.length > 0 &&
+              grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        // permission was granted continue!
+        CopyPak();
+      } else {
+        // needed permission denied end application!
+        finish();
       }
     }
   }
@@ -270,12 +290,13 @@ public class GameActivity extends SDLActivity {
    * Proceed in copying paks files, or just prepare the destination Paks directory depending
    * on which type of app it is.
    */
+  @SuppressWarnings("ResultOfMethodCallIgnored")
   public void CopyPak()
   {
     try {
       Context ctx = getContext();
       Context appCtx = getApplicationContext();
-      String toast = null;
+      String toast;
 
       // if package name is literally "org.openbor.engine" then we have no need to copy any .pak files
       if (appCtx.getPackageName().equals("org.openbor.engine"))
@@ -292,7 +313,7 @@ public class GameActivity extends SDLActivity {
         else
         {
           String[] files = outFolderDefault.list();
-          if (files.length == 0)
+          if (files != null && files.length == 0)
           {
             // directory is empty
             toast = "Paks Folder: (" + outFolderDefault + ") is empty!";
@@ -302,11 +323,10 @@ public class GameActivity extends SDLActivity {
       }
       // otherwise it acts like a dedicated app (commercial title, standalone app)
       // intend to work with pre-baked single .pak file at build time
-      else
+      else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.FROYO)
       {
-        String version = null;
         // versionName is "android:versionName" in AndroidManifest.xml
-        version = appCtx.getPackageManager().getPackageInfo(appCtx.getPackageName(), 0).versionName;  // get version number as string
+        String version = appCtx.getPackageManager().getPackageInfo(appCtx.getPackageName(), 0).versionName;  // get version number as string
         // set local output folder (primary shared/external storage)
         File outFolder = new File(ctx.getExternalFilesDir(null) + "/Paks");
         // set local output filename as version number
@@ -319,9 +339,10 @@ public class GameActivity extends SDLActivity {
         {
           toast = "Updating please wait!";
           String[] children = outFolder.list();
-          for (int i = 0; i < children.length; i++)
-          {
-            new File(outFolder, children[i]).delete();
+          if (children != null) {
+            for (String child : children) {
+              new File(outFolder, child).delete();
+            }
           }
         }
         else
@@ -340,14 +361,10 @@ public class GameActivity extends SDLActivity {
 
           copyFile(in, out);
           in.close();
-          in = null;
           out.flush();
           out.close();
-          out = null;
         }
       }
-    } catch (IOException e) {
-      // not handled
     } catch (Exception e) {
       // not handled
     }
@@ -389,7 +406,7 @@ public class GameActivity extends SDLActivity {
 
     //White Dragon: wakelock acquire!
     if (!GameActivity.wakeLock.isHeld())
-      GameActivity.wakeLock.acquire();
+      GameActivity.wakeLock.acquire(10*60*1000L /*10 minutes*/);
   }
 
   @Override
