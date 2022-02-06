@@ -903,6 +903,7 @@ int hide_t = 5000;
 
 static void control_update_android_touch(TouchStatus *touch_info, int maxp)
 {
+    if (keyboardDeviceID < 0) return;
     #define pc(x) devices[keyboardDeviceID].mappings[x]
     int i, j;
     float tx, ty, tr;
@@ -1058,7 +1059,7 @@ static void control_update_android_touch(TouchStatus *touch_info, int maxp)
     hide_t = timer_gettick() + 5000;
 
     //map to current user settings
-    assert(keyboardDeviceID >= 0);
+    //assert(keyboardDeviceID >= 0);
     keystate[pc(SDID_MOVEUP)] = touchstates[SDID_MOVEUP];
     keystate[pc(SDID_MOVEDOWN)] = touchstates[SDID_MOVEDOWN];
     keystate[pc(SDID_MOVELEFT)] = touchstates[SDID_MOVELEFT];
