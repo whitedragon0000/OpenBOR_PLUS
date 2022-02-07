@@ -620,9 +620,9 @@ void vga_vwait(void)
 	prevtick = now;
 }
 
-void video_set_color_correction(int gm, int br)
+void video_set_color_correction(int gm, int brx)
 {
-	brightness = br;
+	brightness = brx;
 }
 
 int video_setup_yuv_overlay(const yuv_video_mode *mode)
