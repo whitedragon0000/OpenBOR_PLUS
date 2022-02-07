@@ -615,7 +615,7 @@ static void handle_events()
                         touch_info.pstatus[i] = TOUCH_STATUS_DOWN;
 						
                         // migration for White Dragon's vibration logic from SDLActivity.java
-                        if (is_touchpad_vibration_enabled() &&
+                        if (is_touchpad_vibration_enabled() && keyboardDeviceID >= 0 &&
                             is_touch_area(touch_info.px[i], touch_info.py[i]))
                         {
                           jniutils_vibrate_device(savedata.touchpad_vibration_intensity);
