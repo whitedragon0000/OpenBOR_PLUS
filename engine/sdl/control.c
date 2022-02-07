@@ -236,11 +236,13 @@ void control_init()
     int joystickCount = 0;
     for (int i = 0; i < numJoysticks; i++)
     {
+        #ifdef ANDROID
         // blacklist the Android accelerometer that SDL counts as a "joystick"
         if (0 == stricmp(ANDROID_ACCELEROMETER, SDL_JoystickNameForIndex(i)))
         {
             continue;
         }
+        #endif
 
         setup_joystick(joystickCount, i);
         joystickCount++;
@@ -411,11 +413,13 @@ static void handle_events()
                 }
                 else
                 {
+                    #ifdef ANDROID
                     // blacklist the Android accelerometer that SDL counts as a "joystick"
                     if (0 == stricmp(ANDROID_ACCELEROMETER, SDL_JoystickNameForIndex(ev.jdevice.which)))
                     {
                         break;
                     }
+                    #endif
 
                     SDL_Joystick *joystick = SDL_JoystickOpen(ev.jdevice.which);
                     for (int i = 0; i < MAX_DEVICES; i++)
@@ -456,11 +460,13 @@ static void handle_events()
                both kinds of controllers/joysticks. */
             case SDL_JOYDEVICEREMOVED:
             {
+                #ifdef ANDROID
                 // blacklist the Android accelerometer that SDL counts as a "joystick"
                 if (0 == stricmp(ANDROID_ACCELEROMETER, SDL_JoystickNameForIndex(ev.jdevice.which)))
                 {
                     break;
                 }
+                #endif
 
                 for (int i = 0; i < MAX_DEVICES; i++)
                 {
@@ -628,8 +634,8 @@ static void handle_events()
                         touch_info.pstatus[i] = TOUCH_STATUS_DOWN;
 						
                         // migration for White Dragon's vibration logic from SDLActivity.java
-                        if (is_touchpad_vibration_enabled() && keyboardDeviceID >= 0 &&
-                            is_touch_area(touch_info.px[i], touch_info.py[i]))
+                        if (is_touchpad_vibration_enabled() && keyboardDeviceID >= 0
+                                && is_touch_area(touch_info.px[i], touch_info.py[i]))
                         {
                           jniutils_vibrate_device(savedata.touchpad_vibration_intensity);
                         }

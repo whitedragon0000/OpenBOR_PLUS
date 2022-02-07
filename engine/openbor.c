@@ -38905,7 +38905,7 @@ void safe_set(int *arr, int index, int newkey, int oldkey)
     arr[index] = newkey;
 }
 
-void keyboard_setup(int player)
+void keyboard_setup(int player_index)
 {
     const int btnnum = MAX_BTN_NUM;
     int quit = 0, sdid = 0,
@@ -38990,11 +38990,11 @@ void keyboard_setup(int player)
 
     while(!quit)
     {
-        int deviceID = playercontrolpointers[player]->deviceID;
+        int deviceID = playercontrolpointers[player_index]->deviceID;
         int *mapping = control_getmappings(deviceID);
 
         voffset = -6;
-        _menutextm(2, -8, 0, Tr("Player %i"), player + 1);
+        _menutextm(2, -8, 0, Tr("Player %i"), player_index + 1);
         for(i = 0; i < btnnum; i++)
         {
             if(!disabledkey[i])
@@ -39006,10 +39006,10 @@ void keyboard_setup(int player)
         }
         #if SDL || WII
         ++voffset;
-        if(savedata.joyrumble[player])
+        if(savedata.joyrumble[player_index])
         {
             _menutext((selector == OPTIONS_NUM - 3), col1, voffset++, Tr("Rumble Enabled"));
-            if (savedata.joyrumble[player]) control_rumble(playercontrolpointers, player, 1, 100);
+            if (savedata.joyrumble[player_index]) control_rumble(playercontrolpointers, player_index, 1, 100);
         }
         else
         {
@@ -39022,6 +39022,7 @@ void keyboard_setup(int player)
         _menutextm((selector == OPTIONS_NUM), ++voffset, 0, Tr("Default"));
         update((level != NULL), 0);
 
+        //debug_printf("settings: %d, %d", setting, selector);
         if(setting > -1)
         {
             k = control_getremappedkey();
@@ -39031,7 +39032,7 @@ void keyboard_setup(int player)
                 sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
 
                 // Prevent the newly configured button from counting as "pressed" and starting config again
-                playercontrolpointers[player]->keyflags |= (1 << setting);
+                playercontrolpointers[player_index]->keyflags |= (1 << setting);
 
                 setting = -1;
                 control_remapdevice(-1);
@@ -39079,21 +39080,24 @@ void keyboard_setup(int player)
                 while(disabledkey[selector]) if(++selector > btnnum - 1) break;
             }
 
-            #if SDL || WII || DC
-            if (selector == OPTIONS_NUM - 3 && (bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON)))
+            #if SDL || WII
+            if (bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
             #else
-            if(bothnewkeys & (FLAG_ANYBUTTON))
-            {
-                // TODO: make rumble enable/disable a property of device, not player
-                sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
-                savedata.joyrumble[player] = !savedata.joyrumble[player];
-            }
-            else
-			#endif
-            if (bothnewkeys & FLAG_ANYBUTTON)
+            if (bothnewkeys & (FLAG_ANYBUTTON))
+            #endif
             {
                 sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
 
+                #if SDL || WII
+                if (selector != OPTIONS_NUM - 3
+                        && bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT)) continue;
+
+                if(selector == OPTIONS_NUM - 3)
+                {
+                    savedata.joyrumble[player_index] = !savedata.joyrumble[player_index];
+                }
+                else
+                #endif
                 if(selector == OPTIONS_NUM - 2) // OK
                 {
                     quit = 2;
@@ -39105,7 +39109,7 @@ void keyboard_setup(int player)
                 else if(selector == OPTIONS_NUM) // default
                 {
                     control_resetmappings(deviceID);
-                    savedata.joyrumble[player] = 0;
+                    savedata.joyrumble[player_index] = 0;
                 }
                 else
                 {
@@ -39133,7 +39137,7 @@ void keyboard_setup(int player)
 }
 
 // Set device safely (with switching)
-static void safe_set_device(int player, int newdevice, int olddevice)
+static void safe_set_device(int player_index, int newdevice, int olddevice)
 {
     int i;
     for (i = 0; i < levelsets[current_set].maxplayers; i++)
@@ -39143,7 +39147,7 @@ static void safe_set_device(int player, int newdevice, int olddevice)
             playercontrolpointers[i]->deviceID = olddevice;
         }
     }
-    playercontrolpointers[player]->deviceID = newdevice;
+    playercontrolpointers[player_index]->deviceID = newdevice;
 }
 
 void menu_options_input()
@@ -39156,12 +39160,19 @@ void menu_options_input()
     const int base = -4 + (4 - max_players);
     int active_devices = 0;
     int selected_device = playercontrolpointers[0]->deviceID;
+    int OPTIONS_NUM = max_players + 1;
     #if ANDROID
     int dir = 0;
-    int OPTIONS_NUM = 10;
-    #else
-    const int OPTIONS_NUM = 7;
+    OPTIONS_NUM += 3;
     #endif
+
+    for (int i = 0; i < max_players; i++)
+    {
+        if (control_isvaliddevice(playercontrolpointers[i]->deviceID))
+        {
+            ++OPTIONS_NUM;
+        }
+    }
 
     controloptionsMenu = 1;
     bothnewkeys = 0;
@@ -39173,7 +39184,7 @@ void menu_options_input()
         for (int i = 0; i < max_players; i++)
         {
             _menutext((selector == i), col1, base + i + (selector < i), Tr("Player %i"), i+1);
-            _menutext((selector == i), col2, base + i + (selector < i), "< %s >",
+            _menutext((selector == i), col2, base + i + (selector < i), "%s",
                       control_getdevicename(selector == i ? selected_device : playercontrolpointers[i]->deviceID));
         }
 
@@ -39187,7 +39198,7 @@ void menu_options_input()
         {
             if (control_isvaliddevice(playercontrolpointers[i]->deviceID))
             {
-                _menutextm((selector == 4+i), 1 + active_devices, 0, Tr("Setup Player %i..."), i + 1);
+                _menutextm((selector == max_players + i), 1 + active_devices, 0, Tr("Setup Player %i..."), i + 1);
                 ++active_devices;
             }
         }
@@ -39195,31 +39206,29 @@ void menu_options_input()
         #if ANDROID
         if (savedata.is_touchpad_vibration_enabled)
         {
-            _menutextm((selector == 8), 2 + active_devices, 0, Tr("Touchpad Vibration Enabled"));
+            _menutextm((selector == max_players + active_devices + 1), 2 + active_devices, 0, Tr("Touchpad Vibration Enabled"));
         }
         else
         {
-            _menutextm((selector == 8), 2 + active_devices, 0, Tr("Touchpad Vibration Disabled"));
+            _menutextm((selector == max_players + active_devices + 1), 2 + active_devices, 0, Tr("Touchpad Vibration Disabled"));
         }
-        _menutextm((selector == 6), 5, 0, Tr("Touchpad Vibration Intensity: %d%%"), savedata.touchpad_vibration_intensity);
+        _menutextm((selector == max_players + active_devices + 2), 3 + active_devices, 0, Tr("Touchpad Vibration Intensity: %d%%"), savedata.touchpad_vibration_intensity);
         if(savedata.is_touchpad_visible)
         {
-            _menutextm((selector == 7), 6, 0, Tr("Touchpad Visible"));
+            _menutextm((selector == max_players + active_devices + 3), 4 + active_devices, 0, Tr("Touchpad Visible"));
         }
         else
         {
-            _menutextm((selector == 7), 6, 0, Tr("Touchpad Hidden"));
+            _menutextm((selector == max_players + active_devices + 3), 4 + active_devices, 0, Tr("Touchpad Hidden"));
         }
-        _menutextm((selector == 8), 8, 0, Tr("Back"));
+        _menutextm((selector == max_players + active_devices + 4 ), 6 + active_devices, 0, Tr("Back"));
         #else
-        _menutextm((selector == 8), 2 + active_devices, 0, Tr("Back"));
+        _menutextm((selector == max_players + active_devices + 1), 2 + active_devices, 0, Tr("Back"));
         #endif
 
         update((level != NULL), 0);
 
-        #if ANDROID
-        dir = 0;
-        #endif
+        //debug_printf("selector: %d", selector);
         if(bothnewkeys & FLAG_ESC)
         {
             quit = 1;
@@ -39233,15 +39242,10 @@ void menu_options_input()
             }
 
             // skip over invisible configuration entries for non-existent devices
-            while (selector >= 4 && selector <= 7 && !control_isvaliddevice(selector - 4))
+            while (selector >= max_players && selector <= max_players + active_devices
+                        && !control_isvaliddevice(selector - max_players))
             {
                 --selector;
-            }
-
-            // skip over invisible device selection entries for non-existent players
-            if (selector < 4 && selector >= max_players)
-            {
-                selector = max_players - 1;
             }
         }
         if (bothnewkeys & FLAG_MOVEDOWN)
@@ -39252,28 +39256,14 @@ void menu_options_input()
                 sound_play_sample(SAMPLE_BEEP, 0, savedata.effectvol, savedata.effectvol, 100);
             }
 
-            // skip over invisible device selection entries for non-existent players
-            if (selector < 4 && selector >= max_players)
-            {
-                selector = 4;
-            }
-
             // skip over invisible configuration entries for non-existent devices
-            while (selector >= 4 && selector <= 7 && !control_isvaliddevice(selector - 4))
+            while (selector >= max_players && selector <= max_players + active_devices
+                        && !control_isvaliddevice(selector - max_players))
             {
                 ++selector;
             }
         }
-        #if ANDROID
-        if(bothnewkeys & FLAG_MOVELEFT)
-        {
-            dir = -1;
-        }
-        else if(bothnewkeys & FLAG_MOVERIGHT)
-        {
-            dir = 1;
-        }
-        #endif
+
         if(selector < 0)
         {
             selector = OPTIONS_NUM;
@@ -39282,15 +39272,22 @@ void menu_options_input()
         {
             selector = 0;
         }
-        if (selector < 4 && (bothnewkeys & (FLAG_MOVEUP | FLAG_MOVEDOWN)))
+        if (selector < max_players && (bothnewkeys & (FLAG_MOVEUP | FLAG_MOVEDOWN)))
         {
             selected_device = playercontrolpointers[selector]->deviceID;
         }
 
+        #ifdef ANDROID
+        if (bothnewkeys & FLAG_MOVELEFT) dir = -1;
+        else if (bothnewkeys & FLAG_MOVERIGHT) dir = 1;
+        else dir = 0;
+        #endif
+
         if (bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
         {
             // Left/right only make sense for device reassignment
-            if (selector >= 4 && !(bothnewkeys & FLAG_ANYBUTTON))
+            if (selector >= max_players && selector <= max_players + active_devices
+                    && !(bothnewkeys & FLAG_ANYBUTTON))
             {
                 continue;
             }
@@ -39300,12 +39297,9 @@ void menu_options_input()
                 sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
             }
 
-            switch (selector)
+            // actions
+            if (selector < max_players)
             {
-            case 0:
-            case 1:
-            case 2:
-            case 3:
                 if (bothnewkeys & FLAG_MOVELEFT)
                 {
                     do {
@@ -39331,39 +39325,21 @@ void menu_options_input()
                     // assign selected device to player
                     safe_set_device(selector, selected_device, playercontrolpointers[selector]->deviceID);
                 }
-                break;
-            case 4:
-                keyboard_setup(0);
-                break;
-            case 5:
-                keyboard_setup(1);
-                break;
-            case 6:
-                keyboard_setup(2);
-                break;
-            case 7:
-                keyboard_setup(3);
-                break;
+            } else if (selector >= max_players && selector <= max_players + active_devices) {
+                keyboard_setup(selector - max_players);
+            }
             #if ANDROID
-            case 8:
+            else if (selector == max_players + active_devices + 1) {
                 savedata.is_touchpad_vibration_enabled = !savedata.is_touchpad_vibration_enabled;
-                break;
-            case 9:
+            } else if (selector == max_players + active_devices + 2) {
                 savedata.touchpad_vibration_intensity += 5 * dir;
-                if(savedata.touchpad_vibration_intensity < 0)
-                {
-                    savedata.touchpad_vibration_intensity = 0;
-                }
-                if(savedata.touchpad_vibration_intensity > 100)
-                {
-                    savedata.touchpad_vibration_intensity = 100;
-                }
-                break;
-            case 10:
-                savedata.is_touchpad_visible ^= 1;
-                break;
+                if (savedata.touchpad_vibration_intensity < 0) savedata.touchpad_vibration_intensity = 0;
+                else if (savedata.touchpad_vibration_intensity > 100) savedata.touchpad_vibration_intensity = 100;
+            } else if (selector == max_players + active_devices + 3) {
+                savedata.is_touchpad_visible = !savedata.is_touchpad_visible;
+            }
             #endif
-            default:
+            else {
                 quit = (bothnewkeys & FLAG_ANYBUTTON);
             }
         }
