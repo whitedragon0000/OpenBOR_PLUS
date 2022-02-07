@@ -75,13 +75,13 @@ void initSDL()
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
     //atexit(SDL_Quit); //White Dragon: use SDL_Quit() into sdlport.c it's best practice!
 
-    setNativeScreenSize(0);
+    set_native_screen_size(0);
 
     // Hardcode full screen mode
     savedata.fullscreen = 1;
 }
 
-void setNativeScreenSize(int is_system_bars_visible)
+void set_native_screen_size(int is_system_bars_visible)
 {
     SDL_DisplayMode mode;
     const char *var = SDL_getenv("SDL_VIDEO_FULLSCREEN_DISPLAY");
@@ -585,6 +585,14 @@ void blit()
     SDL_RenderPresent(renderer);
 }
 
+void reset_touchstates()
+{
+    for(int i = 0; i < MAXTOUCHB; i++)
+    {
+        touchstates[i] = 0;
+    }
+}
+
 int video_copy_screen(s_screen *src)
 {
     s_videosurface *surface = getVideoSurface(src);
@@ -657,7 +665,7 @@ void on_system_ui_visibility_change_event(int is_system_bars_visible)
 {
 	if (window && renderer)
 	{
-		setNativeScreenSize(is_system_bars_visible);
+        set_native_screen_size(is_system_bars_visible);
 		SDL_SetWindowSize(window, nativeWidth, nativeHeight);
         if (!setup_touch())
         {

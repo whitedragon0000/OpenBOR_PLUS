@@ -918,5 +918,9 @@ void Menu()
 
 	// Restore pixelformat default value.
 	pixelformat = PIXEL_x8;
+
+	#ifdef ANDROID
+    reset_touchstates();
+	#endif
 }
 

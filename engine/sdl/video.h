@@ -34,8 +34,9 @@ int video_prepare_yuv_frame(yuv_frame*);
 int video_display_yuv_frame(void);
 
 #ifdef ANDROID
-void setNativeScreenSize(int);
+void set_native_screen_size(int);
 void on_system_ui_visibility_change_event(int);
+void reset_touchstates(void);
 #endif
 
 #endif
