@@ -19,6 +19,7 @@
 #define AXIS_THRESHOLD 7000
 
 #ifdef ANDROID
+#define ANDROID_ACCELEROMETER "Android Accelerometer"
 #include "jniutils.h"
 #endif
 
@@ -73,7 +74,7 @@ extern int nativeWidth;
 extern int nativeHeight;
 static TouchStatus touch_info;
 
-static void control_update_android_touch(TouchStatus *touch_info, int maxp);
+static void control_update_android_touch(TouchStatus *m_touch_info, int maxp);
 #endif
 
 // update the mappings for a device in the save data
@@ -236,7 +237,7 @@ void control_init()
     for (int i = 0; i < numJoysticks; i++)
     {
         // blacklist the Android accelerometer that SDL counts as a "joystick"
-        if (0 == stricmp("Android Accelerometer", SDL_JoystickNameForIndex(i)))
+        if (0 == stricmp(ANDROID_ACCELEROMETER, SDL_JoystickNameForIndex(i)))
         {
             continue;
         }
@@ -410,6 +411,12 @@ static void handle_events()
                 }
                 else
                 {
+                    // blacklist the Android accelerometer that SDL counts as a "joystick"
+                    if (0 == stricmp(ANDROID_ACCELEROMETER, SDL_JoystickNameForIndex(ev.jdevice.which)))
+                    {
+                        break;
+                    }
+
                     SDL_Joystick *joystick = SDL_JoystickOpen(ev.jdevice.which);
                     for (int i = 0; i < MAX_DEVICES; i++)
                     {
@@ -449,6 +456,12 @@ static void handle_events()
                both kinds of controllers/joysticks. */
             case SDL_JOYDEVICEREMOVED:
             {
+                // blacklist the Android accelerometer that SDL counts as a "joystick"
+                if (0 == stricmp(ANDROID_ACCELEROMETER, SDL_JoystickNameForIndex(ev.jdevice.which)))
+                {
+                    break;
+                }
+
                 for (int i = 0; i < MAX_DEVICES; i++)
                 {
                     if (devices[i].deviceType == DEVICE_TYPE_CONTROLLER &&
@@ -901,7 +914,7 @@ extern float br[MAXTOUCHB];
 extern unsigned touchstates[MAXTOUCHB];
 int hide_t = 5000;
 
-static void control_update_android_touch(TouchStatus *touch_info, int maxp)
+static void control_update_android_touch(TouchStatus *m_touch_info, int maxp)
 {
     if (keyboardDeviceID < 0) return;
     #define pc(x) devices[keyboardDeviceID].mappings[x]
@@ -928,7 +941,7 @@ static void control_update_android_touch(TouchStatus *touch_info, int maxp)
     #define tanb 1.732051f
     for (i=0; i<maxp; i++)
     {
-        if(touch_info->pstatus[i] == TOUCH_STATUS_UP) continue;
+        if(m_touch_info->pstatus[i] == TOUCH_STATUS_UP) continue;
 
         event.type = SDL_KEYDOWN;
         event.key.type = SDL_KEYDOWN;
@@ -936,8 +949,8 @@ static void control_update_android_touch(TouchStatus *touch_info, int maxp)
         event.key.state = SDL_PRESSED;
         event.key.repeat = 0;
 
-        tx = touch_info->px[i]-dirx;
-        ty = touch_info->py[i]-diry;
+        tx = m_touch_info->px[i] - dirx;
+        ty = m_touch_info->py[i] - diry;
         tr = tx*tx + ty*ty;
 
         //direction button logic is different, check a ring instead of individual buttons
@@ -1042,8 +1055,8 @@ static void control_update_android_touch(TouchStatus *touch_info, int maxp)
             if(j==SDID_MOVERIGHT || j==SDID_MOVEUP ||
                 j==SDID_MOVELEFT || j==SDID_MOVEDOWN)
                 continue;
-            tx = touch_info->px[i]-bx[j];
-            ty = touch_info->py[i]-by[j];
+            tx = m_touch_info->px[i] - bx[j];
+            ty = m_touch_info->py[i] - by[j];
             tr = tx*tx + ty*ty;
             if(tr<=r[j])
             {
