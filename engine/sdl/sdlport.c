@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
         {
             for (int i = strlen(argv[0]); i >= 0; i--) {
                 if (game_absolute_filename[i] == '\\' || game_absolute_filename[i] == '/') {
-                    strncpy(game_filename, game_absolute_filename + i, strlen(game_absolute_filename) - 1);
+                    strncpy(game_filename, game_absolute_filename + i + 1, strlen(game_absolute_filename) - 1);
                     break;
                 }
             }
@@ -266,7 +266,8 @@ int main(int argc, char *argv[])
                strcpy(game_filename, game_absolute_filename);
             }
 
-            getBasePath(packfile, game_filename, 1);
+            //getBasePath(packfile, game_filename, 1);
+			strcpy(packfile, game_absolute_filename);
             // Restore pixelformat default value.
             pixelformat = PIXEL_x8;
         }
