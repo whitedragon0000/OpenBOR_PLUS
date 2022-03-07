@@ -935,7 +935,7 @@ endif
 
 version:
 	@echo "-------------------------------------------------------"
-	@echo "OpenBOR $(VERSION) - http://www.ChronoCrash.com"
+	@echo "OpenBOR PLUS $(VERSION) - http://www.ChronoCrash.com"
 	@echo
 	@echo "All rights reserved."
 	@echo "See LICENSE and README within OpenBOR root for details."

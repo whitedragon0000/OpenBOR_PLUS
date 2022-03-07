@@ -32,7 +32,7 @@ static SDL_Texture *texture = NULL;
 s_videomodes stored_videomodes;
 yuv_video_mode stored_yuv_mode;
 int yuv_mode = 0;
-char windowTitle[MAX_LABEL_LEN] = {"OpenBOR"};
+char windowTitle[MAX_LABEL_LEN] = {"OpenBOR PLUS"};
 int stretch = 0;
 int opengl = 0; // OpenGL backend currently in use?
 int nativeWidth, nativeHeight; // monitor resolution used in fullscreen mode
