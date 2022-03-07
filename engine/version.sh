@@ -46,7 +46,7 @@ function read_version {
 check_git
 get_revnum
 VERSION_NAME="OpenBOR"
-VERSION_MAJOR=3
+VERSION_MAJOR=4
 VERSION_MINOR=0
 VERSION_DATE=`date '+%Y%m%d%H%M%S'`
 
@@ -106,7 +106,7 @@ echo "<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
   <key>Author</key>
-  <string>Damon Caskey</string>
+  <string>White Dragon</string>
   <key>Description</key>
   <string>The Ultimate 2D Game Engine</string>
   <key>ExtendedDescription</key>
@@ -116,7 +116,7 @@ echo "<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleShortVersionString</key>
   <string>$VERSION_MAJOR.$VERSION_MINOR</string>
   <key>NSHumanReadableCopyright</key>
-  <string>The Ultimate 2D Game Engine. Presented by Damon V. Caskey.
+  <string>The Ultimate 2D Game Engine. Presented by White Dragon.
 
 Beats of Rage © SenileTeam
 OpenBOR © ChronoCrash
@@ -126,7 +126,7 @@ All Rights Reserved</string>
   <key>CFBundleSignature</key>
   <string>OBOR</string>
   <key>CFBundleName</key>
-  <string>OpenBOR</string>
+  <string>OpenBOR PLUS</string>
   <key>CFBundleExecutable</key>
   <string>OpenBOR</string>
   <key>CFBundleVersion</key>
@@ -182,7 +182,7 @@ function archive_release {
 #  TRIMMED_URL="svn"$TRIMMED_URL
 #fi
 #svn log  $TRIMMED_URL --verbose > ./releases/VERSION_INFO.txt
-7za a -t7z -mx9 -r -x!.svn "./releases/OpenBOR $VERSION.7z" ./releases/*
+7za a -t7z -mx9 -r -x!.svn "./releases/OpenBOR PLUS $VERSION.7z" ./releases/*
 }
 
 export LC_MESSAGES=en_US.UTF-8
@@ -193,7 +193,7 @@ case $1 in
 1)
     read_version
     echo ------------------------------------------------------
-    echo "      Creating Archive OpenBOR $VERSION.7z"
+    echo "      Creating Archive OpenBOR PLUS $VERSION.7z"
     echo ------------------------------------------------------
     archive_release
     ;;

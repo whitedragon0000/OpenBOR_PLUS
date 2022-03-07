@@ -95,7 +95,7 @@ if test -e "releases/WINDOWS/OpenBOR/OpenBOR.exe"; then
       TRIMMED_URL="svn"$TRIMMED_URL
     fi
     svn log $TRIMMED_URL --verbose > ./releases/VERSION_INFO.txt
-    7za a -t7z -mx9 -r -x!.svn "./releases/OpenBOR $VERSION.7z" ./releases/*
+    7za a -t7z -mx9 -r -x!.svn "./releases/OpenBOR PLUS $VERSION.7z" ./releases/*
   fi
   echo
 }
