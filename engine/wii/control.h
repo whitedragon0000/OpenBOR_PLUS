@@ -14,6 +14,7 @@
 
 // 32 is an arbitrary number larger than the number of input devices that will ever be available
 #define MAX_DEVICES                32
+#define MAX_PORTS                   4
 #define CONTROL_DEVICE_NAME_SIZE   64
 
 #define	CONTROL_NONE				(1+(MAX_BUTTONS*99)) //Kratus (20-04-21) value used to clear all keys

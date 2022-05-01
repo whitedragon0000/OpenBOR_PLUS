@@ -34,7 +34,7 @@ typedef struct {
 static InputDevice devices[MAX_DEVICES];
 static bool controlInited = false;
 
-static int controllerIDs[4] = {-1, -1, -1, -1};
+static int controllerIDs[MAX_PORTS] = {-1, -1, -1, -1};
 
 // if non-null, device is being remapped in the input settings menu
 static InputDevice *remapDevice = NULL;
@@ -245,7 +245,7 @@ static DeviceType device_type_for_expansion_type(int expansion)
 // handle controller connected/disconnected
 static void handle_events()
 {
-    for (size_t port = 0; port < 4; port++)
+    for (size_t port = 0; port < MAX_PORTS; port++)
     {
 		padInfo2 padinfo2;
 		
