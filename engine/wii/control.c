@@ -49,7 +49,7 @@ typedef struct {
 static InputDevice devices[MAX_DEVICES];
 static bool controlInited = false;
 
-static int wiimoteIDs[4] = {-1, -1, -1, -1};
+static int wiimoteIDs[MAX_PORTS] = {-1, -1, -1, -1};
 
 // if non-null, device is being remapped in the input settings menu
 static InputDevice *remapDevice = NULL;
@@ -264,7 +264,7 @@ static void handle_events()
 {
     WPAD_ScanPads();
 
-    for (size_t port = 0; port < 4; port++)
+    for (size_t port = 0; port < MAX_PORTS; port++)
     {
         u32 type;
         if (WPAD_Probe(port, &type) == WPAD_ERR_NO_CONTROLLER) // wiimote disconnected

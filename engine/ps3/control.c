@@ -34,7 +34,7 @@ typedef struct {
 static InputDevice devices[MAX_DEVICES];
 static bool controlInited = false;
 
-static int controllerIDs[4] = {-1, -1, -1, -1};
+static int controllerIDs[MAX_PORTS] = {-1, -1, -1, -1};
 
 // if non-null, device is being remapped in the input settings menu
 static InputDevice *remapDevice = NULL;
@@ -245,7 +245,7 @@ static DeviceType device_type_for_expansion_type(int expansion)
 // handle controller connected/disconnected
 static void handle_events()
 {
-    for (size_t port = 0; port < 4; port++)
+    for (size_t port = 0; port < MAX_PORTS; port++)
     {
 		padInfo2 padinfo2;
 		
@@ -297,32 +297,13 @@ unsigned int getPad(int port)
 	ioPadGetInfo2(&padinfo2);
 
 	u32 type = padinfo2.device_type[port];
-	if (type == PAD_TYPE_STANDARD
-		|| type == PAD_TYPE_LDD)
-	{
-			 if (paddata[port].ANA_L_V > ANAG_STAND + PAD_STICK_DEADZONE)   btns |= PS3_DPAD_DOWN;
-		else if (paddata[port].ANA_L_V < ANAG_STAND - PAD_STICK_DEADZONE)   btns |= PS3_DPAD_UP;
-			 if (paddata[port].ANA_L_H < ANAG_STAND - PAD_STICK_DEADZONE)   btns |= PS3_DPAD_LEFT;
-		else if (paddata[port].ANA_L_H > ANAG_STAND + PAD_STICK_DEADZONE)   btns |= PS3_DPAD_RIGHT;
 
-		if (paddata[port].BTN_SELECT)   btns |= PS3_SELECT;
-		if (paddata[port].BTN_START)    btns |= PS3_START;
-		if (paddata[port].BTN_UP)	    btns |= PS3_DPAD_UP;
-		if (paddata[port].BTN_RIGHT)    btns |= PS3_DPAD_RIGHT;
-		if (paddata[port].BTN_DOWN)     btns |= PS3_DPAD_DOWN;
-		if (paddata[port].BTN_LEFT)     btns |= PS3_DPAD_LEFT;
-		if (paddata[port].BTN_TRIANGLE) btns |= PS3_TRIANGLE;
-		if (paddata[port].BTN_CIRCLE)   btns |= PS3_CIRCLE;
-		if (paddata[port].BTN_CROSS)	btns |= PS3_CROSS;
-		if (paddata[port].BTN_SQUARE)   btns |= PS3_SQUARE;
-		if (paddata[port].BTN_L2)       btns |= PS3_L2;
-		if (paddata[port].BTN_R2)       btns |= PS3_R2;
-		if (paddata[port].BTN_L1)       btns |= PS3_L1;
-		if (paddata[port].BTN_R1)       btns |= PS3_R1;
-		if (paddata[port].BTN_L3)       btns |= PS3_L3;
-		if (paddata[port].BTN_R3)       btns |= PS3_R3;
-	}
-	else if (type == PAD_TYPE_LDD)
+            if (paddata[port].ANA_L_V > ANAG_STAND + PAD_STICK_DEADZONE)   btns |= PS3_DPAD_DOWN;
+    else if (paddata[port].ANA_L_V < ANAG_STAND - PAD_STICK_DEADZONE)   btns |= PS3_DPAD_UP;
+            if (paddata[port].ANA_L_H < ANAG_STAND - PAD_STICK_DEADZONE)   btns |= PS3_DPAD_LEFT;
+    else if (paddata[port].ANA_L_H > ANAG_STAND + PAD_STICK_DEADZONE)   btns |= PS3_DPAD_RIGHT;
+
+	if (type == PAD_TYPE_REMOTE)
 	{	
 		if (paddata[port].BTN_BDCODE & BTN_BD_SELECT)   btns |= PS3_SELECT;
 		if (paddata[port].BTN_BDCODE & BTN_BD_START)    btns |= PS3_START;
@@ -340,6 +321,25 @@ unsigned int getPad(int port)
 		if (paddata[port].BTN_BDCODE & BTN_BD_R1)       btns |= PS3_R1;
 		if (paddata[port].BTN_BDCODE & BTN_BD_L3)       btns |= PS3_L3;
 		if (paddata[port].BTN_BDCODE & BTN_BD_R3)       btns |= PS3_R3;
+	}
+    else// if (type == PAD_TYPE_STANDARD || type == PAD_TYPE_LDD)
+	{
+		if (paddata[port].BTN_SELECT)   btns |= PS3_SELECT;
+		if (paddata[port].BTN_START)    btns |= PS3_START;
+		if (paddata[port].BTN_UP)	    btns |= PS3_DPAD_UP;
+		if (paddata[port].BTN_RIGHT)    btns |= PS3_DPAD_RIGHT;
+		if (paddata[port].BTN_DOWN)     btns |= PS3_DPAD_DOWN;
+		if (paddata[port].BTN_LEFT)     btns |= PS3_DPAD_LEFT;
+		if (paddata[port].BTN_TRIANGLE) btns |= PS3_TRIANGLE;
+		if (paddata[port].BTN_CIRCLE)   btns |= PS3_CIRCLE;
+		if (paddata[port].BTN_CROSS)	btns |= PS3_CROSS;
+		if (paddata[port].BTN_SQUARE)   btns |= PS3_SQUARE;
+		if (paddata[port].BTN_L2)       btns |= PS3_L2;
+		if (paddata[port].BTN_R2)       btns |= PS3_R2;
+		if (paddata[port].BTN_L1)       btns |= PS3_L1;
+		if (paddata[port].BTN_R1)       btns |= PS3_R1;
+		if (paddata[port].BTN_L3)       btns |= PS3_L3;
+		if (paddata[port].BTN_R3)       btns |= PS3_R3;
 	}
 
 	return btns;
