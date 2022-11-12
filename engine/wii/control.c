@@ -15,6 +15,7 @@
 #include <wiiuse/wpad.h>
 #include <ogc/pad.h>
 #include <ogc/system.h>
+#include "wupc/wupc.h"
 #include "globals.h"
 #include "control.h"
 #include "openbor.h"
@@ -28,6 +29,10 @@
 #define LEFT_STICK_DOWN  -2
 #define LEFT_STICK_LEFT  -3
 #define LEFT_STICK_RIGHT -4
+#define LEFT_SUBSTICK_UP    -5
+#define LEFT_SUBSTICK_DOWN  -6
+#define LEFT_SUBSTICK_LEFT  -7
+#define LEFT_SUBSTICK_RIGHT -8
 
 typedef enum {
     DEVICE_TYPE_NONE,
@@ -58,6 +63,12 @@ static int remapKeycode = -1;
 // each list member is an array of SDID_COUNT ints, dynamically allocated
 static List savedMappings;
 static bool savedMappingsInited = false;
+
+// rumble
+static int using_gc[MAX_PORTS];
+static int rumbling[MAX_PORTS];
+static long long unsigned rumble_msec[MAX_PORTS];
+static long long unsigned time2rumble[MAX_PORTS];
 
 static const char *deviceTypeNames[] = {
     "None",
@@ -140,13 +151,19 @@ void control_init()
         List_Init(&savedMappings);
         savedMappingsInited = true;
     }
+	
+	for (int i = 0; i < MAX_PORTS; i++)
+    {
+		rumbling[i] = 0;
+		rumble_msec[i] = 0;
+    }
 
     // initialize all devices to DEVICE_TYPE_NONE and all device IDs to -1
     memset(devices, 0, sizeof(devices));
     memset(wiimoteIDs, 0xff, sizeof(wiimoteIDs));
 
-    //PAD_Init();
-	//WUPC_Init();
+    PAD_Init();
+	WUPC_Init();
 	WPAD_Init();
 
     handle_events();
@@ -164,6 +181,12 @@ void control_exit()
     {
         InputDevice *device = &devices[i];
         device->deviceType = DEVICE_TYPE_NONE;
+    }
+	
+	for (int i = 0; i < MAX_PORTS; i++)
+    {
+		rumbling[i] = 0;
+		rumble_msec[i] = 0;
     }
 
     remapDevice = NULL;
@@ -223,6 +246,23 @@ static void set_default_classic_controller_mappings(InputDevice *device)
     device->mappings[SDID_ESC]        = WPAD_CLASSIC_BUTTON_B;
 }
 
+static void set_default_gamecube_controller_mappings(InputDevice *device)
+{
+    device->mappings[SDID_MOVEUP]     = PAD_BUTTON_UP;
+    device->mappings[SDID_MOVEDOWN]   = PAD_BUTTON_DOWN;
+    device->mappings[SDID_MOVELEFT]   = PAD_BUTTON_LEFT;
+    device->mappings[SDID_MOVERIGHT]  = PAD_BUTTON_RIGHT;
+    device->mappings[SDID_ATTACK]     = PAD_BUTTON_A;
+    device->mappings[SDID_ATTACK2]    = PAD_BUTTON_Y;
+    device->mappings[SDID_ATTACK3]    = PAD_TRIGGER_R;
+    device->mappings[SDID_ATTACK4]    = PAD_TRIGGER_L;
+    device->mappings[SDID_JUMP]       = PAD_BUTTON_B;
+    device->mappings[SDID_SPECIAL]    = PAD_BUTTON_X;
+    device->mappings[SDID_START]      = PAD_BUTTON_START;
+    device->mappings[SDID_SCREENSHOT] = PAD_BUTTON_MENU;
+    device->mappings[SDID_ESC]        = PAD_TRIGGER_Z;
+}
+
 void control_resetmappings(int deviceID)
 {
     if (deviceID < 0) return;
@@ -231,21 +271,30 @@ void control_resetmappings(int deviceID)
     switch (device->deviceType)
     {
         case DEVICE_TYPE_WII_REMOTE:
+			using_gc[device->port] = 0;
             set_default_wiimote_mappings(device);
             break;
         case DEVICE_TYPE_WIIMOTE_NUNCHUK:
+		using_gc[device->port] = 0;
             set_default_wiimote_nunchuk_mappings(device);
             break;
         case DEVICE_TYPE_CLASSIC_CONTROLLER:
+		case DEVICE_TYPE_PRO_CONTROLLER:
+		using_gc[device->port] = 0;
             set_default_classic_controller_mappings(device);
             break;
+        case DEVICE_TYPE_GAMECUBE_CONTROLLER:
+			using_gc[device->port] = 1;
+            set_default_gamecube_controller_mappings(device);
+            break;
         default:
+			using_gc[device->port] = 0;
             memset(device->mappings, 0, sizeof(device->mappings));
             break;
     }
 }
 
-static DeviceType device_type_for_expansion_type(int expansion)
+static DeviceType device_type_for_expansion_type(int expansion, size_t port)
 {
     switch (expansion)
     {
@@ -255,7 +304,11 @@ static DeviceType device_type_for_expansion_type(int expansion)
             return DEVICE_TYPE_CLASSIC_CONTROLLER;
         case WPAD_EXP_NONE:
         default:
+		{
+			struct WUPCData *wupc = WUPC_Data(port);
+			if (wupc != NULL) return DEVICE_TYPE_PRO_CONTROLLER;
             return DEVICE_TYPE_WII_REMOTE;
+		}
     }
 }
 
@@ -263,11 +316,16 @@ static DeviceType device_type_for_expansion_type(int expansion)
 static void handle_events()
 {
     WPAD_ScanPads();
+	PAD_ScanPads();
 
     for (size_t port = 0; port < MAX_PORTS; port++)
     {
         u32 type;
-        if (WPAD_Probe(port, &type) == WPAD_ERR_NO_CONTROLLER) // wiimote disconnected
+		PADStatus status;
+		s32 wii_probe = WPAD_Probe(port, &type);
+		u32 gc_read = PAD_Read(&status);
+		
+        if (wii_probe == WPAD_ERR_NO_CONTROLLER && gc_read == PAD_ERR_NO_CONTROLLER) // pad disconnected
         {
             if (devices[port].deviceType != DEVICE_TYPE_NONE)
             if (wiimoteIDs[port] != -1)
@@ -280,9 +338,9 @@ static void handle_events()
         else
         {
             WPADData *wpad = WPAD_Data(port);
-            DeviceType newType = device_type_for_expansion_type(wpad->exp.type);
+            DeviceType newType = device_type_for_expansion_type(wpad->exp.type, port);
 
-            if (wiimoteIDs[port] == -1) // wiimote connected
+            if (wiimoteIDs[port] == -1) // pad connected
             {
                 for (size_t i = 0; i < MAX_DEVICES; i++)
                 {
@@ -297,10 +355,25 @@ static void handle_events()
                 assert(wiimoteIDs[port] != -1);
             }
 
-            if (newType != devices[wiimoteIDs[port]].deviceType) // wiimote connected or expansion type changed
-            {
-                setup_device(wiimoteIDs[port], newType, deviceTypeNames[newType], port);
-            }
+			if (wii_probe != WPAD_ERR_NO_CONTROLLER)
+			{
+				using_gc[port] = 0;
+				if (newType != devices[wiimoteIDs[port]].deviceType) // wiimote connected or expansion type changed
+				{
+					struct WUPCData *wupc = WUPC_Data(port);
+					if (newType != DEVICE_TYPE_CLASSIC_CONTROLLER && wupc != NULL)
+					{
+						newType = DEVICE_TYPE_PRO_CONTROLLER;
+					}
+					setup_device(wiimoteIDs[port], newType, deviceTypeNames[newType], port);
+				}
+			}
+			else if (gc_read != PAD_ERR_NO_CONTROLLER)
+			{
+				using_gc[port] = 1;
+				newType = DEVICE_TYPE_GAMECUBE_CONTROLLER;
+				setup_device(wiimoteIDs[port], newType, deviceTypeNames[newType], port);
+			}
         }
     }
 }
@@ -325,11 +398,53 @@ static unsigned int is_key_pressed(InputDevice *device, int keycode)
             default:               return !!(wpad->btns_h & keycode);
         }
     }
-    else if (device->deviceType == DEVICE_TYPE_CLASSIC_CONTROLLER)
+    else if (device->deviceType == DEVICE_TYPE_CLASSIC_CONTROLLER || device->deviceType == DEVICE_TYPE_PRO_CONTROLLER)
     {
         // TODO: analog sticks
         WPADData *wpad = WPAD_Data(device->port);
-        return !!(wpad->btns_h & keycode);
+		if (device->deviceType == DEVICE_TYPE_CLASSIC_CONTROLLER)
+		{
+			return !!(wpad->btns_h & keycode);
+		}
+        else
+		{
+			struct WUPCData *wupc;
+			wupc = WUPC_Data(device->port);
+			switch (keycode)
+			{
+				case LEFT_STICK_UP:    return (wupc->yAxisL > 200);
+				case LEFT_STICK_DOWN:  return (wupc->yAxisL < -200);
+				case LEFT_STICK_LEFT:  return (wupc->xAxisL < -200);
+				case LEFT_STICK_RIGHT: return (wupc->xAxisL > 200);
+				case LEFT_SUBSTICK_UP:    return (wupc->yAxisR > 200);
+				case LEFT_SUBSTICK_DOWN:  return (wupc->yAxisR < -200);
+				case LEFT_SUBSTICK_LEFT:  return (wupc->xAxisR < -200);
+				case LEFT_SUBSTICK_RIGHT: return (wupc->xAxisR > 200);
+				default:               return !!(wpad->btns_h & keycode);
+			}
+		}
+    }
+    else if (device->deviceType == DEVICE_TYPE_GAMECUBE_CONTROLLER)
+    {
+		PAD_ScanPads();
+		u16 btns_down = PAD_ButtonsDown(device->port) | PAD_ButtonsHeld(device->port);
+		s8 pad_x = PAD_StickX(device->port);
+		s8 pad_y = PAD_StickY(device->port);
+		s8 spad_x = PAD_SubStickX(device->port);
+		s8 spad_y = PAD_SubStickY(device->port);
+		
+        switch (keycode)
+        {
+            case LEFT_STICK_UP:    return (pad_y > 18);
+            case LEFT_STICK_DOWN:  return (pad_y < -18);
+            case LEFT_STICK_LEFT:  return (pad_x < -18);
+            case LEFT_STICK_RIGHT: return (pad_x > 18);
+            case LEFT_SUBSTICK_UP:    return (spad_y > 18);
+            case LEFT_SUBSTICK_DOWN:  return (spad_y < -18);
+            case LEFT_SUBSTICK_LEFT:  return (spad_x < -18);
+            case LEFT_SUBSTICK_RIGHT: return (spad_x > 18);
+            default:               return !!(btns_down & keycode);
+        }
     }
 
     return 0;
@@ -340,6 +455,19 @@ void control_update_player(s_playercontrols *playerControls)
     uint32_t keyflags = 0;
     InputDevice *device = &devices[playerControls->deviceID];
 
+	if(rumbling[device->port])
+	{
+		long long unsigned msec = 0;
+		if(!msec) msec = ticks_to_millisecs(gettime());
+		if(msec > time2rumble[device->port] + rumble_msec[device->port])
+		{
+			rumbling[device->port] = 0;
+			WPAD_Rumble(device->port, 0);
+			WUPC_Rumble(device->port, false);
+			PAD_ControlMotor(device->port, 0);
+		}
+	}
+	
     for (unsigned int i = 0; i < SDID_COUNT; i++)
     {
         keyflags |= (is_key_pressed(device, device->mappings[i]) << i);
@@ -453,7 +581,7 @@ const char *control_getkeyname(int deviceID, int keycode)
             case LEFT_STICK_RIGHT: return "Analog Stick Right";
         }
     }
-    else if (devices[deviceID].deviceType == DEVICE_TYPE_CLASSIC_CONTROLLER)
+    else if (devices[deviceID].deviceType == DEVICE_TYPE_CLASSIC_CONTROLLER || devices[deviceID].deviceType == DEVICE_TYPE_PRO_CONTROLLER)
     {
         const char *buttonNames[] = {
             "D-Pad Up",
@@ -480,6 +608,64 @@ const char *control_getkeyname(int deviceID, int keycode)
                 return buttonNames[i];
             }
         }
+		
+		if (devices[deviceID].deviceType == DEVICE_TYPE_PRO_CONTROLLER)
+		{
+			// if it's not a button, it's an analog stick direction
+			switch (keycode)
+			{
+				case LEFT_STICK_UP:    return "Analog L-Stick Up";
+				case LEFT_STICK_DOWN:  return "Analog L-Stick Down";
+				case LEFT_STICK_LEFT:  return "Analog L-Stick Left";
+				case LEFT_STICK_RIGHT: return "Analog L-Stick Right";
+				case LEFT_SUBSTICK_UP:    return "Analog R-Stick Up";
+				case LEFT_SUBSTICK_DOWN:  return "Analog R-Stick Down";
+				case LEFT_SUBSTICK_LEFT:  return "Analog R-Stick Left";
+				case LEFT_SUBSTICK_RIGHT: return "Analog R-Stick Right";
+			}
+		}
+    }
+	else if (devices[deviceID].deviceType == DEVICE_TYPE_GAMECUBE_CONTROLLER)
+    {
+        const char *buttonNames[] = {
+            "D-Pad Left",
+            "D-Pad Right",
+            "D-Pad Down",
+            "D-Pad Up",
+            "Trigger Z",
+            "Trigger R",
+            "Trigger L",
+            "A",
+            "B",
+            "X",
+            "Y",
+            "Menu",
+            "Start",
+            "???",
+            "???",
+            "???",
+        };
+
+        for (size_t i = 0; i < sizeof(buttonNames) / sizeof(buttonNames[0]); i++)
+        {
+            if (keycode == (1 << i))
+            {
+                return buttonNames[i];
+            }
+        }
+
+        // if it's not a button, it's an analog stick direction
+        switch (keycode)
+        {
+            case LEFT_STICK_UP:    return "Analog Stick Up";
+            case LEFT_STICK_DOWN:  return "Analog Stick Down";
+            case LEFT_STICK_LEFT:  return "Analog Stick Left";
+            case LEFT_STICK_RIGHT: return "Analog Stick Right";
+			case LEFT_SUBSTICK_UP:    return "Analog C-Stick Up";
+            case LEFT_SUBSTICK_DOWN:  return "Analog C-Stick Down";
+            case LEFT_SUBSTICK_LEFT:  return "Analog C-Stick Left";
+            case LEFT_SUBSTICK_RIGHT: return "Analog C-Stick Right";
+        }
     }
 
     return "None";
@@ -497,7 +683,22 @@ const char *control_getdevicename(int deviceID)
 
 void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec)
 {
-    // TODO
+	s_playercontrols * pcontrols = playercontrols[player];
+	int deviceID = pcontrols->deviceID;
+	size_t port = devices[deviceID].port;
+	
+	WPADData *wpad;
+	struct WUPCData *wupc;
+	wpad = WPAD_Data(port);
+	wupc = WUPC_Data(port);
+
+	rumbling[port] = 1;
+	rumble_msec[port] = msec * 3;
+	time2rumble[port] = ticks_to_millisecs(gettime());
+
+	if (using_gc[port])                             PAD_ControlMotor(port, 1);
+	else if(wupc != NULL)							WUPC_Rumble(port, true);
+	else if (wpad->exp.type != WPAD_EXP_CLASSIC)    WPAD_Rumble(port, 1);
 }
 
 #define MAPPINGS_FILE_SENTINEL 0x9cf232d4
