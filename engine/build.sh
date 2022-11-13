@@ -409,6 +409,10 @@ case $1 in
   all)
     build_all
     ;;
+	
+  package)
+    version 1
+    ;;
 
   *)
     print_help
