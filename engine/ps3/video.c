@@ -21,6 +21,12 @@
 #include "gfx.h"
 #include "videocommon.h"
 #include "pngdec.h"
+#include <sysutil/video.h>
+
+#define NATIVE_WIDTH        640
+#define NATIVE_HEIGHT       480
+#define W_DEFAULT_MARGIN    0
+#define H_DEFAULT_MARGIN    0
 
 extern int videoMode;
 
@@ -35,7 +41,7 @@ s_videomodes stored_videomodes;
 yuv_video_mode stored_yuv_mode;
 #endif
 
-char windowTitle[MAX_LABEL_LEN] = {"OpenBOR"};
+char windowTitle[MAX_LABEL_LEN] = {"OpenBOR PLUS"};
 
 int stretch = 1;
 int opengl = 0;
@@ -69,15 +75,37 @@ void initSDL()
     mode.refresh_rate = 0;
 
     // Store the monitor's current resolution before setting the video mode for the first time
-    if(SDL_GetDesktopDisplayMode(0, &mode) == 0)
+
+    /*videoState state;
+    videoResolution res;
+    videoGetState(0, 0, &state);
+    if (videoGetState(0, 0, &state) == 0 && videoGetResolution(state.displayMode.resolution, &res) == 0) {
+
+        videoConfiguration vconfig;
+        memset(&vconfig, 0, sizeof(videoConfiguration));
+        vconfig.resolution = state.displayMode.resolution;
+        vconfig.format = VIDEO_BUFFER_FORMAT_XRGB;
+        vconfig.pitch = res.width * sizeof(u32);
+        vconfig.aspect = state.displayMode.aspect;//VIDEO_ASPECT_AUTO;
+        
+        if (videoConfigure(0, &vconfig, NULL, 0) != 0) return;
+        if (videoGetState(0, 0, &state) != 0) return;
+
+        nativeWidth = res.width;
+        nativeHeight = res.height;
+        printf("PS3 Screen Size: %i %i %i\n", res.width, res.height, state.displayMode.resolution);
+    }
+    else */if(SDL_GetDesktopDisplayMode(0, &mode) == 0)
     {
         nativeWidth = mode.w;
         nativeHeight = mode.h;
+        printf("SDL Screen Size: %i %i\n", mode.w, mode.h);
+        
     }
     else
     {
-        nativeWidth = 640;
-        nativeHeight = 480;
+        nativeWidth = NATIVE_WIDTH;
+        nativeHeight = NATIVE_HEIGHT;
     }
 
 		//Hardcode full screen mode
@@ -102,7 +130,7 @@ int video_set_mode(s_videomodes videomodes)
     stored_videomodes = videomodes;
 
     //hardcode flags
-    int flags = SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN;
+    int flags = SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN | SDL_WINDOW_BORDERLESS;
 
     savedata.fullscreen = 1;
 
@@ -191,7 +219,6 @@ void video_fullscreen_flip()
 
 void blit()
 {
-    unsigned resMargin = 50;
     //SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
 
@@ -204,8 +231,8 @@ void blit()
     {
         //SDL_RenderSetLogicalSize(renderer, 0, 0);
         //SDL_RenderCopy(renderer, texture, NULL, NULL);
-        unsigned scaledWidth  = nativeWidth  - resMargin;
-        unsigned scaledHeight = (scaledWidth * nativeHeight) / nativeWidth;
+        unsigned scaledWidth  = nativeWidth  - W_DEFAULT_MARGIN;
+        unsigned scaledHeight = ((scaledWidth * nativeHeight) / nativeWidth) + H_DEFAULT_MARGIN;
 
         SDL_Rect d_rect = {(int)(nativeWidth/2.0f - scaledWidth/2.0f), (int)(nativeHeight/2.0f - scaledHeight/2.0f), scaledWidth, scaledHeight};
         SDL_RenderCopy(renderer, texture, NULL, &d_rect);
@@ -215,14 +242,14 @@ void blit()
         //SDL_RenderSetLogicalSize(renderer, textureWidth, textureHeight);
         float aspectRatio = (float)textureWidth / (float)textureHeight;
         float newWidth = nativeHeight * aspectRatio;
-        unsigned scaledWidth  = newWidth  - resMargin;
-        unsigned scaledHeight = (scaledWidth * nativeHeight) / newWidth;
+        unsigned scaledWidth  = newWidth  - W_DEFAULT_MARGIN;
+        unsigned scaledHeight = ((scaledWidth * nativeHeight) / newWidth) + H_DEFAULT_MARGIN;
 
         if (newWidth > nativeWidth) {
           float newHeight;
 
-          newWidth = nativeWidth - resMargin;
-          newHeight = newWidth / aspectRatio;
+          newWidth = nativeWidth - W_DEFAULT_MARGIN;
+          newHeight = (newWidth / aspectRatio) + H_DEFAULT_MARGIN;
           scaledWidth  = (unsigned)newWidth;
           scaledHeight = (unsigned)newHeight;
         }
