@@ -254,7 +254,7 @@ static void set_default_gamecube_controller_mappings(InputDevice *device)
     device->mappings[SDID_JUMP]       = PAD_BUTTON_B;
     device->mappings[SDID_SPECIAL]    = PAD_BUTTON_X;
     device->mappings[SDID_START]      = PAD_BUTTON_START;
-    device->mappings[SDID_SCREENSHOT] = 0;
+    device->mappings[SDID_SCREENSHOT] = 0x2000;
     device->mappings[SDID_ESC]        = PAD_TRIGGER_Z;
 }
 
@@ -464,7 +464,6 @@ void control_update_player(s_playercontrols *playerControls)
     {
         keyflags |= (is_key_pressed(device, device->mappings[i]) << i);
     }
-
     playerControls->newkeyflags = keyflags & (~playerControls->keyflags);
     playerControls->keyflags = keyflags;
 }
