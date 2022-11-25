@@ -325,6 +325,7 @@ HRESULT openbor_loadgamefile(ScriptVariant **varlist , ScriptVariant **pretvar, 
 HRESULT openbor_finishlevel(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_gameover(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_gotomainmenu(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
+HRESULT openbor_rumble(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_playgame(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_getrecordingstatus(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_recordinputs(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);

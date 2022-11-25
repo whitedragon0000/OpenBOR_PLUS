@@ -25,10 +25,10 @@
 #define NUNCHUK_STICK_DOWN     (0x0008 << 16)
 #define NUNCHUK_STICK_LEFT     (0x0010 << 16)
 #define NUNCHUK_STICK_RIGHT    (0x0020 << 16)*/
-#define LEFT_STICK_UP    -1
-#define LEFT_STICK_DOWN  -2
-#define LEFT_STICK_LEFT  -3
-#define LEFT_STICK_RIGHT -4
+#define LEFT_STICK_UP    	-1
+#define LEFT_STICK_DOWN  	-2
+#define LEFT_STICK_LEFT  	-3
+#define LEFT_STICK_RIGHT 	-4
 #define LEFT_SUBSTICK_UP    -5
 #define LEFT_SUBSTICK_DOWN  -6
 #define LEFT_SUBSTICK_LEFT  -7
@@ -47,6 +47,7 @@ typedef struct {
     DeviceType deviceType;
     char name[CONTROL_DEVICE_NAME_SIZE];
     int mappings[SDID_COUNT];
+	int gc_mappings[SDID_COUNT];
     int port;
 	int is_gc;
 	int rumbling;
@@ -183,8 +184,6 @@ void control_exit()
 
 static void set_default_wiimote_mappings(InputDevice *device)
 {
-	device->is_gc = 0;
-	
     // up/down/left/right are rotated because the remote is held sideways
     device->mappings[SDID_MOVEUP]     = WPAD_BUTTON_RIGHT;
     device->mappings[SDID_MOVEDOWN]   = WPAD_BUTTON_LEFT;
@@ -203,8 +202,6 @@ static void set_default_wiimote_mappings(InputDevice *device)
 
 static void set_default_wiimote_nunchuk_mappings(InputDevice *device)
 {
-	device->is_gc = 0;
-	
     device->mappings[SDID_MOVEUP]     = LEFT_STICK_UP;
     device->mappings[SDID_MOVEDOWN]   = LEFT_STICK_DOWN;
     device->mappings[SDID_MOVELEFT]   = LEFT_STICK_LEFT;
@@ -222,8 +219,6 @@ static void set_default_wiimote_nunchuk_mappings(InputDevice *device)
 
 static void set_default_classic_controller_mappings(InputDevice *device)
 {
-	device->is_gc = 0;
-	
     device->mappings[SDID_MOVEUP]     = WPAD_CLASSIC_BUTTON_UP;
     device->mappings[SDID_MOVEDOWN]   = WPAD_CLASSIC_BUTTON_DOWN;
     device->mappings[SDID_MOVELEFT]   = WPAD_CLASSIC_BUTTON_LEFT;
@@ -241,21 +236,19 @@ static void set_default_classic_controller_mappings(InputDevice *device)
 
 static void set_default_gamecube_controller_mappings(InputDevice *device)
 {
-	device->is_gc = 1;
-	
-    device->mappings[SDID_MOVEUP]     = PAD_BUTTON_UP;
-    device->mappings[SDID_MOVEDOWN]   = PAD_BUTTON_DOWN;
-    device->mappings[SDID_MOVELEFT]   = PAD_BUTTON_LEFT;
-    device->mappings[SDID_MOVERIGHT]  = PAD_BUTTON_RIGHT;
-    device->mappings[SDID_ATTACK]     = PAD_BUTTON_A;
-    device->mappings[SDID_ATTACK2]    = PAD_BUTTON_Y;
-    device->mappings[SDID_ATTACK3]    = PAD_TRIGGER_R;
-    device->mappings[SDID_ATTACK4]    = PAD_TRIGGER_L;
-    device->mappings[SDID_JUMP]       = PAD_BUTTON_B;
-    device->mappings[SDID_SPECIAL]    = PAD_BUTTON_X;
-    device->mappings[SDID_START]      = PAD_BUTTON_START;
-    device->mappings[SDID_SCREENSHOT] = 0x2000;
-    device->mappings[SDID_ESC]        = PAD_TRIGGER_Z;
+    device->gc_mappings[SDID_MOVEUP]     = LEFT_STICK_UP; //PAD_BUTTON_UP;
+    device->gc_mappings[SDID_MOVEDOWN]   = LEFT_STICK_DOWN; //PAD_BUTTON_DOWN;
+    device->gc_mappings[SDID_MOVELEFT]   = LEFT_STICK_LEFT; //PAD_BUTTON_LEFT;
+    device->gc_mappings[SDID_MOVERIGHT]  = LEFT_STICK_RIGHT; //PAD_BUTTON_RIGHT;
+    device->gc_mappings[SDID_ATTACK]     = PAD_BUTTON_A;
+    device->gc_mappings[SDID_ATTACK2]    = PAD_BUTTON_Y;
+    device->gc_mappings[SDID_ATTACK3]    = PAD_TRIGGER_R;
+    device->gc_mappings[SDID_ATTACK4]    = PAD_TRIGGER_L;
+    device->gc_mappings[SDID_JUMP]       = PAD_BUTTON_B;
+    device->gc_mappings[SDID_SPECIAL]    = PAD_BUTTON_X;
+    device->gc_mappings[SDID_START]      = PAD_BUTTON_START;
+    device->gc_mappings[SDID_SCREENSHOT] = PAD_BUTTON_DOWN; //0x2000;
+    device->gc_mappings[SDID_ESC]        = PAD_TRIGGER_Z;
 }
 
 void control_resetmappings(int deviceID)
@@ -263,8 +256,15 @@ void control_resetmappings(int deviceID)
     if (deviceID < 0) return;
 
     InputDevice *device = &devices[deviceID];
+	// Controller GC always loaded
+	memset(device->gc_mappings, 0, sizeof(device->gc_mappings));
+	set_default_gamecube_controller_mappings(device);
+	
     switch (device->deviceType)
     {
+        /*case DEVICE_TYPE_GAMECUBE_CONTROLLER:
+            set_default_gamecube_controller_mappings(device);
+			//break;*/
         case DEVICE_TYPE_WII_REMOTE:
             set_default_wiimote_mappings(device);
             break;
@@ -274,9 +274,6 @@ void control_resetmappings(int deviceID)
         case DEVICE_TYPE_CLASSIC_CONTROLLER:
 		case DEVICE_TYPE_PRO_CONTROLLER:
             set_default_classic_controller_mappings(device);
-            break;
-        case DEVICE_TYPE_GAMECUBE_CONTROLLER:
-            set_default_gamecube_controller_mappings(device);
             break;
         default:
             memset(device->mappings, 0, sizeof(device->mappings));
@@ -296,13 +293,13 @@ static s32 get_gc_chan(int port)
 	}
 }
 
-static int is_gc_connected(int port)
+/*static int is_gc_connected(int port)
 {
 	PADStatus status[MAX_PORTS];
 	PAD_Read(status);
 	if (status[port].err == PAD_ERR_NO_CONTROLLER) return 0;
 	return 1;
-}
+}*/
 
 static DeviceType get_device_type(int expansion, size_t port)
 {
@@ -317,7 +314,8 @@ static DeviceType get_device_type(int expansion, size_t port)
 		{
 			struct WUPCData *wupc = WUPC_Data(port);
 			if (wupc != NULL) return DEVICE_TYPE_PRO_CONTROLLER;
-			else if (is_gc_connected(port)) return DEVICE_TYPE_GAMECUBE_CONTROLLER;
+			// Controller GC always loaded
+			//else if (is_gc_connected(port)) return DEVICE_TYPE_GAMECUBE_CONTROLLER;
             return DEVICE_TYPE_WII_REMOTE;
 		}
     }
@@ -327,14 +325,14 @@ static DeviceType get_device_type(int expansion, size_t port)
 static void handle_events()
 {
     WPAD_ScanPads();
-	PAD_ScanPads();
+	//PAD_ScanPads(); // Controller GC always loaded
 
     for (size_t port = 0; port < MAX_PORTS; port++)
     {
         u32 type;
 		s32 wii_probe = WPAD_Probe(port, &type);
 		
-        if (wii_probe == WPAD_ERR_NO_CONTROLLER && !is_gc_connected(port)) // pad disconnected
+        if (wii_probe == WPAD_ERR_NO_CONTROLLER/* && !is_gc_connected(port)*/) // pad disconnected
         {
             if (devices[port].deviceType != DEVICE_TYPE_NONE)
             if (deviceIDs[port] != -1)
@@ -366,7 +364,7 @@ static void handle_events()
 			InputDevice device = devices[deviceIDs[port]];
 			if (newType != device.deviceType) // pad connected or expansion type changed
 			{
-				device.is_gc = (newType == DEVICE_TYPE_GAMECUBE_CONTROLLER) ? 1 : 0;
+				//device.is_gc = (newType == DEVICE_TYPE_GAMECUBE_CONTROLLER) ? 1 : 0;
 				setup_device(deviceIDs[port], newType, deviceTypeNames[newType], port);
 			}
         }
@@ -376,6 +374,7 @@ static void handle_events()
 // Returns 1 if key is pressed, 0 if not
 static unsigned int is_key_pressed(InputDevice *device, int keycode)
 {
+		
     if (device->deviceType == DEVICE_TYPE_WII_REMOTE)
     {
         WPADData *wpad = WPAD_Data(device->port);
@@ -405,15 +404,15 @@ static unsigned int is_key_pressed(InputDevice *device, int keycode)
 		wupc = WUPC_Data(device->port);
 		switch (keycode)
 		{
-			case LEFT_STICK_UP:    return (wupc->yAxisL > 200);
-			case LEFT_STICK_DOWN:  return (wupc->yAxisL < -200);
-			case LEFT_STICK_LEFT:  return (wupc->xAxisL < -200);
-			case LEFT_STICK_RIGHT: return (wupc->xAxisL > 200);
-			case LEFT_SUBSTICK_UP:    return (wupc->yAxisR > 200);
-			case LEFT_SUBSTICK_DOWN:  return (wupc->yAxisR < -200);
-			case LEFT_SUBSTICK_LEFT:  return (wupc->xAxisR < -200);
-			case LEFT_SUBSTICK_RIGHT: return (wupc->xAxisR > 200);
-			default:               return !!(wupc->button & keycode);
+			case LEFT_STICK_UP:    		return (wupc->yAxisL > 200);
+			case LEFT_STICK_DOWN:  		return (wupc->yAxisL < -200);
+			case LEFT_STICK_LEFT:  		return (wupc->xAxisL < -200);
+			case LEFT_STICK_RIGHT: 		return (wupc->xAxisL > 200);
+			case LEFT_SUBSTICK_UP:    	return (wupc->yAxisR > 200);
+			case LEFT_SUBSTICK_DOWN:  	return (wupc->yAxisR < -200);
+			case LEFT_SUBSTICK_LEFT:  	return (wupc->xAxisR < -200);
+			case LEFT_SUBSTICK_RIGHT: 	return (wupc->xAxisR > 200);
+			default:               		return !!(wupc->button & keycode);
 		}
 	}
     else if (device->deviceType == DEVICE_TYPE_GAMECUBE_CONTROLLER)
@@ -425,18 +424,23 @@ static unsigned int is_key_pressed(InputDevice *device, int keycode)
 		s8 spad_x = PAD_SubStickX(device->port);
 		s8 spad_y = PAD_SubStickY(device->port);
 		
-        switch (keycode)
-        {
-            case LEFT_STICK_UP:    return (pad_y > 18);
-            case LEFT_STICK_DOWN:  return (pad_y < -18);
-            case LEFT_STICK_LEFT:  return (pad_x < -18);
-            case LEFT_STICK_RIGHT: return (pad_x > 18);
-            case LEFT_SUBSTICK_UP:    return (spad_y > 18);
-            case LEFT_SUBSTICK_DOWN:  return (spad_y < -18);
-            case LEFT_SUBSTICK_LEFT:  return (spad_x < -18);
-            case LEFT_SUBSTICK_RIGHT: return (spad_x > 18);
-            default:               return !!(btns_down & keycode);
-        }
+		if (btns_down ||
+			(pad_y > 18) || (pad_y < -18) || (pad_x < -18) || (pad_x > 18) ||
+			(spad_y > 18) || (spad_y < -18) || (spad_x < -18) || (spad_x > 18))  	device->is_gc = 1;
+		else																		device->is_gc = 0;
+		
+		switch (keycode)
+		{
+			case LEFT_STICK_UP:    		return (pad_y > 18);
+			case LEFT_STICK_DOWN:  		return (pad_y < -18);
+			case LEFT_STICK_LEFT:  		return (pad_x < -18);
+			case LEFT_STICK_RIGHT: 		return (pad_x > 18);
+			case LEFT_SUBSTICK_UP:    	return (spad_y > 18);
+			case LEFT_SUBSTICK_DOWN:  	return (spad_y < -18);
+			case LEFT_SUBSTICK_LEFT:  	return (spad_x < -18);
+			case LEFT_SUBSTICK_RIGHT: 	return (spad_x > 18);
+			default:               		return !!(btns_down & keycode);
+		}
     }
 
     return 0;
@@ -459,9 +463,13 @@ void control_update_player(s_playercontrols *playerControls)
 			PAD_ControlMotor(get_gc_chan(device->port), 0);
 		}
 	}
-	
+
     for (unsigned int i = 0; i < SDID_COUNT; i++)
     {
+		DeviceType tmp_type = device->deviceType;
+		device->deviceType = DEVICE_TYPE_GAMECUBE_CONTROLLER; // Controller GC always loaded
+		keyflags |= (is_key_pressed(device, device->gc_mappings[i]) << i);
+		device->deviceType = tmp_type;
         keyflags |= (is_key_pressed(device, device->mappings[i]) << i);
     }
     playerControls->newkeyflags = keyflags & (~playerControls->keyflags);

@@ -68,6 +68,7 @@ extern int  loadgameMenu;
 extern int  num_difficulties;
 extern u32  _time;
 extern int goto_mainmenu_flag;
+extern s_playercontrols   *playercontrolpointers[];
 extern int _pause;
 extern int timeleft;
 extern int gfx_x_offset;
@@ -15268,6 +15269,31 @@ HRESULT openbor_gotomainmenu(ScriptVariant **varlist , ScriptVariant **pretvar, 
     }
 
     goto_mainmenu((LONG)ltemp);
+
+    return S_OK;
+}
+
+//rumble(player_index, ratio, msec);
+HRESULT openbor_rumble(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
+{
+    LONG player_index = 0, ratio = 0, msec = 0;
+
+    *pretvar = NULL;
+
+    if(paramCount >= 1 && FAILED(ScriptVariant_IntegerValue(varlist[0], &player_index)) )
+    {
+        return E_FAIL;
+    }
+    if(paramCount >= 2 && FAILED(ScriptVariant_IntegerValue(varlist[0], &ratio)) )
+    {
+        return E_FAIL;
+    }
+    if(paramCount >= 3 && FAILED(ScriptVariant_IntegerValue(varlist[0], &msec)) )
+    {
+        return E_FAIL;
+    }
+
+	if (savedata.joyrumble[player_index]) control_rumble(playercontrolpointers, player_index, ratio, msec);
 
     return S_OK;
 }

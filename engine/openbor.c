@@ -20974,7 +20974,6 @@ void check_gravity(entity *e)
                         // bounce/quake
                         if(tobounce(self) && self->modeldata.bounce)
                         {
-                            int i;
                             self->velocity.x /= self->animation->bounce;
                             self->velocity.z /= self->animation->bounce;
                             toss(self, (-self->velocity.y) / self->animation->bounce);
@@ -20986,13 +20985,14 @@ void check_gravity(entity *e)
                             {
                                 sound_play_sample(SAMPLE_FALL, 0, savedata.effectvol, savedata.effectvol, 100);
                             }
-                            if(self->modeldata.type & TYPE_PLAYER)
+                            if(self->modeldata.type & TYPE_PLAYER && level->quake >= 1)
                             {
-                                if (savedata.joyrumble[self->playerindex]) control_rumble(playercontrolpointers, self->playerindex, 1, 100 * (int)self->velocity.y / 2);
-                            }
-                            for(i = 0; i < MAX_PLAYERS; i++)
-                            {
-                                if (savedata.joyrumble[i]) control_rumble(playercontrolpointers, i, 1, 75 * (int)self->velocity.y / 2);
+								// player landing from fall
+                                if (savedata.joyrumble[self->playerindex]) control_rumble(playercontrolpointers, self->playerindex, 1, 75 * ((int)self->velocity.y + 1));
+								/*for(int i = 0; i < MAX_PLAYERS; i++)
+								{
+									if (savedata.joyrumble[i] && i != self->playerindex) control_rumble(playercontrolpointers, i, 1, 50 * ((int)self->velocity.y + 1));
+								}*/
                             }
                         }
                         else if((!self->animation->move[self->animpos]->base || self->animation->move[self->animpos]->base < 0) &&
@@ -25239,7 +25239,8 @@ void checkhitscore(entity *other, s_collision_attack *attack)
     {
         // Added obstacle so explosions can hurt enemies
         addscore(opp->playerindex, attack->attack_force * self->modeldata.multiple);  // New multiple variable
-        if (savedata.joyrumble[opp->playerindex]) control_rumble(playercontrolpointers, opp->playerindex, 1, attack->attack_force * 2);
+		// player attack
+        if (savedata.joyrumble[opp->playerindex]) control_rumble(playercontrolpointers, opp->playerindex, 1, attack->attack_force * 20);
     }
     // Don't animate or fall if hurt by self, since
     // it means self fell to the ground already. :)
@@ -25565,7 +25566,8 @@ int common_takedamage(entity *other, s_collision_attack *attack, int fall_flag)
 
     if(self->modeldata.type & TYPE_PLAYER)
     {
-        if (savedata.joyrumble[self->playerindex]) control_rumble(playercontrolpointers, self->playerindex, 1, attack->attack_force * 3);
+		// player damage
+        if (savedata.joyrumble[self->playerindex]) control_rumble(playercontrolpointers, self->playerindex, 1, attack->attack_force * 50);
     }
     if(self->position.y <= PIT_DEPTH && self->dead)
     {
@@ -25668,7 +25670,8 @@ int common_takedamage(entity *other, s_collision_attack *attack, int fall_flag)
         }
         if(self->modeldata.type & TYPE_PLAYER)
         {
-            if (savedata.joyrumble[self->playerindex]) control_rumble(playercontrolpointers, self->playerindex, 1, attack->attack_force * 3);
+			// player big damage
+            if (savedata.joyrumble[self->playerindex]) control_rumble(playercontrolpointers, self->playerindex, 1, attack->attack_force * 75);
         }
     }
     else if(attack->grab && !attack->no_pain)
@@ -35040,6 +35043,13 @@ void update_scrolled_bg()
         {
             gfx_y_offset = level->quake + 4;
         }
+		/*if (abs(level->quake) >= 4) 
+		{
+			for(int i = 0; i < levelsets[current_set].maxplayers; i++)
+			{
+				if (savedata.joyrumble[i]) control_rumble(playercontrolpointers, i, 1, 100);
+			}
+		}*/
     }
 
     //if(level->scrolldir!=SCROLL_UP && level->scrolldir!=SCROLL_DOWN) gfx_y_offset -= advancey;
@@ -38986,7 +38996,10 @@ void keyboard_setup(int player_index)
         }
     }
 
-    while(disabledkey[selector]) if(++selector > btnnum - 1) break;
+    while(disabledkey[selector])
+	{
+		if(++selector > btnnum - 1) break;
+	}
 
     while(!quit)
     {
@@ -39009,7 +39022,6 @@ void keyboard_setup(int player_index)
         if(savedata.joyrumble[player_index])
         {
             _menutext((selector == OPTIONS_NUM - 3), col1, voffset++, Tr("Rumble Enabled"));
-            if (savedata.joyrumble[player_index]) control_rumble(playercontrolpointers, player_index, 1, 100);
         }
         else
         {
@@ -39095,6 +39107,7 @@ void keyboard_setup(int player_index)
                 if(selector == OPTIONS_NUM - 3)
                 {
                     savedata.joyrumble[player_index] = !savedata.joyrumble[player_index];
+					if (savedata.joyrumble[player_index]) control_rumble(playercontrolpointers, player_index, 1, 100);
                 }
                 else
                 #endif
