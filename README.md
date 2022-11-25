@@ -160,6 +160,9 @@ Senile Team does not support OpenBOR or BOR in any way. Instead, you should stop
 #### ***NEW OPERATORS***
 bitwise not (~)<br/>
 
+#### ***NEW FUNCTIONS***
+rumble(player_index, ratio, milliseconds)<br/>
+
 #### ***ENTITY COLLISION***
 accessible in debug mode too.<br/>
 
