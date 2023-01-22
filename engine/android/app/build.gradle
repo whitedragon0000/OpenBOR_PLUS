@@ -3,7 +3,7 @@ apply plugin: 'com.android.application'
 android {
     compileSdkVersion 28
     defaultConfig {
-        minSdkVersion 14
+        minSdkVersion 23
         targetSdkVersion 28
 
         //////////// MODFY FOR CUSTOM APK /////////////////
