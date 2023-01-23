@@ -7,5 +7,5 @@
 APP_ABI := armeabi-v7a
 
 # Min SDK level
-APP_PLATFORM=android-23
+APP_PLATFORM=android-19
 
