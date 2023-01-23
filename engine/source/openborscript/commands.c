@@ -27,22 +27,22 @@ fail:
 
 modelCommands getModelCommand(List *list, char *usercommand)
 {
-    return (modelCommands) getCommandlistCommand(list, usercommand);
+    return (modelCommands) (uintptr_t) getCommandlistCommand(list, usercommand);
 }
 
 modelstxtCommands getModelstxtCommand(List *list, char *usercommand)
 {
-    return (modelstxtCommands) getCommandlistCommand(list, usercommand);
+    return (modelstxtCommands) (uintptr_t) getCommandlistCommand(list, usercommand);
 }
 
 levelCommands getLevelCommand(List *list, char *usercommand)
 {
-    return (levelCommands) getCommandlistCommand(list, usercommand);
+    return (levelCommands) (uintptr_t) getCommandlistCommand(list, usercommand);
 }
 
 levelOrderCommands getLevelOrderCommand(List *list, char *usercommand)
 {
-    return (levelOrderCommands) getCommandlistCommand(list, usercommand);
+    return (levelOrderCommands) (uintptr_t) getCommandlistCommand(list, usercommand);
 }
 
 List *prepareList(void)
