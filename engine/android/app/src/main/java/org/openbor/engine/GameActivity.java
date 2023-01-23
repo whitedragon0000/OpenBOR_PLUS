@@ -39,6 +39,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -68,7 +69,6 @@ public class GameActivity extends SDLActivity {
   //White Dragon: added statics
   protected static WakeLock wakeLock;
 
-  @SuppressWarnings("JavaJniMissingFunction")
   public static native void fireSystemUiVisibilityChangeEvent(int isSystemBarsVisible);
 
   //note: White Dragon's vibrator is moved into C code for 2 reasons
@@ -86,7 +86,6 @@ public class GameActivity extends SDLActivity {
    *
    * Modified version from original by White Dragon
    */
-  @SuppressWarnings("unused")
   public static void jni_vibrate(int intensity) {
     Vibrator vibrator = (Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);
 
@@ -114,7 +113,7 @@ public class GameActivity extends SDLActivity {
       }
   }
 
-  @SuppressWarnings("unused")
+  @Nullable
   public static FrameDimensions jni_get_frame_dimensions() {
     // include navigation bar dimensions
     /*Resources resources = getContext().getResources();
