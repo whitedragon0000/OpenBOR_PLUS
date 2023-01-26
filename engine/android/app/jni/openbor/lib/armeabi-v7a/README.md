@@ -4,6 +4,6 @@
 * libvpx - 1.8.0
 * libogg - 1.3.3
 * libpng - 1.6.37
-* libvorbis (tremor, at commit 7c30a66) - 1.3.6
+* libvorbis (tremor, at commit 7c30a663) - 1.3.6
 * libSDL2 - 2.26.2
 * libhidapi.so - 0.13.1
