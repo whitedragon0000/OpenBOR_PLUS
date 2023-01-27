@@ -17,6 +17,10 @@
 #include "translation.h"
 #include "soundmix.h"
 
+#ifdef ANDROID
+#include "jniutils.h"
+#endif
+
 #define NaN 0xAAAAAAAA
 
 static const char *E_OUT_OF_MEMORY = "Error: Could not allocate sufficient memory.\n";
@@ -39344,6 +39348,7 @@ void menu_options_input()
             #if ANDROID
             else if (selector == max_players + active_devices + 1) {
                 savedata.is_touchpad_vibration_enabled = !savedata.is_touchpad_vibration_enabled;
+                if (savedata.is_touchpad_vibration_enabled) jniutils_vibrate_device(savedata.touchpad_vibration_intensity);
             } else if (selector == max_players + active_devices + 2) {
                 savedata.touchpad_vibration_intensity += 5 * dir;
                 if (savedata.touchpad_vibration_intensity < 0) savedata.touchpad_vibration_intensity = 0;

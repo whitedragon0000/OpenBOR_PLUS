@@ -39,6 +39,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -68,7 +69,8 @@ public class GameActivity extends SDLActivity {
   //White Dragon: added statics
   protected static WakeLock wakeLock;
 
-  @SuppressWarnings("JavaJniMissingFunction")
+  private static String packageName;
+
   public static native void fireSystemUiVisibilityChangeEvent(int isSystemBarsVisible);
 
   //note: White Dragon's vibrator is moved into C code for 2 reasons
@@ -86,7 +88,6 @@ public class GameActivity extends SDLActivity {
    *
    * Modified version from original by White Dragon
    */
-  @SuppressWarnings("unused")
   public static void jni_vibrate(int intensity) {
     Vibrator vibrator = (Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);
 
@@ -114,7 +115,7 @@ public class GameActivity extends SDLActivity {
       }
   }
 
-  @SuppressWarnings("unused")
+  @Nullable
   public static FrameDimensions jni_get_frame_dimensions() {
     // include navigation bar dimensions
     /*Resources resources = getContext().getResources();
@@ -140,6 +141,10 @@ public class GameActivity extends SDLActivity {
       return new FrameDimensions((int) view.getTranslationX(), (int) view.getTranslationY(), view.getWidth(), view.getHeight(),
               rectangle.top, rectangle.left, rectangle.bottom, rectangle.right);
     } else return null;
+  }
+
+  public static String jni_get_storage_path() {
+    return Environment.getExternalStorageDirectory() + "/Android/media/" + packageName;
   }
   // ------------------------------------------------------------------------ //
 
@@ -171,6 +176,8 @@ public class GameActivity extends SDLActivity {
       activity.setRequestedOrientation(
               ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
     }*/
+
+    packageName = getApplicationContext().getPackageName();
 
     //msmalik681 setup storage access
     CheckPermissionForMovingPaks();
@@ -224,7 +231,6 @@ public class GameActivity extends SDLActivity {
         }
       });
     }
-
   }
 
   //msmalik681 added permission check for API 23+ for moving .paks
@@ -304,7 +310,8 @@ public class GameActivity extends SDLActivity {
       if (appCtx.getPackageName().equals("org.openbor.engine"))
       {
         // Default output folder
-        File outFolderDefault = new File(Environment.getExternalStorageDirectory() + "/OpenBOR/Paks");
+        //File outFolderDefault = new File(Environment.getExternalStorageDirectory() + "/OpenBOR/Paks");
+        File outFolderDefault = new File(jni_get_storage_path() + "/OpenBOR/Paks");
 
         if (!outFolderDefault.isDirectory())
         {

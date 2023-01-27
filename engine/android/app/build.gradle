@@ -1,12 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion 33
     defaultConfig {
-        minSdkVersion 14
-        targetSdkVersion 28
+        minSdkVersion 23
+        targetSdkVersion 33
 
-        //////////// MODFY FOR CUSTOM APK /////////////////
+        //////////// MODIFY FOR CUSTOM APK /////////////////
         applicationId "org.openbor.engine"
         versionCode 1
         versionName "1.0.0"
@@ -16,10 +16,10 @@ android {
 
         externalNativeBuild {
           ndkBuild {
-            arguments "APP_PLATFORM=android-16"
+            arguments "APP_PLATFORM=android-23"
               // currently supports with pre-built libraries for following
               // two target abis removed arm64 as unsupported for now
-              abiFilters 'armeabi-v7a'//, 'arm64-v8a'
+              abiFilters 'armeabi-v7a', 'arm64-v8a' // 'armeabi-v7a', 'arm64-v8a'
           }
         }
     }
@@ -59,6 +59,7 @@ android {
     lint {
         abortOnError false
     }
+    namespace 'org.openbor.engine'
 
     if (!project.hasProperty('EXCLUDE_NATIVE_LIBS')) {
     sourceSets.main {
