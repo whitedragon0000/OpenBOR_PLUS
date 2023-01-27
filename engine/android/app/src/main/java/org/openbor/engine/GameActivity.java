@@ -69,6 +69,8 @@ public class GameActivity extends SDLActivity {
   //White Dragon: added statics
   protected static WakeLock wakeLock;
 
+  private static String packageName;
+
   public static native void fireSystemUiVisibilityChangeEvent(int isSystemBarsVisible);
 
   //note: White Dragon's vibrator is moved into C code for 2 reasons
@@ -140,6 +142,10 @@ public class GameActivity extends SDLActivity {
               rectangle.top, rectangle.left, rectangle.bottom, rectangle.right);
     } else return null;
   }
+
+  public static String jni_get_storage_path() {
+    return Environment.getExternalStorageDirectory() + "/Android/media/" + packageName;
+  }
   // ------------------------------------------------------------------------ //
 
   /**
@@ -170,6 +176,8 @@ public class GameActivity extends SDLActivity {
       activity.setRequestedOrientation(
               ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
     }*/
+
+    packageName = getApplicationContext().getPackageName();
 
     //msmalik681 setup storage access
     CheckPermissionForMovingPaks();
@@ -223,7 +231,6 @@ public class GameActivity extends SDLActivity {
         }
       });
     }
-
   }
 
   //msmalik681 added permission check for API 23+ for moving .paks
@@ -303,7 +310,8 @@ public class GameActivity extends SDLActivity {
       if (appCtx.getPackageName().equals("org.openbor.engine"))
       {
         // Default output folder
-        File outFolderDefault = new File(Environment.getExternalStorageDirectory() + "/OpenBOR/Paks");
+        //File outFolderDefault = new File(Environment.getExternalStorageDirectory() + "/OpenBOR/Paks");
+        File outFolderDefault = new File(jni_get_storage_path() + "/OpenBOR/Paks");
 
         if (!outFolderDefault.isDirectory())
         {

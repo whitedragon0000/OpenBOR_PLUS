@@ -19,6 +19,9 @@
 #else
 #include <time.h>
 #endif
+#ifdef ANDROID
+#include "jniutils.h"
+#endif
 #include <unistd.h>
 
 #undef usleep
@@ -144,7 +147,11 @@ int main(int argc, char *argv[])
 	packfile_mode(0);
 
 #ifdef ANDROID
-    if(strstr(SDL_AndroidGetExternalStoragePath(), "org.openbor.engine"))
+    //const char *path = SDL_AndroidGetExternalStoragePath();
+    const char *path = jniutils_get_storage_path();
+
+    //if(strstr(SDL_AndroidGetExternalStoragePath(), "org.openbor.engine"))
+    if(!strcmp(SDL_AndroidGetExternalStoragePath(), "org.openbor.engine"))
     {
         strcpy(rootDir, "/mnt/sdcard/OpenBOR/");
         strcpy(paksDir, "/mnt/sdcard/OpenBOR/Paks");
@@ -154,17 +161,19 @@ int main(int argc, char *argv[])
     }
     else
     {
-        strcpy(rootDir, SDL_AndroidGetExternalStoragePath());
-        strcat(rootDir, "/");
-        strcpy(paksDir, SDL_AndroidGetExternalStoragePath());
-        strcat(paksDir, "/Paks");
-        strcpy(savesDir, SDL_AndroidGetExternalStoragePath());
-        strcat(savesDir, "/Saves");
-        strcpy(logsDir, SDL_AndroidGetExternalStoragePath());
-        strcat(logsDir, "/Logs");
-        strcpy(screenShotsDir, SDL_AndroidGetExternalStoragePath());
-        strcat(screenShotsDir, "/ScreenShots");
+        strcpy(rootDir, path);
+        strcat(rootDir, "/OpenBOR/");
+        strcpy(paksDir, path);
+        strcat(paksDir, "/OpenBOR/Paks");
+        strcpy(savesDir, path);
+        strcat(savesDir, "/OpenBOR/Saves");
+        strcpy(logsDir, path);
+        strcat(logsDir, "/OpenBOR/Logs");
+        strcpy(screenShotsDir, path);
+        strcat(screenShotsDir, "/OpenBOR/ScreenShots");
     }
+
+    free((char*) path);
 	dirExists(rootDir, 1);
     chdir(rootDir);
 #elif PS3

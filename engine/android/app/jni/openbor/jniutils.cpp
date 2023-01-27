@@ -5,6 +5,7 @@
 
 extern "C"
 {
+    #include "globals.h"
     #include "video.h"
 }
 
@@ -12,6 +13,41 @@ extern "C" JNIEXPORT void JNICALL Java_org_openbor_engine_GameActivity_fireSyste
         __attribute__((unused)) JNIEnv* env, __attribute__((unused)) jclass obj, jint isSystemBarsVisible)
 {
     return on_system_ui_visibility_change_event(isSystemBarsVisible);
+}
+
+char* jniutils_get_storage_path()
+{
+    // retrieve the JNI environment
+    JNIEnv  *env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+
+    // retrieve the Java instance of the GameActivity
+    jobject activity = (jobject)SDL_AndroidGetActivity();
+
+    // find the Java class of the activity. It should be GameActivity.
+    jclass cls = env->GetObjectClass(activity);
+
+    // find the identifier of the method to call
+    jmethodID method_id = env->GetStaticMethodID(cls, "jni_get_storage_path", "()Ljava/lang/String;");
+
+    // effectively call the Java method
+    jstring rv = static_cast<jstring>(env->CallStaticObjectMethod(cls, method_id));
+
+    jboolean isCopy = JNI_TRUE;
+    const char *ret = env->GetStringUTFChars(rv, &isCopy);
+
+    //char str[MAX_FILENAME_LEN] = {"xyz"};
+    char *str = (char*) malloc(MAX_FILENAME_LEN);
+    strcpy(str, ret);
+
+    if (isCopy == JNI_TRUE) {
+        env->ReleaseStringUTFChars(rv, ret);
+    }
+
+    // clean up the local references
+    env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(activity);
+
+    return str;
 }
 
 void jniutils_vibrate_device(jint intensity)
@@ -81,6 +117,8 @@ struct frame_dimensions jniutils_get_frame_dimensions()
     // clean up the local references
     env->DeleteLocalRef(cls);
     env->DeleteLocalRef(activity);
+    env->DeleteLocalRef(javaDataClass);
+    env->DeleteLocalRef(jData);
 
     return frm_dim;
 }
