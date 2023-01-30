@@ -44,6 +44,7 @@
                  android:icon="@drawable/icon"
 				 android:banner="@drawable/banner"
                  android:allowBackup="true"
+				 android:hasFragileUserData="true"
 				 android:isGame="true"
 				 android:resizeableActivity="false"
 				 android:hardwareAccelerated="true"
