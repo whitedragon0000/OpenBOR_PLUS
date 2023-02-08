@@ -5,7 +5,7 @@
 
 extern "C"
 {
-    #include "globals.h"
+    //#include "globals.h"
     #include "video.h"
 }
 
@@ -15,7 +15,7 @@ extern "C" JNIEXPORT void JNICALL Java_org_openbor_engine_GameActivity_fireSyste
     return on_system_ui_visibility_change_event(isSystemBarsVisible);
 }
 
-char* jniutils_get_storage_path()
+void jniutils_get_storage_path(char* buffer)
 {
     // retrieve the JNI environment
     JNIEnv  *env = (JNIEnv*)SDL_AndroidGetJNIEnv();
@@ -35,9 +35,7 @@ char* jniutils_get_storage_path()
     jboolean isCopy = JNI_TRUE;
     const char *ret = env->GetStringUTFChars(rv, &isCopy);
 
-    //char str[MAX_FILENAME_LEN] = {"xyz"};
-    char *str = (char*) malloc(MAX_FILENAME_LEN);
-    strcpy(str, ret);
+    strcpy(buffer, ret);
 
     if (isCopy == JNI_TRUE) {
         env->ReleaseStringUTFChars(rv, ret);
@@ -47,7 +45,7 @@ char* jniutils_get_storage_path()
     env->DeleteLocalRef(cls);
     env->DeleteLocalRef(activity);
 
-    return str;
+    return;
 }
 
 void jniutils_vibrate_device(jint intensity)

@@ -26,7 +26,7 @@ struct frame_dimensions {
  */
 void jniutils_vibrate_device(jint intensity);
 struct frame_dimensions jniutils_get_frame_dimensions();
-char* jniutils_get_storage_path();
+void jniutils_get_storage_path(char*);
 
 #ifdef __cplusplus
 }
