@@ -39006,7 +39006,9 @@ void keyboard_setup(int player_index)
 		if(++selector > btnnum - 1) break;
 	}
 	
+	#ifdef ANDROID
 	disableFingerMotion = 1;
+	#endif
 
     while(!quit)
     {
@@ -39153,7 +39155,9 @@ void keyboard_setup(int player_index)
 
     update(0, 0);
     bothnewkeys = 0;
+	#ifdef ANDROID
 	disableFingerMotion = 0;
+	#endif
     printf("Done!\n");
 }
 
