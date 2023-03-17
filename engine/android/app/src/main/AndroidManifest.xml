@@ -26,6 +26,9 @@
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
+    <uses-feature
+        android:name="android.hardware.type.automotive"
+        android:required="false" />
 
     <!-- Allow reading from external storage -->
 	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />

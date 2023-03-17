@@ -148,7 +148,8 @@ int main(int argc, char *argv[])
 
 #ifdef ANDROID
     //const char *path = SDL_AndroidGetExternalStoragePath();
-    const char *path = jniutils_get_storage_path();
+    char *path = (char*) malloc(MAX_FILENAME_LEN);
+    jniutils_get_storage_path(path);
 
     //if(strstr(SDL_AndroidGetExternalStoragePath(), "org.openbor.engine"))
     if(!strcmp(SDL_AndroidGetExternalStoragePath(), "org.openbor.engine"))
