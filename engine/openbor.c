@@ -72,6 +72,7 @@ List *levelordercmdlist = NULL;
 int atkchoices[MAX_ANIS]; //tempory values for ai functions, should be well enough LOL
 
 #ifdef ANDROID
+extern int disableFingerMotion;
 #elif PS3
 #else
 extern int argFullscreen;
@@ -39004,6 +39005,10 @@ void keyboard_setup(int player_index)
 	{
 		if(++selector > btnnum - 1) break;
 	}
+	
+	#ifdef ANDROID
+	disableFingerMotion = 1;
+	#endif
 
     while(!quit)
     {
@@ -39039,7 +39044,7 @@ void keyboard_setup(int player_index)
         update((level != NULL), 0);
 
         //debug_printf("settings: %d, %d", setting, selector);
-        if(setting > -1)
+        if(setting >= 0)
         {
             k = control_getremappedkey();
             if (k >= 0)
@@ -39128,7 +39133,7 @@ void keyboard_setup(int player_index)
                     control_resetmappings(deviceID);
                     savedata.joyrumble[player_index] = 0;
                 }
-                else
+                else if ((k = control_getremappedkey()) >= 0)
                 {
                     setting = selector;
                     ok = mapping[setting];
@@ -39150,6 +39155,9 @@ void keyboard_setup(int player_index)
 
     update(0, 0);
     bothnewkeys = 0;
+	#ifdef ANDROID
+	disableFingerMotion = 0;
+	#endif
     printf("Done!\n");
 }
 
