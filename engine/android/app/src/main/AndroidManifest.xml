@@ -2,7 +2,7 @@
 <manifest 
 	  xmlns:android="http://schemas.android.com/apk/res/android"
       android:versionCode="1"
-      android:versionName="1.4.5"
+      android:versionName="2.0.0"
       android:installLocation="preferExternal">
     <!-- package="org.openbor.engine" -->
 
@@ -64,6 +64,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
                 <category android:name="tv.ouya.intent.category.GAME"/>
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+                <category android:name="android.intent.category.CAR_MODE"/>
             </intent-filter>
             <!-- Let Android know that we can handle some USB devices and should receive this event -->
             <intent-filter>

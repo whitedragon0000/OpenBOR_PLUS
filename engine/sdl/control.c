@@ -199,7 +199,7 @@ static void setup_joystick(int deviceID, int sdlDeviceID)
         //snprintf(devices[deviceID].name, sizeof(devices[deviceID].name), "%s", name);
         set_device_name(deviceID, name);
         load_from_saved_mapping(deviceID);
-        printf("%s (device #%i, SDL ID %i) is not a game controller.\n", devices[deviceID].name, deviceID, sdlDeviceID);
+        printf("%s (device #%i, SDL ID %i) is not a game joystick.\n", devices[deviceID].name, deviceID, sdlDeviceID);
     }
 
     devices[deviceID].haptic = SDL_HapticOpen(sdlDeviceID);
@@ -570,20 +570,29 @@ static void handle_events()
             case SDL_JOYBUTTONDOWN:
             {
                 if (remapDevice &&
+					#ifdef ANDROID
+					(remapDevice->deviceType == DEVICE_TYPE_JOYSTICK || remapDevice->deviceType == DEVICE_TYPE_CONTROLLER))
+					#else
                     remapDevice->deviceType == DEVICE_TYPE_JOYSTICK &&
                     remapDevice->joystick &&
                     SDL_JoystickFromInstanceID(ev.jbutton.which) == remapDevice->joystick)
+					#endif
                 {
                     remapKeycode = ev.jbutton.button;
                 }
+				
                 break;
             }
             case SDL_JOYHATMOTION:
             {
                 if (remapDevice &&
+					#ifdef ANDROID
+					(remapDevice->deviceType == DEVICE_TYPE_JOYSTICK || remapDevice->deviceType == DEVICE_TYPE_CONTROLLER))
+					#else
                     remapDevice->deviceType == DEVICE_TYPE_JOYSTICK &&
                     remapDevice->joystick &&
                     SDL_JoystickFromInstanceID(ev.jhat.which) == remapDevice->joystick)
+					#endif
                 {
                     // do nothing if the d-pad is pressed diagonally; wait for a cardinal direction
                     unsigned int base = SDL_JoystickNumButtons(remapDevice->joystick) + (4 * ev.jhat.hat);
@@ -608,9 +617,13 @@ static void handle_events()
             case SDL_JOYAXISMOTION:
             {
                 if (remapDevice &&
+					#ifdef ANDROID
+					(remapDevice->deviceType == DEVICE_TYPE_JOYSTICK || remapDevice->deviceType == DEVICE_TYPE_CONTROLLER))
+					#else
                     remapDevice->deviceType == DEVICE_TYPE_JOYSTICK &&
                     remapDevice->joystick &&
                     SDL_JoystickFromInstanceID(ev.jaxis.which) == remapDevice->joystick)
+					#endif
                 {
                     if (ev.jaxis.value < -AXIS_THRESHOLD || ev.jaxis.value > AXIS_THRESHOLD)
                     {
@@ -661,7 +674,7 @@ static void handle_events()
                 }
 
                 control_update_android_touch(&touch_info, MAX_POINTERS);
-                remapKeycode = -1;
+                if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = -1;
                 break;
             }
 
@@ -683,6 +696,11 @@ static void handle_events()
                 }
                 break;
             }
+			
+			default:
+			{
+				break;
+			}
 #endif
         }
     }
@@ -977,21 +995,21 @@ static void control_update_android_touch(TouchStatus *m_touch_info, int maxp)
                     touchstates[SDID_MOVELEFT] = 1;
                     //event.key.keysym.scancode = pc(SDID_MOVELEFT);
                     //SDL_PushEvent(&event);
-                    remapKeycode = SDL_SCANCODE_LEFT;
+                    if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = SDL_SCANCODE_LEFT;
                 }
                 else if(tan<-tanb)
                 {
                     touchstates[SDID_MOVEDOWN] = 1;
                     //event.key.keysym.scancode = pc(SDID_MOVEDOWN);
                     //SDL_PushEvent(&event);
-                    remapKeycode = SDL_SCANCODE_DOWN;
+                    if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = SDL_SCANCODE_DOWN;
                 }
                 else if(tan>tanb)
                 {
                     touchstates[SDID_MOVEUP] = 1;
                     //event.key.keysym.scancode = pc(SDID_MOVEUP);
                     //SDL_PushEvent(&event);
-                    remapKeycode = SDL_SCANCODE_UP;
+                    if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = SDL_SCANCODE_UP;
                 }
                 else if(ty<0)
                 {
@@ -1016,23 +1034,23 @@ static void control_update_android_touch(TouchStatus *m_touch_info, int maxp)
                 if(tan>=-tana && tan<=tana)
                 {
                     touchstates[SDID_MOVERIGHT] = 1;
-                    //remapKeycode = event.key.keysym.scancode = pc(SDID_MOVERIGHT);
+                    //if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = event.key.keysym.scancode = pc(SDID_MOVERIGHT);
                     //SDL_PushEvent(&event);
-                    remapKeycode = SDL_SCANCODE_RIGHT;
+                    if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = SDL_SCANCODE_RIGHT;
                 }
                 else if(tan<-tanb)
                 {
                     touchstates[SDID_MOVEUP] = 1;
-                    //remapKeycode = event.key.keysym.scancode = pc(SDID_MOVEUP);
+                    //if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = event.key.keysym.scancode = pc(SDID_MOVEUP);
                     //SDL_PushEvent(&event);
-                    remapKeycode = SDL_SCANCODE_UP;
+                    if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = SDL_SCANCODE_UP;
                 }
                 else if(tan>tanb)
                 {
                     touchstates[SDID_MOVEDOWN] = 1;
-                    //remapKeycode = event.key.keysym.scancode = pc(SDID_MOVEDOWN);
+                    //if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = event.key.keysym.scancode = pc(SDID_MOVEDOWN);
                     //SDL_PushEvent(&event);
-                    remapKeycode = SDL_SCANCODE_DOWN;
+                    if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = SDL_SCANCODE_DOWN;
                 }
                 else if(ty<0)
                 {
@@ -1056,16 +1074,16 @@ static void control_update_android_touch(TouchStatus *m_touch_info, int maxp)
                 if(ty>0)
                 {
                     touchstates[SDID_MOVEDOWN] = 1;
-                    //remapKeycode = event.key.keysym.scancode = pc(SDID_MOVEDOWN);
+                    //if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = event.key.keysym.scancode = pc(SDID_MOVEDOWN);
                     //SDL_PushEvent(&event);
-                    remapKeycode = SDL_SCANCODE_DOWN;
+                    if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = SDL_SCANCODE_DOWN;
                 }
                 else
                 {
                     touchstates[SDID_MOVEUP] = 1;
-                    //remapKeycode = event.key.keysym.scancode = pc(SDID_MOVEUP);
+                    //if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = event.key.keysym.scancode = pc(SDID_MOVEUP);
                     //SDL_PushEvent(&event);
-                    remapKeycode = SDL_SCANCODE_UP;
+                    if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = SDL_SCANCODE_UP;
                 }
             }
         }
@@ -1086,15 +1104,18 @@ static void control_update_android_touch(TouchStatus *m_touch_info, int maxp)
                 //SDL_PushEvent(&event);
 
                 // default
-                if (j == SDID_ATTACK) remapKeycode = SDL_SCANCODE_A;
-                else if (j == SDID_ATTACK2) remapKeycode = SDL_SCANCODE_S;
-                else if (j == SDID_ATTACK3) remapKeycode = SDL_SCANCODE_Z;
-                else if (j == SDID_ATTACK4) remapKeycode = SDL_SCANCODE_X;
-                else if (j == SDID_JUMP) remapKeycode = SDL_SCANCODE_D;
-                else if (j == SDID_SPECIAL) remapKeycode = SDL_SCANCODE_F;
-                else if (j == SDID_START) remapKeycode = SDL_SCANCODE_RETURN;
-                else if (j == SDID_SCREENSHOT) remapKeycode = SDL_SCANCODE_F12;
-                else if (j == SDID_ESC) remapKeycode = SDL_SCANCODE_ESCAPE;
+                if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD)
+                {
+                    if (j == SDID_ATTACK) remapKeycode = SDL_SCANCODE_A;
+                    else if (j == SDID_ATTACK2) remapKeycode = SDL_SCANCODE_S;
+                    else if (j == SDID_ATTACK3) remapKeycode = SDL_SCANCODE_Z;
+                    else if (j == SDID_ATTACK4) remapKeycode = SDL_SCANCODE_X;
+                    else if (j == SDID_JUMP) remapKeycode = SDL_SCANCODE_D;
+                    else if (j == SDID_SPECIAL) remapKeycode = SDL_SCANCODE_F;
+                    else if (j == SDID_START) remapKeycode = SDL_SCANCODE_RETURN;
+                    else if (j == SDID_SCREENSHOT) remapKeycode = SDL_SCANCODE_F12;
+                    else if (j == SDID_ESC) remapKeycode = SDL_SCANCODE_ESCAPE;
+                }
             }
         }
     }

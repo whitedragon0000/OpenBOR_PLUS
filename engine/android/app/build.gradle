@@ -9,7 +9,7 @@ android {
         //////////// MODIFY FOR CUSTOM APK /////////////////
         applicationId "org.openbor.engine"
         versionCode 1
-        versionName "1.0.0"
+        versionName "2.0.0"
         resValue "string", "app_name", "OpenBOR"
 		resValue "string", "app_desc", "Ultimate 2D Game Engine"
         ///////////////////////////////////////////////////
