@@ -33018,14 +33018,14 @@ void kill_all_enemies()
 
 void smart_bomb(entity *e, s_collision_attack *attack)    // New method for smartbombs
 {
-    int i, hostile, hit = 0;
+    int i/*, hostile*/, hit = 0;
     entity *tmpself = NULL;
 
-    hostile = e->modeldata.hostile;
+    /*hostile = e->modeldata.hostile;
     if(e->modeldata.type & TYPE_PLAYER)
     {
         hostile &= ~(TYPE_PLAYER);
-    }
+    }*/
 
     tmpself = self;
     for(i = 0; i < ent_max; i++)
@@ -33070,7 +33070,6 @@ void smart_bomb(entity *e, s_collision_attack *attack)    // New method for smar
         }
     }
     self = tmpself;
-
 }
 
 
@@ -34969,7 +34968,7 @@ void update_scrolled_bg()
 {
     float rocktravel;
     unsigned char neonp[32];//3*8
-    static int neon_count = 0;
+    //static int neon_count = 0;
     static int rockpos = 0;
     static int rockoffssine[32] =
     {
@@ -35002,7 +35001,7 @@ void update_scrolled_bg()
         memcpy(neontable + (128 + 6)*pb, neonp, 2 * pb);
 
         neon_time = _time + (GAME_SPEED / 3);
-        neon_count += 2;
+        //neon_count += 2;
     }
 
     if(!freezeall)
@@ -39120,6 +39119,7 @@ void keyboard_setup(int player_index)
                 }
                 else
                 #endif
+
                 if(selector == OPTIONS_NUM - 2) // OK
                 {
                     quit = 2;
@@ -39133,7 +39133,7 @@ void keyboard_setup(int player_index)
                     control_resetmappings(deviceID);
                     savedata.joyrumble[player_index] = 0;
                 }
-                else if ((k = control_getremappedkey()) >= 0)
+                else
                 {
                     setting = selector;
                     ok = mapping[setting];
