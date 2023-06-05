@@ -591,7 +591,7 @@ static void handle_events()
 					#else
                     remapDevice->deviceType == DEVICE_TYPE_JOYSTICK &&
                     remapDevice->joystick &&
-                    SDL_JoystickFromInstanceID(ev.jbutton.which) == remapDevice->joystick)
+                    SDL_JoystickFromInstanceID(ev.jhat.which) == remapDevice->joystick)
 					#endif
                 {
                     // do nothing if the d-pad is pressed diagonally; wait for a cardinal direction
@@ -622,7 +622,7 @@ static void handle_events()
 					#else
                     remapDevice->deviceType == DEVICE_TYPE_JOYSTICK &&
                     remapDevice->joystick &&
-                    SDL_JoystickFromInstanceID(ev.jbutton.which) == remapDevice->joystick)
+                    SDL_JoystickFromInstanceID(ev.jaxis.which) == remapDevice->joystick)
 					#endif
                 {
                     if (ev.jaxis.value < -AXIS_THRESHOLD || ev.jaxis.value > AXIS_THRESHOLD)
