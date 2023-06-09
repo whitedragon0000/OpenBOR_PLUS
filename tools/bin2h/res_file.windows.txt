@@ -1,0 +1,17 @@
+con ResourceHacker edita le risorse e poi salva tutto in formato RES.
+poi vai su E:\openbor\tools\win-sdk\bin e apri il prompt i comandi
+
+converti o il file res che in realtà è un coff in rc (cambia quello che vuoi) e poi da rc (testo) a coff
+oppure se hai un file res, prima convertilo in rc e poi di nuovo in coff
+
+Poi rinomina il file o (compilato) in file res
+
+-----
+
+with ResourceHacker edit the resources and then save everything in RES format.
+then go to E:\openbor\tools\win-sdk\bin and open the command prompt
+
+convert or the res file which is actually a coff to rc (change what you want) and then from rc (text) to coff
+or if you have a res file, first convert it to rc and then back to coff
+
+Then rename the o (compiled) file to res file
