@@ -289,10 +289,11 @@ implemented hold key impulse for all menus to scroll menu with many mods more ea
 PS3 port
 
 #### ***ANDROID PORT***
-Display resizeing support
-Virtual gamepad vibration
-Hiding virtual gamepad support
-Improved gamepad support
+Display resizeing support<br/>
+Virtual gamepad vibration<br/>
+Hiding virtual gamepad support<br/>
+Improved gamepad support<br/>
+Installation dir: /Android/media/org.openbor.engine/OpenBOR (from Android 11 (targetSdkVersion 30), the management of security policies for the external storage management has changed)
 
 #### 3RD PART FRONT-END SUPPORT FOR WINDOWS
 Command line example:
