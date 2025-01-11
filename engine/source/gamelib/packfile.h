@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #ifndef SPK_SUPPORTED
@@ -31,11 +31,6 @@
 #ifdef WII
 #include "image.h"
 #endif
-
-#ifdef VITA
-#include "types.h"
-#endif
-
 #define PACKFILE_PATH_MAX 256 // Maximum length of file path string.
 #define MAX_TRACKS 128 // Maximum number of BGM Tracks. IMPORTANT: Wii max number is 256 (maybe for low memory??)
 
@@ -61,8 +56,6 @@ typedef struct fileliststruct
     SDL_Surface *preview;
 #elif PSP || WII
     Image *preview;
-#elif VITA
-    s_screen *preview;
 #endif
 } fileliststruct;
 

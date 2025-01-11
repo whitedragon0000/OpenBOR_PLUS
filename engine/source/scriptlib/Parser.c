@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2013 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #include "Parser.h"
@@ -1864,6 +1864,22 @@ void Parser_Unary_expr(Parser *pparser )
         else
         {
             Parser_AddInstructionViaToken(pparser, NOT, (Token *)NULL, NULL );
+        }
+    }
+    else if (Parser_Check(pparser, TOKEN_BITWISE_NOT ))
+    {
+        Parser_Match(pparser);
+        Parser_Unary_expr(pparser );
+        pInstruction = (Instruction *)List_Retrieve(pparser->pIList);
+        if(pInstruction->OpCode == CONSTINT)
+        {
+            int constvar = ~(atoi(pInstruction->theToken->theSource));
+            sprintf(buf, "%d", constvar);
+            strcpy(pInstruction->theToken->theSource, buf);
+        }
+        else
+        {
+            Parser_AddInstructionViaToken(pparser, BIT_NOT, (Token *)NULL, NULL );
         }
     }
     else

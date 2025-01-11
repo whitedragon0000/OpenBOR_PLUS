@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 #if ANDROID
 
@@ -24,6 +24,7 @@
 #include "gfx.h"
 #include "pngdec.h"
 #include "videocommon.h"
+#include "timer.h"
 #include "../resources/OpenBOR_Icon_32x32_png.h"
 
 SDL_Window *window = NULL;
@@ -41,11 +42,9 @@ int brightness = 0;
 void initSDL()
 {
 	SDL_DisplayMode video_info;
-	int init_flags = SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC;
+	int init_flags = SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC;
 
-    /*#if EE_CURRENT_PLATFORM == EE_PLATFORM_WINDOWS
-       SDL_setenv("SDL_AUDIODRIVER", "directsound", true);
-    #endif*/
+	SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "0");
 
 	if(SDL_Init(init_flags) < 0)
 	{
@@ -53,7 +52,6 @@ void initSDL()
 		borExit(0);
 	}
 	SDL_ShowCursor(SDL_DISABLE);
-	//atexit(SDL_Quit); //White Dragon: use SDL_Quit() into sdlport.c it's best practice!
 
 #ifdef LOADGL
 	if(SDL_GL_LoadLibrary(NULL) < 0)
@@ -83,11 +81,22 @@ int SetVideoMode(int w, int h, int bpp, bool gl)
 	static int last_x = SDL_WINDOWPOS_UNDEFINED;
 	static int last_y = SDL_WINDOWPOS_UNDEFINED;
 
-	if(gl) flags |= SDL_WINDOW_OPENGL;
 	if(savedata.fullscreen) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 
 	if(!(SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP))
 		SDL_GetWindowPosition(window, &last_x, &last_y);
+
+	if (gl)
+	{
+		// The SDL video backend doesn't support high-quality (sharp bilinear) scaling,
+		// so it will produce bad results if it tries to scale by a fractional factor.
+		// The results are worse than what we get from upscaling with nearest-neighbor
+		// and letting the windowing system upscale the result. So only use the high-DPI
+		// flag with the OpenGL backend. Unfortunately, we're stuck with it on Windows,
+		// where high-DPI support is controlled by a global hint and the ALLOW_HIGHDPI
+		// flag is ignored.
+		flags |= SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI;
+	}
 
 	if(window && gl != last_gl)
 	{
@@ -127,15 +136,17 @@ int SetVideoMode(int w, int h, int bpp, bool gl)
 			printf("Error: failed to create window: %s\n", SDL_GetError());
 			return 0;
 		}
-		SDL_Surface* icon = (SDL_Surface*)pngToSurface((void*)openbor_icon_32x32_png.data);
-		SDL_SetWindowIcon(window, icon);
-		SDL_FreeSurface(icon);
+		
+		// Kratus (11-2022) Disabled the native OpenBOR icon
+		// SDL_Surface* icon = (SDL_Surface*)pngToSurface((void*)openbor_icon_32x32_png.data);
+		// SDL_SetWindowIcon(window, icon);
+		// SDL_FreeSurface(icon);
 		if(!savedata.fullscreen) SDL_GetWindowPosition(window, &last_x, &last_y);
 	}
 
 	if(!gl)
 	{
-		renderer = SDL_CreateRenderer(window, -1, savedata.vsync ? SDL_RENDERER_PRESENTVSYNC : 0);
+		renderer = SDL_CreateRenderer(window, -1, savedata.fpslimit == 1 ? SDL_RENDERER_PRESENTVSYNC : 0);
 		if(!renderer)
 		{
 			printf("Error: failed to create renderer: %s\n", SDL_GetError());
@@ -153,7 +164,6 @@ int video_set_mode(s_videomodes videomodes)
 
 	if(videomodes.hRes==0 && videomodes.vRes==0)
 	{
-		Term_Gfx();
 		return 0;
 	}
 
@@ -214,6 +224,23 @@ void blit()
 	SDL_RenderPresent(renderer);
 }
 
+void FramerateDelay()
+{
+    static u64 last_time = 0;
+
+    if (savedata.fpslimit < 2 || savedata.fpslimit > 3) return;
+    int fps_limit = savedata.fpslimit == 3 ? 500 : 200;
+
+    u64 target_time = last_time + 1000000/fps_limit;
+    u64 current_time = timer_uticks();
+    while (current_time < target_time)
+    {
+        usleep(target_time - current_time);
+        current_time = timer_uticks();
+    }
+    last_time = current_time;
+}
+
 int video_copy_screen(s_screen* src)
 {
 	// do any needed scaling and color conversion
@@ -223,6 +250,8 @@ int video_copy_screen(s_screen* src)
 
 	SDL_UpdateTexture(texture, NULL, surface->data, surface->pitch);
 	blit();
+
+	if (savedata.fpslimit >= 2) FramerateDelay();
 
 	return 1;
 }
@@ -286,6 +315,14 @@ int video_display_yuv_frame(void)
 
 	blit();
 	return 1;
+}
+
+int video_current_refresh_rate()
+{
+    SDL_DisplayMode display_mode;
+    if (SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &display_mode) != 0)
+        return 60;
+    return display_mode.refresh_rate;
 }
 
 void vga_vwait(void)

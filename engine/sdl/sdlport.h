@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #ifndef SDLPORT_H
@@ -23,16 +23,12 @@
 
 #include "globals.h"
 
-#if GP2X || LINUX || OPENDINGUX || SYMBIAN
+#if LINUX
 #define stricmp  strcasecmp
 #define strnicmp strncasecmp
 #endif
 
-#if SDL_VERSION_ATLEAST(2,0,0)
-#define SDL2 1
-#endif
-
-#if GP2X || DARWIN || OPENDINGUX || ANDROID || PS3
+#if DARWIN || ANDROID
 #define SKIP_CODE
 #endif
 

@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 /*
@@ -40,9 +40,7 @@
 Caution: move vorbis headers here otherwise the structs will
  get poisoned by #pragma in other header files, i.e. list.h
 */
-#ifdef DC
-#include <ivorbisfile.h>
-#elif TREMOR
+#if TREMOR
 #include <tremor/ivorbisfile.h>
 #else
 #include <vorbis/vorbisfile.h>
@@ -52,13 +50,21 @@ Caution: move vorbis headers here otherwise the structs will
 #include "adpcm.h"
 #include "sblaster.h"
 #include "borendian.h"
-#include "List.h"
+
 
 
 #define		MIXSHIFT		     3	    // 2 should be OK
-#define		MAXVOLUME		     64	    // 64 for backw. compat.
+
+/*
+    Kratus (01-2024) Reverted all volume values but separated both music/sample volumes in different constants 
+    Fixed the "nullified" samples when many of them are played at the same time using 8 bits
+    This was made to equalize both in the volume of 100, and at the same time to make them louder than before
+    This way we don't need to increase the volume too much in the audio files, preventing distortions and quality loss
+*/ 
 //#define		MAX_SAMPLES		     1024	// Should be well enough
-#define		MAX_CHANNELS	     64	    // Should be well enough
+#define		MAX_SAMPLE_VOLUME   100 // 64 for backw. compat
+#define		MAX_MUSIC_VOLUME    60 // 64 for backw. compat
+#define		MAX_CHANNELS        256    
 
 // Hardware settings for SoundBlaster (change only if latency is too big)
 #define		SB_BUFFER_SIZE		 0x8000
@@ -69,46 +75,28 @@ Caution: move vorbis headers here otherwise the structs will
 #define		PREMIX_SIZE		     1024
 #define		MIX_BLOCK_SIZE		 32
 
-#ifndef DC
 #pragma pack(4)
-#endif
 
-typedef struct
+s_sound_parameters sound_parameters = {
+    .music_buffers_count = 4,
+    .music_buffer_size = (16 * 1024),
+    .sound_length_max = 4294967295 // 0x4ffffb //2,147,483,392 // 3,039,297,536 // 625580,032
+};
+
+s_audio_global audio_global =
 {
-    int            active;		 // 1 = play, 2 = loop
-    int				paused;
-    int            samplenum;	 // Index of sound playing
-    unsigned int   priority;	 // Used for SFX
-    int				playid;
-    int            volume[2];	 // Stereo :)
-    int            channels;
-    unsigned int   fp_samplepos; // Position (fixed-point)
-    unsigned int   fp_period;	 // Period (fixed-point)
-} channelstruct;
+    .sample_play_id = 0,
+    .soundcache = NULL,
+    .sound_cached = 0,
+};
 
-typedef struct
-{
-    void 		   *sampleptr;
-    int			   soundlen;	 // Length in samples
-    int            bits;		 // 8/16 bit
-    int            frequency;    // 11025 * 1,2,4
-    int            channels;
-} samplestruct;
-
-typedef struct
-{
-    samplestruct  sample;
-    int index;
-    char *filename;
-} s_soundcache;
-
-
-static List samplelist;
+//static List samplelist;
 static s_soundcache *soundcache = NULL;
 static int sound_cached = 0;
 int sample_play_id = 0;
+
 static channelstruct vchannel[MAX_CHANNELS];
-musicchannelstruct musicchannel;
+musicchannelstruct musicchannel = { .object_type = OBJECT_TYPE_MUSIC_CHANNEL };
 static s32 *mixbuf = NULL;
 static int playbits;
 int playfrequency;
@@ -123,21 +111,24 @@ static int mixing_inited = 0;
 // Counts the total number of samples played
 static u32 samplesplayed;
 
-// Records type of currently playing music: 0=ADPCM, 1=Vorbis
-static int music_type = 0;
+// Records type of currently playing music.
+static e_sound_file_type music_type = SOUND_FILE_TYPE_ADPCM;
 
 //////////////////////////////// WAVE LOADER //////////////////////////////////
 
-#ifndef DC
 #pragma pack(push, 1)
-#endif
-
 
 #define		HEX_RIFF	0x46464952
 #define		HEX_WAVE	0x45564157
 #define		HEX_fmt		0x20746D66
 #define		HEX_data	0x61746164
 #define		FMT_PCM		0x0001
+
+void  sound_music_channel_clear(musicchannelstruct* const music_channel)
+{
+    memset(music_channel, 0, sizeof(*music_channel));
+    music_channel->object_type = OBJECT_TYPE_MUSIC_CHANNEL;
+}
 
 static int loadwave(char *filename, char *packname, samplestruct *buf, unsigned int maxsize)
 {
@@ -300,7 +291,7 @@ int sound_reload_sample(int index)
     if(!soundcache[index].sample.sampleptr)
     {
         //printf("packfile: '%s'\n", packfile);
-        return loadwave(soundcache[index].filename, packfile, &(soundcache[index].sample), MAX_SOUND_LEN);
+        return loadwave(soundcache[index].filename, packfile, &(soundcache[index].sample), sound_parameters.sound_length_max);
     }
     else
     {
@@ -322,9 +313,9 @@ int sound_load_sample(char *filename, char *packfilename, int iLog)
     /////////////////////////////
     strcpy(convcache, filename);
     lc(convcache, strlen(convcache));
-    if(List_FindByName(&samplelist, convcache))
+    if(List_FindByName(&audio_global.samplelist, convcache))
     {
-        cache = &soundcache[(size_t)List_Retrieve(&samplelist)];
+        cache = &soundcache[(size_t)List_Retrieve(&audio_global.samplelist)];
         if(!cache->sample.sampleptr)
         {
             if(!sound_reload_sample(cache->index) && iLog)
@@ -336,7 +327,7 @@ int sound_load_sample(char *filename, char *packfilename, int iLog)
     }
 
     memset(&sample, 0, sizeof(sample));
-    if(!loadwave(filename, packfilename, &sample, MAX_SOUND_LEN))
+    if(!loadwave(filename, packfilename, &sample, sound_parameters.sound_length_max))
     {
         if(iLog)
         {
@@ -348,10 +339,10 @@ int sound_load_sample(char *filename, char *packfilename, int iLog)
     __realloc(soundcache, sound_cached);
     soundcache[sound_cached].sample = sample;
 
-    List_GotoLast(&samplelist);
-    List_InsertAfter(&samplelist, (void *)(size_t)sound_cached, convcache);
+    List_GotoLast(&audio_global.samplelist);
+    List_InsertAfter(&audio_global.samplelist, (void *)(size_t)sound_cached, convcache);
     soundcache[sound_cached].index = sound_cached;
-    soundcache[sound_cached].filename = List_GetName(&samplelist);
+    soundcache[sound_cached].filename = List_GetName(&audio_global.samplelist);
 
     sound_cached++;
     return sound_cached - 1;
@@ -388,15 +379,13 @@ void sound_unload_all_samples()
     {
         sound_unload_sample(i);
     }
-    List_Clear(&samplelist);
+    List_Clear(&audio_global.samplelist);
     free(soundcache);
     soundcache = NULL;
     sound_cached = 0;
 }
 
-#ifndef DC
 #pragma pack(pop)
-#endif
 
 /////////////////////////////// Mix to DMA //////////////////////////////////
 // Mixbuffer / DMA buffer data handling
@@ -436,8 +425,8 @@ static void mixaudio(unsigned int todo)
         fp_playto = musicchannel.fp_playto[musicchannel.playing_buffer];
         fp_pos = musicchannel.fp_samplepos;
         fp_period = musicchannel.fp_period;
-        lvolume = musicchannel.volume[0];
-        rvolume = musicchannel.volume[1];
+        lvolume = musicchannel.volume[SOUND_SPATIAL_CHANNEL_LEFT];
+        rvolume = musicchannel.volume[SOUND_SPATIAL_CHANNEL_RIGHT];
 
         // Mix it
         for(i = 0; i < (int)todo;)
@@ -475,10 +464,10 @@ static void mixaudio(unsigned int todo)
 
             // Mix a sample
             lmusic = rmusic = sptr16[FIX_TO_INT(fp_pos)]; // White Dragon: Maybe (int)(short)SwapLSB16() too? From Wii test for now no...
-            lmusic = (lmusic * lvolume / MAXVOLUME);
-            rmusic = (rmusic * rvolume / MAXVOLUME);
+            lmusic = (lmusic * lvolume / MAX_MUSIC_VOLUME);
+            rmusic = (rmusic * rvolume / MAX_MUSIC_VOLUME);
             mixbuf[i++] += lmusic;
-            if(musicchannel.channels == SOUND_MONO)
+            if(musicchannel.channels == CHANNEL_TYPE_MONO)
             {
                 mixbuf[i++] += rmusic;
             }
@@ -500,11 +489,17 @@ static void mixaudio(unsigned int todo)
                 continue;
             }
             modlen = soundcache[snum].sample.soundlen;
-            fp_len = INT_TO_FIX(soundcache[snum].sample.soundlen);
+
+            //printf("\n modlen: %u", modlen);
+
+            fp_len = INT_TO_FIX(modlen);
+
+            //printf("\n fp_len: %u", fp_len);
+
             fp_pos = vchannel[chan].fp_samplepos;
             fp_period = vchannel[chan].fp_period;
-            lvolume = vchannel[chan].volume[0];
-            rvolume = vchannel[chan].volume[1];
+            lvolume = vchannel[chan].volume[SOUND_SPATIAL_CHANNEL_LEFT];
+            rvolume = vchannel[chan].volume[SOUND_SPATIAL_CHANNEL_RIGHT];
             if(fp_len < 1)
             {
                 fp_len = 1;
@@ -519,10 +514,10 @@ static void mixaudio(unsigned int todo)
                 for(i = 0; i < (int)todo;)
                 {
                     lmusic = rmusic = sptr8[FIX_TO_INT(fp_pos)];
-                    mixbuf[i++] += ((lmusic << 8) * lvolume / MAXVOLUME) - 0x8000;
-                    if(vchannel[chan].channels == SOUND_MONO)
+                    mixbuf[i++] += ((lmusic << 8) * lvolume / MAX_SAMPLE_VOLUME) - 0x8000;
+                    if(vchannel[chan].channels == CHANNEL_TYPE_MONO)
                     {
-                        mixbuf[i++] += ((rmusic << 8) * rvolume / MAXVOLUME) - 0x8000;
+                        mixbuf[i++] += ((rmusic << 8) * rvolume / MAX_SAMPLE_VOLUME) - 0x8000;
                     }
                     fp_pos += fp_period;
 
@@ -544,10 +539,10 @@ static void mixaudio(unsigned int todo)
                 for(i = 0; i < (int)todo;)
                 {
                     lmusic = rmusic = (int)(short)SwapLSB16(sptr16[FIX_TO_INT(fp_pos)]);
-                    mixbuf[i++] += (lmusic * lvolume / MAXVOLUME);
-                    if(vchannel[chan].channels == SOUND_MONO)
+                    mixbuf[i++] += (lmusic * lvolume / MAX_SAMPLE_VOLUME);
+                    if(vchannel[chan].channels == CHANNEL_TYPE_MONO)
                     {
-                        mixbuf[i++] += (rmusic * rvolume / MAXVOLUME);
+                        mixbuf[i++] += (rmusic * rvolume / MAX_SAMPLE_VOLUME);
                     }
                     fp_pos += fp_period;
 
@@ -685,26 +680,26 @@ int sound_play_sample(int samplenum, unsigned int priority, int lvolume, int rvo
     {
         rvolume = 0;
     }
-    if(lvolume > MAXVOLUME)
+    if(lvolume > MAX_SAMPLE_VOLUME)
     {
-        lvolume = MAXVOLUME;
+        lvolume = MAX_SAMPLE_VOLUME;
     }
-    if(rvolume > MAXVOLUME)
+    if(rvolume > MAX_SAMPLE_VOLUME)
     {
-        rvolume = MAXVOLUME;
+        rvolume = MAX_SAMPLE_VOLUME;
     }
 
     vchannel[channel].samplenum = samplenum;
     // Prevent samples from being played at EXACT same point
     vchannel[channel].fp_samplepos = INT_TO_FIX((channel * 4) % soundcache[samplenum].sample.soundlen);
     vchannel[channel].fp_period = (INT_TO_FIX(1) * speed / 100) * soundcache[samplenum].sample.frequency / playfrequency;
-    vchannel[channel].volume[0] = lvolume;
-    vchannel[channel].volume[1] = rvolume;
+    vchannel[channel].volume[SOUND_SPATIAL_CHANNEL_LEFT] = lvolume;
+    vchannel[channel].volume[SOUND_SPATIAL_CHANNEL_RIGHT] = rvolume;
     vchannel[channel].priority = priority;
     vchannel[channel].channels = soundcache[samplenum].sample.channels;
     vchannel[channel].active = CHANNEL_PLAYING;
     vchannel[channel].paused = 0;
-    vchannel[channel].playid = ++sample_play_id;
+    vchannel[channel].playid = ++audio_global.sample_play_id;
 
     return channel;
 }
@@ -790,16 +785,16 @@ void sound_volume_sample(int channel, int lvolume, int rvolume)
     {
         rvolume = 0;
     }
-    if(lvolume > MAXVOLUME)
+    if(lvolume > MAX_SAMPLE_VOLUME)
     {
-        lvolume = MAXVOLUME;
+        lvolume = MAX_SAMPLE_VOLUME;
     }
-    if(rvolume > MAXVOLUME)
+    if(rvolume > MAX_SAMPLE_VOLUME)
     {
-        rvolume = MAXVOLUME;
+        rvolume = MAX_SAMPLE_VOLUME;
     }
-    vchannel[channel].volume[0] = lvolume;
-    vchannel[channel].volume[1] = rvolume;
+    vchannel[channel].volume[SOUND_SPATIAL_CHANNEL_LEFT] = lvolume;
+    vchannel[channel].volume[SOUND_SPATIAL_CHANNEL_RIGHT] = rvolume;
 }
 
 int sound_getpos_sample(int channel)
@@ -821,9 +816,7 @@ static int music_atend = 0;
 #define	BOR_MUSIC_VERSION_STEREO 0x00010001
 #define	BOR_IDENTIFIER "BOR music"
 
-#ifndef DC
 #pragma pack (1)
-#endif
 
 typedef struct
 {
@@ -836,13 +829,9 @@ typedef struct
     int		datastart;
 } bor_header;
 
-#ifndef DC
-#pragma pack (4)
-#endif
-
 static bor_header borhead;
-static short loop_valprev[2];
-static char loop_index[2];
+static short loop_valprev[SOUND_SPATIAL_CHANNEL_MAX];
+static char loop_index[SOUND_SPATIAL_CHANNEL_MAX];
 static int loop_state_set;
 static u32 loop_offset;
 
@@ -880,12 +869,15 @@ void sound_close_adpcm()
         }
     }
 
-    memset(&musicchannel, 0, sizeof(musicchannelstruct));
+    
+
+    sound_music_channel_clear(&musicchannel);
+
     memset(&borhead, 0, sizeof(bor_header));
 
     adpcm_reset();
-    loop_valprev[0] = loop_valprev[1] = 0;
-    loop_index[0] = loop_index[1] = 0;
+    loop_valprev[SOUND_SPATIAL_CHANNEL_LEFT] = loop_valprev[SOUND_SPATIAL_CHANNEL_RIGHT] = 0;
+    loop_index[SOUND_SPATIAL_CHANNEL_LEFT] = loop_index[SOUND_SPATIAL_CHANNEL_RIGHT] = 0;
     loop_state_set = 0;
 }
 
@@ -942,11 +934,11 @@ int sound_open_adpcm(char *filename, char *packname, int volume, int loop, u32 m
         goto error_exit;
     }
 
-    memset(&musicchannel, 0, sizeof(musicchannelstruct));
+    sound_music_channel_clear(&musicchannel);
 
     musicchannel.fp_period = INT_TO_FIX(borhead.frequency) / playfrequency;
-    musicchannel.volume[0] = volume;
-    musicchannel.volume[1] = volume;
+    musicchannel.volume[SOUND_SPATIAL_CHANNEL_LEFT] = volume;
+    musicchannel.volume[SOUND_SPATIAL_CHANNEL_RIGHT] = volume;
     musicchannel.channels = borhead.channels;
     music_looping = loop;
     music_atend = 0;
@@ -968,7 +960,7 @@ int sound_open_adpcm(char *filename, char *packname, int volume, int loop, u32 m
     }
 
     loop_offset = music_offset;
-    music_type = 0;
+    music_type = SOUND_FILE_TYPE_ADPCM;
 
     return 1;
 error_exit:
@@ -984,7 +976,7 @@ void sound_update_adpcm()
     short *outptr;
     int i, j;
 
-    if((adpcm_handle < 0) || (music_type != 0))
+    if((adpcm_handle < 0) || (music_type != SOUND_FILE_TYPE_ADPCM))
     {
         return;
     }
@@ -1054,12 +1046,12 @@ void sound_update_adpcm()
                     {
                         readsamples = readpackfile(adpcm_handle, adpcm_inbuf, borhead.datastart + loop_offset - seekpackfile(adpcm_handle, 0, SEEK_CUR)) * 2;
                         adpcm_decode(adpcm_inbuf, outptr, readsamples / 2, musicchannel.channels);
-                        loop_valprev[0] = adpcm_valprev(0);
-                        loop_index[0] = adpcm_index(0);
-                        if(musicchannel.channels == SOUND_STEREO)
+                        loop_valprev[SOUND_SPATIAL_CHANNEL_LEFT] = adpcm_valprev(0);
+                        loop_index[SOUND_SPATIAL_CHANNEL_LEFT] = adpcm_index(0);
+                        if(musicchannel.channels == CHANNEL_TYPE_STEREO)
                         {
-                            loop_valprev[1] = adpcm_valprev(1);
-                            loop_index[1] = adpcm_index(1);
+                            loop_valprev[SOUND_SPATIAL_CHANNEL_RIGHT] = adpcm_valprev(1);
+                            loop_index[SOUND_SPATIAL_CHANNEL_RIGHT] = adpcm_index(1);
                         }
                         loop_state_set = 1;
                         outptr += readsamples;
@@ -1096,10 +1088,10 @@ void sound_update_adpcm()
                                 return;
                             }
                             // Reset decoder
-                            adpcm_loop_reset(0, loop_valprev[0], loop_index[0]);
-                            if(musicchannel.channels == SOUND_STEREO)
+                            adpcm_loop_reset(SOUND_SPATIAL_CHANNEL_LEFT, loop_valprev[SOUND_SPATIAL_CHANNEL_LEFT], loop_index[SOUND_SPATIAL_CHANNEL_LEFT]);
+                            if(musicchannel.channels == CHANNEL_TYPE_STEREO)
                             {
-                                adpcm_loop_reset(1, loop_valprev[1], loop_index[1]);
+                                adpcm_loop_reset(SOUND_SPATIAL_CHANNEL_RIGHT, loop_valprev[SOUND_SPATIAL_CHANNEL_RIGHT], loop_index[SOUND_SPATIAL_CHANNEL_RIGHT]);
                             }
                         }
                     }
@@ -1140,7 +1132,7 @@ int sound_query_adpcm(char *artist, char *title)
 /////////////////////////// Ogg Vorbis decoding ///////////////////////////////
 // Plombo's Ogg Vorbis decoder for OpenBOR. Uses libvorbisfile or libvorbisidec.
 
-#if TREMOR || DC
+#if TREMOR
 #define ov_decode(vf,buffer,length,bitstream) ov_read(vf,buffer,length,bitstream)
 #else
     #ifndef PS3
@@ -1183,7 +1175,7 @@ void sound_close_ogg()
     ov_clear(oggfile);
     free(oggfile);
     oggfile = NULL;
-    music_type = -1;
+    music_type = SOUND_FILE_TYPE_NONE;
 
     for(i = 0; i < MUSIC_NUM_BUFFERS; i++)
     {
@@ -1194,7 +1186,7 @@ void sound_close_ogg()
         }
     }
 
-    memset(&musicchannel, 0, sizeof(musicchannelstruct));
+    sound_music_channel_clear(&musicchannel);
 }
 
 int sound_open_ogg(char *filename, char *packname, int volume, int loop, u32 music_offset)
@@ -1256,11 +1248,11 @@ int sound_open_ogg(char *filename, char *packname, int volume, int loop, u32 mus
         goto error_exit;
     }
 
-    memset(&musicchannel, 0, sizeof(musicchannelstruct));
+    sound_music_channel_clear(&musicchannel);
 
     musicchannel.fp_period = INT_TO_FIX(stream_info->rate) / playfrequency;
-    musicchannel.volume[0] = volume;
-    musicchannel.volume[1] = volume;
+    musicchannel.volume[SOUND_SPATIAL_CHANNEL_LEFT] = volume;
+    musicchannel.volume[SOUND_SPATIAL_CHANNEL_RIGHT] = volume;
     musicchannel.channels = stream_info->channels;
     music_looping = loop;
     music_atend = 0;
@@ -1277,10 +1269,11 @@ int sound_open_ogg(char *filename, char *packname, int volume, int loop, u32 mus
             goto error_exit;
         }
         memset(musicchannel.buf[i], 0, MUSIC_BUF_SIZE * sizeof(short));
+        musicchannel.object_type = OBJECT_TYPE_MUSIC_CHANNEL;
     }
 
     loop_offset = music_offset;
-    music_type = 1;
+    music_type = SOUND_FILE_TYPE_VORBIS;
 
 #ifdef VERBOSE
     printf("ogg is opened\n");
@@ -1478,24 +1471,30 @@ void sound_close_music()
 {
     switch(music_type)
     {
-    case 0:
+    case SOUND_FILE_TYPE_ADPCM:
         sound_close_adpcm();
         break;
-    case 1:
+    case SOUND_FILE_TYPE_VORBIS:
         sound_close_ogg();
+        break;
+    case SOUND_FILE_TYPE_NONE:
+        return;
     }
-    music_type = -1;
+    music_type = SOUND_FILE_TYPE_NONE;
 }
 
 void sound_update_music()
 {
     switch(music_type)
     {
-    case 0:
+    case SOUND_FILE_TYPE_ADPCM:
         sound_update_adpcm();
         break;
-    case 1:
+    case SOUND_FILE_TYPE_VORBIS:
         sound_update_ogg();
+        break;
+    case SOUND_FILE_TYPE_NONE:
+        return;
     }
 }
 
@@ -1503,13 +1502,15 @@ int sound_query_music(char *artist, char *title)
 {
     switch(music_type)
     {
-    case 0:
+    case SOUND_FILE_TYPE_ADPCM:
         return sound_query_adpcm(artist, title);
-    case 1:
+    case SOUND_FILE_TYPE_VORBIS:
         return sound_query_ogg(artist, title);
-    default:
+    case SOUND_FILE_TYPE_NONE:
         return 0;
     }
+
+    return 0;
 }
 
 void sound_music_tempo(int music_tempo)
@@ -1517,11 +1518,14 @@ void sound_music_tempo(int music_tempo)
 
     switch(music_type)
     {
-    case 0:
+    case SOUND_FILE_TYPE_ADPCM:
         sound_adpcm_tempo(music_tempo);
         break;
-    case 1:
+    case SOUND_FILE_TYPE_VORBIS:        
         sound_ogg_tempo(music_tempo);
+        break;
+    case SOUND_FILE_TYPE_NONE:
+        return;
     }
 }
 
@@ -1535,16 +1539,16 @@ void sound_volume_music(int left, int right)
     {
         right = 0;
     }
-    if(left > MAXVOLUME * 8)
+    if(left > MAX_SAMPLE_VOLUME * 8)
     {
-        left = MAXVOLUME * 8;
+        left = MAX_SAMPLE_VOLUME * 8;
     }
-    if(right > MAXVOLUME * 8)
+    if(right > MAX_SAMPLE_VOLUME * 8)
     {
-        right = MAXVOLUME * 8;
+        right = MAX_SAMPLE_VOLUME * 8;
     }
-    musicchannel.volume[0] = left;
-    musicchannel.volume[1] = right;
+    musicchannel.volume[SOUND_SPATIAL_CHANNEL_LEFT] = left;
+    musicchannel.volume[SOUND_SPATIAL_CHANNEL_RIGHT] = right;
 }
 
 void sound_pause_music(int toggle)
@@ -1620,10 +1624,6 @@ void sound_exit()
         mixbuf = NULL;
     }
 
-#ifdef PSP
-    SB_exit();
-#endif
-
     mixing_inited = 0;
 }
 
@@ -1645,10 +1645,6 @@ int sound_init(int channels)
     // Allocate the maximum amount ever possibly needed for mixing
     if((mixbuf = malloc(MIXBUF_SIZE)) == NULL)
     {
-
-#ifdef PSP
-        SB_exit();
-#endif
         return 0;
     }
 
@@ -1660,7 +1656,7 @@ int sound_init(int channels)
 
     mixing_active = 0;
     mixing_inited = 1;
-    List_Init(&samplelist);
+    List_Init(&audio_global.samplelist);
 
     return 1;
 }

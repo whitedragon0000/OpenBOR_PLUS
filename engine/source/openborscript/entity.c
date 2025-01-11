@@ -3,2480 +3,1457 @@
  * -----------------------------------------------------------------------
  * All rights reserved. See LICENSE in OpenBOR root for license details.
  *
- * Copyright (c) 2004 - 2018 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
  #include "scriptcommon.h"
 
-// Use string property argument to find an
-// integer property constant and populate
-// varlist->lval.
-int mapstrings_entity_property(ScriptVariant **varlist, int paramCount)
+const s_property_access_map entity_get_property_map(const void* acting_object_param, const unsigned int property_index_param)
+{	
+	s_property_access_map property_map;
+	const entity* acting_object = acting_object_param;
+	const e_entity_properties property_index = property_index_param;
+	
+	switch (property_index)
+	{
+
+	case ENTITY_PROPERTY_AI_DISABLE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->noaicontrol;
+		property_map.id_string = "ENTITY_PROPERTY_AI_DISABLE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_AI_TARGET_ENTITY:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->custom_target;
+		property_map.id_string = "ENTITY_PROPERTY_AI_TARGET_ENTITY";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_ALTERNATE_IDLE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->idlemode;
+		property_map.id_string = "ENTITY_PROPERTY_ALTERNATE_IDLE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ALTERNATE_WALK:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->walkmode;
+		property_map.id_string = "ENTITY_PROPERTY_ALTERNATE_WALK";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ANIMATION:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_READ;
+		property_map.field = &acting_object->animation;
+		property_map.id_string = "ENTITY_PROPERTY_ANIMATION";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_ANIMATION_FRAME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->animpos;
+		property_map.id_string = "ENTITY_PROPERTY_ANIMATION_FRAME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ANIMATION_ID:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->animnum;
+		property_map.id_string = "ENTITY_PROPERTY_ANIMATION_ID";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ANIMATION_ID_PREVIOUS:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->animnum_previous;
+		property_map.id_string = "ENTITY_PROPERTY_ANIMATION_ID_PREVIOUS";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ANIMATION_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->animating;
+		property_map.id_string = "ENTITY_PROPERTY_ANIMATION_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ANIMATION_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->nextanim;
+		property_map.id_string = "ENTITY_PROPERTY_ANIMATION_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ARROW_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->arrowon;
+		property_map.id_string = "ENTITY_PROPERTY_ARROW_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ATTACK_ID_INCOMING:
+
+		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
+		property_map.field = &acting_object->attack_id_incoming;
+		property_map.id_string = "ENTITY_PROPERTY_ATTACK_ID_INCOMING";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_ATTACK_ID_OUTGOING:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->attack_id_outgoing;
+		property_map.id_string = "ENTITY_PROPERTY_ATTACK_ID_OUTGOING";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ATTACK_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->attacking;
+		property_map.id_string = "ENTITY_PROPERTY_ATTACK_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_AUTOKILL:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->autokill;
+		property_map.id_string = "ENTITY_PROPERTY_AUTOKILL";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_BACK_HIT_DIRECTION:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->normaldamageflipdir;
+		property_map.id_string = "ENTITY_PROPERTY_BACK_HIT_DIRECTION";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_BIND:
+
+		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
+		property_map.field = &acting_object->binding;
+		property_map.id_string = "ENTITY_PROPERTY_BIND";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_BLAST_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->projectile;
+		property_map.id_string = "ENTITY_PROPERTY_BLAST_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_BLINK:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->blink;
+		property_map.id_string = "ENTITY_PROPERTY_BLINK";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_BLOCK_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->blocking;
+		property_map.id_string = "ENTITY_PROPERTY_BLOCK_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_BOSS:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->boss;
+		property_map.id_string = "ENTITY_PROPERTY_BOSS";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_CHARGE_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->charging;
+		property_map.id_string = "ENTITY_PROPERTY_CHARGE_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_CHILD:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->subentity;
+		property_map.id_string = "ENTITY_PROPERTY_CHILD";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_COLORSET_DEFAULT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->map;
+		property_map.id_string = "ENTITY_PROPERTY_COLORSET_DEFAULT";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_COLORSET_DYING_HEALTH_1:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->per1;
+		property_map.id_string = "ENTITY_PROPERTY_COLORSET_DYING_HEALTH_1";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_COLORSET_DYING_HEALTH_2:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->per2;
+		property_map.id_string = "ENTITY_PROPERTY_COLORSET_DYING_HEALTH_2";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_COLORSET_DYING_INDEX_1:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->dying;
+		property_map.id_string = "ENTITY_PROPERTY_COLORSET_DYING_INDEX_1";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_COLORSET_DYING_INDEX_2:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->dying2;
+		property_map.id_string = "ENTITY_PROPERTY_COLORSET_DYING_INDEX_2";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_COLORSET_TABLE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->colourmap;
+		property_map.id_string = "ENTITY_PROPERTY_COLORSET_TABLE";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_COLORSET_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->maptime;
+		property_map.id_string = "ENTITY_PROPERTY_COLORSET_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_COMBO_STEP:
+
+		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
+		property_map.field = &acting_object->combostep;
+		property_map.id_string = "ENTITY_PROPERTY_COMBO_STEP";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_COMBO_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->combotime;
+		property_map.id_string = "ENTITY_PROPERTY_COMBO_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_COMMAND_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->movetime;
+		property_map.id_string = "ENTITY_PROPERTY_COMMAND_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_DAMAGE_ON_LANDING:
+
+		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
+		property_map.field = &acting_object->damage_on_landing;
+		property_map.id_string = "ENTITY_PROPERTY_DAMAGE_ON_LANDING";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_DEATH_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->death_state;
+		property_map.id_string = "ENTITY_PROPERTY_DEATH_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_DEFENSE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_READ;
+		property_map.field = &acting_object->defense;
+		property_map.id_string = "ENTITY_PROPERTY_DEFENSE";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_DESTINATION_X:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->destx;
+		property_map.id_string = "ENTITY_PROPERTY_DESTINATION_X";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_DESTINATION_Z:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->destz;
+		property_map.id_string = "ENTITY_PROPERTY_DESTINATION_Z";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_DIE_ON_LANDING:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->die_on_landing;
+		property_map.id_string = "ENTITY_PROPERTY_DIE_ON_LANDING";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_DRAWMETHOD:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->drawmethod;
+		property_map.id_string = "ENTITY_PROPERTY_DRAWMETHOD";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_DROP:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->drop;
+		property_map.id_string = "ENTITY_PROPERTY_DROP";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_DUCK_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->ducking;
+		property_map.id_string = "ENTITY_PROPERTY_DUCK_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ENTVAR_COLLECTION:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->varlist;
+		property_map.id_string = "ENTITY_PROPERTY_ENTVAR_COLLECTION";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_ESCAPE_COUNT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->escapecount;
+		property_map.id_string = "ENTITY_PROPERTY_ESCAPE_COUNT";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_EXISTS:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->exists;
+		property_map.id_string = "ENTITY_PROPERTY_EXISTS";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_EXPLODE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->toexplode;
+		property_map.id_string = "ENTITY_PROPERTY_EXPLODE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_FACTION:
+
+		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
+		property_map.field = &acting_object->faction;
+		property_map.id_string = "ENTITY_PROPERTY_FACTION";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_FALL_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->falling;
+		property_map.id_string = "ENTITY_PROPERTY_FALL_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_FREEZE_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->frozen;
+		property_map.id_string = "ENTITY_PROPERTY_FREEZE_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_FREEZE_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->freezetime;
+		property_map.id_string = "ENTITY_PROPERTY_FREEZE_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_FUNCTION_TAKE_ACTION:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->takeaction;
+		property_map.id_string = "ENTITY_PROPERTY_FUNCTION_TAKE_ACTION";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_FUNCTION_TAKE_DAMAGE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->takedamage;
+		property_map.id_string = "ENTITY_PROPERTY_FUNCTION_TAKE_DAMAGE";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_FUNCTION_THINK:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->think;
+		property_map.id_string = "ENTITY_PROPERTY_FUNCTION_THINK";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_FUNCTION_TRY_MOVE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->trymove;
+		property_map.id_string = "ENTITY_PROPERTY_FUNCTION_TRY_MOVE";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_GET_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->getting;
+		property_map.id_string = "ENTITY_PROPERTY_GET_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_GRAB_TARGET:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->grabbing;
+		property_map.id_string = "ENTITY_PROPERTY_GRAB_TARGET";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_GRAB_WALK_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->grabwalking;
+		property_map.id_string = "ENTITY_PROPERTY_GRAB_WALK_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_GUARD_POINTS:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->guardpoints;
+		property_map.id_string = "ENTITY_PROPERTY_GUARD_POINTS";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_GUARD_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->guardtime;
+		property_map.id_string = "ENTITY_PROPERTY_GUARD_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_HP:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->energy_state.health_current;
+		property_map.id_string = "ENTITY_PROPERTY_HP";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_HP_OLD:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->energy_state.health_old;
+		property_map.id_string = "ENTITY_PROPERTY_HP_OLD";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_IDLE_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->idling;
+		property_map.id_string = "ENTITY_PROPERTY_IDLE_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_IN_PAIN:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->inpain;
+		property_map.id_string = "ENTITY_PROPERTY_IN_PAIN";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_IN_PAIN_BACK:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->inbackpain;
+		property_map.id_string = "ENTITY_PROPERTY_IN_PAIN_BACK";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_INVINCIBLE_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->invincible;
+		property_map.id_string = "ENTITY_PROPERTY_INVINCIBLE_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_INVINCIBLE_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->invinctime;
+		property_map.id_string = "ENTITY_PROPERTY_INVINCIBLE_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_ITEM_DATA:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->item_properties;
+		property_map.id_string = "ENTITY_PROPERTY_ITEM_DATA";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_JUMP_ANIMATION_ID:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->jump.animation_id;
+		property_map.id_string = "ENTITY_PROPERTY_JUMP_ANIMATION_ID";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_JUMP_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->jumping;
+		property_map.id_string = "ENTITY_PROPERTY_JUMP_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_JUMP_VELOCITY_X:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->jump.velocity.x;
+		property_map.id_string = "ENTITY_PROPERTY_JUMP_VELOCITY_X";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_JUMP_VELOCITY_Y:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->jump.velocity.y;
+		property_map.id_string = "ENTITY_PROPERTY_JUMP_VELOCITY_Y";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_JUMP_VELOCITY_Z:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->jump.velocity.z;
+		property_map.id_string = "ENTITY_PROPERTY_JUMP_VELOCITY_Z";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_KNOCKDOWN_COUNT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->knockdowncount;
+		property_map.id_string = "ENTITY_PROPERTY_KNOCKDOWN_COUNT";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_KNOCKDOWN_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->knockdowntime;
+		property_map.id_string = "ENTITY_PROPERTY_KNOCKDOWN_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_LAST_DAMAGE_TYPE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->last_damage_type;
+		property_map.id_string = "ENTITY_PROPERTY_LAST_DAMAGE_TYPE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_LAST_HIT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->lasthit;
+		property_map.id_string = "ENTITY_PROPERTY_LAST_HIT";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_LIFESPAN:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->lifespancountdown;
+		property_map.id_string = "ENTITY_PROPERTY_LIFESPAN";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_LINK:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->link;
+		property_map.id_string = "ENTITY_PROPERTY_LINK";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_MODEL:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->model;
+		property_map.id_string = "ENTITY_PROPERTY_MODEL";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_MODEL_DATA:
+
+		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
+		property_map.field = &acting_object->modeldata;
+		property_map.id_string = "ENTITY_PROPERTY_MODEL_DATA";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_MODEL_DEFAULT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->defaultmodel;
+		property_map.id_string = "ENTITY_PROPERTY_MODEL_DATA";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_MOVE_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->nextmove;
+		property_map.id_string = "ENTITY_PROPERTY_MOVE_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_MOVE_X:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->movex;
+		property_map.id_string = "ENTITY_PROPERTY_MOVE_X";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_MOVE_Z:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->movez;
+		property_map.id_string = "ENTITY_PROPERTY_MOVE_Z";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_MP:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->energy_state.mp_current;
+		property_map.id_string = "ENTITY_PROPERTY_MP";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_MP_CHARGE_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->mpchargetime;
+		property_map.id_string = "ENTITY_PROPERTY_MP_CHARGE_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_MP_OLD:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->energy_state.mp_old;
+		property_map.id_string = "ENTITY_PROPERTY_MP_OLD";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_MP_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->magictime;
+		property_map.id_string = "ENTITY_PROPERTY_MP_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_NAME:
+		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT | PROPERTY_ACCESS_CONFIG_STATIC_LENGTH);
+		property_map.field = &acting_object->name;
+		property_map.id_string = "ENTITY_PROPERTY_NAME";
+		property_map.type = VT_STR;
+		break;
+
+	case ENTITY_PROPERTY_NEXT_ATTACK_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->nextattack;
+		property_map.id_string = "ENTITY_PROPERTY_NEXT_ATTACK_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_NEXT_HIT_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->next_hit_time;
+		property_map.id_string = "ENTITY_PROPERTY_NEXT_HIT_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_NOGRAB:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->nograb;
+		property_map.id_string = "ENTITY_PROPERTY_NOGRAB";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_NOGRAB_DEFAULT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->nograb_default;
+		property_map.id_string = "ENTITY_PROPERTY_NOGRAB_DEFAULT";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_OBSTRUCTED:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->hitwall;
+		property_map.id_string = "ENTITY_PROPERTY_OBSTRUCTED";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_OBSTRUCTION_OVERHEAD:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->hithead;
+		property_map.id_string = "ENTITY_PROPERTY_OBSTRUCTION_OVERHEAD";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_OFFENSE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->offense;
+		property_map.id_string = "ENTITY_PROPERTY_OFFENSE";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_OPPONENT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->opponent;
+		property_map.id_string = "ENTITY_PROPERTY_OPPONENT";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_OWNER:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->owner;
+		property_map.id_string = "ENTITY_PROPERTY_OWNER";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_PARENT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->parent;
+		property_map.id_string = "ENTITY_PROPERTY_PARENT";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_PATH_OBSTRUCTED_WAIT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->pathblocked;
+		property_map.id_string = "ENTITY_PROPERTY_PATH_OBSTRUCTED_WAIT";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_PAUSE_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->pausetime;
+		property_map.id_string = "ENTITY_PROPERTY_PAUSE_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_PLATFORM_LAND:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->landed_on_platform;
+		property_map.id_string = "ENTITY_PROPERTY_PLATFORM_LAND";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_PLAYER_INDEX:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->playerindex;
+		property_map.id_string = "ENTITY_PROPERTY_PLAYER_INDEX";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_POSITION_BASE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->base;
+		property_map.id_string = "ENTITY_PROPERTY_POSITION_BASE";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_POSITION_BASE_ALTERNATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->altbase;
+		property_map.id_string = "ENTITY_PROPERTY_POSITION_BASE_ALTERNATE";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_POSITION_DIRECTION:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->direction;
+		property_map.id_string = "ENTITY_PROPERTY_POSITION_DIRECTION";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_POSITION_X:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->position.x;
+		property_map.id_string = "ENTITY_PROPERTY_POSITION_X";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_POSITION_Y:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->position.y;
+		property_map.id_string = "ENTITY_PROPERTY_POSITION_Y";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_POSITION_Z:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->position.z;
+		property_map.id_string = "ENTITY_PROPERTY_POSITION_Z";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_PROJECTILE_PRIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->projectile_prime;
+		property_map.id_string = "ENTITY_PROPERTY_PROJECTILE_PRIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_RECURSIVE_DAMAGE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->recursive_damage;
+		property_map.id_string = "ENTITY_PROPERTY_RECURSIVE_DAMAGE";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_RELEASE_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->releasetime;
+		property_map.id_string = "ENTITY_PROPERTY_RELEASE_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_RISE_ATTACK_DELAY:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->staydown.riseattack;
+		property_map.id_string = "ENTITY_PROPERTY_RISE_ATTACK_DELAY";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_RISE_ATTACK_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->staydown.riseattack_stall;
+		property_map.id_string = "ENTITY_PROPERTY_RISE_ATTACK_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_RISE_DELAY:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->staydown.rise;
+		property_map.id_string = "ENTITY_PROPERTY_RISE_DELAY";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_RISE_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->rising;
+		property_map.id_string = "ENTITY_PROPERTY_RISE_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_RUN_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->running;
+		property_map.id_string = "ENTITY_PROPERTY_RUN_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_RUSH:
+
+		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
+		property_map.field = &acting_object->rush;
+		property_map.id_string = "ENTITY_PROPERTY_RUSH";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_SCRIPT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->scripts;
+		property_map.id_string = "ENTITY_PROPERTY_SCRIPT";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_SEAL_ENERGY:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->seal;
+		property_map.id_string = "ENTITY_PROPERTY_SEAL_ENERGY";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_SEAL_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->sealtime;
+		property_map.id_string = "ENTITY_PROPERTY_SEAL_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_SHADOW_CONFIG_FLAGS:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->shadow_config_flags;
+		property_map.id_string = "ENTITY_PROPERTY_SHADOW_CONFIG_FLAGS";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_SLEEP_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->sleeptime;
+		property_map.id_string = "ENTITY_PROPERTY_SLEEP_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_SORT_ID:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->sortid;
+		property_map.id_string = "ENTITY_PROPERTY_SORT_ID";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_SPACE_OTHER:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->collided_entity;
+		property_map.id_string = "ENTITY_PROPERTY_SPACE_OTHER";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_SPAWN_TYPE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->spawntype;
+		property_map.id_string = "ENTITY_PROPERTY_SPAWN_TYPE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_SPEED_MULTIPLIER:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->speedmul;
+		property_map.id_string = "ENTITY_PROPERTY_SPEED_MULTIPLIER";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_STALL_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->stalltime;
+		property_map.id_string = "ENTITY_PROPERTY_STALL_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_THINK_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->nextthink;
+		property_map.id_string = "ENTITY_PROPERTY_THINK_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_TIMESTAMP:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->timestamp;
+		property_map.id_string = "ENTITY_PROPERTY_TIMESTAMP";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_TO_COST:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->tocost;
+		property_map.id_string = "ENTITY_PROPERTY_TO_COST";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_TOSS_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->toss_time;
+		property_map.id_string = "ENTITY_PROPERTY_TOSS_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_TURN_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->turning;
+		property_map.id_string = "ENTITY_PROPERTY_TURN_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_TURN_TIME:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->turntime;
+		property_map.id_string = "ENTITY_PROPERTY_TURN_TIME";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_UPDATE_MARK:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->update_mark;
+		property_map.id_string = "ENTITY_PROPERTY_UPDATE_MARK";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_VELOCITY_X:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->velocity.x;
+		property_map.id_string = "ENTITY_PROPERTY_VELOCITY_X";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_VELOCITY_Y:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->velocity.y;
+		property_map.id_string = "ENTITY_PROPERTY_VELOCITY_Y";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_VELOCITY_Z:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->velocity.z;
+		property_map.id_string = "ENTITY_PROPERTY_VELOCITY_Z";
+		property_map.type = VT_DECIMAL;
+		break;
+
+	case ENTITY_PROPERTY_WALK_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->walking;
+		property_map.id_string = "ENTITY_PROPERTY_WALK_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_WAYPOINT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->waypoints;
+		property_map.id_string = "ENTITY_PROPERTY_WAYPOINT";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_WAYPOINT_COUNT:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->numwaypoints;
+		property_map.id_string = "ENTITY_PROPERTY_WAYPOINT_COUNT";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_WEAPON_ITEM:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->weapent;
+		property_map.id_string = "ENTITY_PROPERTY_WEAPON_ITEM";
+		property_map.type = VT_PTR;
+		break;
+
+	case ENTITY_PROPERTY_WEAPON_STATE:
+
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
+		property_map.field = &acting_object->weapon_state;
+		property_map.id_string = "ENTITY_PROPERTY_WEAPON_STATE";
+		property_map.type = VT_INTEGER;
+		break;
+
+	case ENTITY_PROPERTY_END:
+	default:
+		property_map.config_flags = PROPERTY_ACCESS_CONFIG_NONE;
+		property_map.field = NULL;
+		property_map.id_string = "Entity";
+		property_map.type = VT_EMPTY;
+		break;
+	}
+
+	return property_map;
+}
+
+/*
+* Caskey, Damon  V.
+* 2023-03-03
+*
+* Return a property. Requires
+* a object pointer and property
+* constant to access.
+*/
+HRESULT openbor_get_entity_property(const ScriptVariant* const* varlist, ScriptVariant** const pretvar, const int paramCount)
 {
-    #define ARG_MINIMUM     2   // Minimum number of arguments allowed in varlist.
-    #define ARG_PROPERTY    1   // Varlist element carrying which property is requested.
+	const char* SELF_NAME = "openbor_get_entity_property(void entity, int property)";
+	const unsigned int ARG_OBJECT = 0;
+	const unsigned int ARG_PROPERTY = 1;
 
-    char *propname = NULL;  // Placeholder for string property name from varlist.
-    int prop;               // Placeholder for integer constant located by string.
+	/*
+	* Clear pass by reference argument used to send
+	* property data back to calling script.
+	*/
+	ScriptVariant_Clear(*pretvar);
 
-    static const char *proplist[] =
-    {
-		"ai_disable",
-		"ai_target_entity",
-		"alternate_idle",
-		"alternate_walk",
-		"animation",
-		"animation_frame",
-		"animation_id",
-		"animation_id_previous",
-		"animation_state",
-		"animation_time",
-		"arrow_state",
-		"attack_id_incoming",
-		"attack_id_outgoing",
-		"attack_state",
-		"autokill",
-		"back_hit_direction",
-		"bind",
-		"blast_state",
-        "blink",
-        "block_state",
-        "boomerang_loop",
-        "boss",
-        "charge_state",
-		"child",
-		"colorset_default",
-		"colorset_dying_health_1",
-		"colorset_dying_health_2",
-		"colorset_dying_index_1",
-		"colorset_dying_index_2",
-		"colorset_table",
-		"colorset_time",
-		"combo_step",
-		"combo_time",
-		"command_time",
-		"damage_on_landing",
-		"dead",
-		"deduct_ammo",
-		"defense_collection",
-		"destination_x",
-		"destination_z",
-		"die_on_landing",
-		"drawmethod",
-		"drop",
-		"duck_state",
-		"entvar_collection",
-		"escape_count",
-		"exists",
-		"explode",
-		"fall_state",
-		"freeze_state",
-		"freeze_time",
-		"function_take_action",
-		"function_take_damage",
-		"function_think",
-		"function_try_move",
-		"get_state",
-		"grab_target",
-		"grab_walk_state",
-		"guard_time",
-		"hp",
-		"hp_old",
-		"idle_state",
-		"in_pain",
-		"in_pain_back",
-		"invincible_state",
-		"invincible_time",
-		"item_data",
-		"jump_animation_id",
-		"jump_state",
-		"jump_velocity_x",
-		"jump_velocity_y",
-		"jump_velocity_z",
-		"knockdown_count",
-		"knockdown_time",
-		"last_damage_type",
-		"last_hit",
-		"lifespan",
-		"link",
-		"model",
-		"model_data",
-		"model_default",
-		"move_time",
-		"move_x",
-		"move_z",
-		"mp",
-		"mp_charge_time",
-		"mp_old",
-		"mp_time",
-		"name",
-		"next_attack_time",
-		"next_hit_time",
-		"nograb",
-		"nograb_default",
-		"obstructed",
-		"obstruction_overhead",
-		"offense_collection",
-		"opponent",
-		"owner",
-		"parent",
-		"path_obstructed_wait",
-		"pause_time",
-		"platform_land",
-		"player_index",
-		"position_base",
-		"position_base_alternate",
-		"position_direction",
-		"position_x",
-		"position_y",
-		"position_z",
-		"projectile_prime",
-		"recursive_damage",
-		"release_time",
-		"rise_attack_delay",
-		"rise_attack_time",
-		"rise_delay",
-		"rise_state",
-		"run_state",
-		"rush",
-		"script_collection",
-		"seal_energy",
-		"seal_time",
-		"sleep_time",
-		"sort_id",
-		"space_other",
-		"spawn_type",
-		"speed_multiplier",
-		"stall_time",
-		"think_time",
-		"timestamp",
-		"to_cost",
-		"toss_time",
-		"turn_state",
-		"turn_time",
-		"update_mark",
-		"velocity_x",
-		"velocity_y",
-		"velocity_z",
-		"walk_state",
-		"waypoint_collection",
-		"waypoint_count",
-		"weapon_item"
-    };
+	/*
+	* Should at least be a pointer to the
+	* acting object and a property id.
+	*/
+	if (varlist[ARG_OBJECT]->vt != VT_PTR
+		|| varlist[ARG_PROPERTY]->vt != VT_INTEGER) {
+		printf("\n\n Script error: %s. You must provide a valid object pointer and property id.\n\n", SELF_NAME);
+		return E_FAIL;
+	}
 
-    // If the minimum argument count
-    // was not passed, then there is
-    // nothing to map. Return true - we'll
-    // catch the mistake in property access
-    // functions.
-    if(paramCount < ARG_MINIMUM)
-    {
-        return 1;
-    }
+	/*
+	* Now let's make sure the object type is
+	* correct (ex. entity vs. model) so we
+	* can shut down gracefully if there's
+	* a mismatch.
+	*/
 
-    // See macro - will return 0 on fail.
-    MAPSTRINGS(varlist[ARG_PROPERTY], proplist, _ENTITY_END,
-               "\n\n Error: '%s' is not a known entity property.\n");
+	const entity* const acting_object = (const entity* const)varlist[ARG_OBJECT]->ptrVal;
 
+	if (acting_object->object_type != OBJECT_TYPE_ENTITY) {
+		printf("\n\nScript error: %s. Object pointer is not correct type.\n\n", SELF_NAME);
+		*pretvar = NULL;
+		return E_FAIL;
+	}
 
-    // If we made it this far everything should be OK.
-    return 1;
+	const int property_id_param = (const int)varlist[ARG_PROPERTY]->lVal;
 
-    #undef ARG_MINIMUM
-    #undef ARG_PROPERTY
+	const e_entity_properties property_id = (e_entity_properties)(property_id_param);
+	const s_property_access_map property_map = entity_get_property_map(acting_object, property_id);
+
+	/*
+	* If property id is in range, we send
+	* the property map and return parameter
+	* for population, then ext.
+	*/
+
+	if (property_id_param >= 0 && property_id_param < ENTITY_PROPERTY_END) {
+		property_access_get_member(&property_map, *pretvar);
+		return S_OK;
+	}
+
+	/*
+	* Is this a dump request? If not, then
+	* the property id is invalid.
+	*/
+
+	if (property_id_param == PROPERTY_ACCESS_DUMP) {
+		property_access_dump_members(entity_get_property_map, ENTITY_PROPERTY_END, acting_object);
+	}
+	else {
+		printf("\n\nScript error: %s. Unknown property id (%d). \n\n", SELF_NAME, property_id_param);
+		return E_FAIL;
+	}
+
+	return S_OK;
 }
 
 
-// Caskey, Damon  V.
-// 2018-04-02
-//
-// Return an entity property. Requires
-// an entity handle and property name to
-// access.
-HRESULT openbor_get_entity_property(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
+/*
+* Caskey, Damon  V.
+* 2018-04-03
+*
+* Mutate a property. Requires
+* the object pointer, a property
+* id, and new value.
+*/
+HRESULT openbor_set_entity_property(ScriptVariant** varlist, ScriptVariant** const pretvar, const int paramCount)
 {
-    #define SELF_NAME       "openbor_get_entity_property(void handle, char property)"
-    #define ARG_MINIMUM     2   // Minimum required arguments.
-    #define ARG_HANDLE      0   // Handle (pointer to property structure).
-    #define ARG_PROPERTY    1   // Property to access.
-
-    entity                  *handle     = NULL; // Property handle.
-    e_entity_properties    property    = 0;    // Property argument.
-
-    // Clear pass by reference argument used to send
-    // property data back to calling script.
-    ScriptVariant_Clear(*pretvar);
-
-    // Verify arguments. There should at least
-    // be a pointer for the property handle and an integer
-    // to determine which property constant is accessed.
-    if(paramCount < ARG_MINIMUM
-       || varlist[ARG_HANDLE]->vt != VT_PTR
-       || varlist[ARG_PROPERTY]->vt != VT_INTEGER)
-    {
-        *pretvar = NULL;
-        goto error_local;
-    }
-    else
-    {
-        // Populate local vars for readability.
-        handle      = (entity *)varlist[ARG_HANDLE]->ptrVal;
-        property    = (LONG)varlist[ARG_PROPERTY]->lVal;
-    }
-	
-    switch(property)
-    {
-		case _ENTITY_AI_DISABLE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->noaicontrol;
-
-			break;
-
-        case _ENTITY_AI_TARGET_ENTITY:
-
-            if(handle->custom_target)
-            {
-                ScriptVariant_ChangeType(*pretvar, VT_PTR);
-                (*pretvar)->ptrVal = (entity *)handle->custom_target;
-            }
-
-            break;
-
-		case _ENTITY_ALTERNATE_IDLE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->idlemode;
-
-			break;
-
-		case _ENTITY_ALTERNATE_WALK:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->walkmode;
-
-			break;
-
-        case _ENTITY_ANIMATION:
-            
-            ScriptVariant_ChangeType(*pretvar, VT_PTR);
-            (*pretvar)->ptrVal = (s_anim *)handle->animation;           
-
-            break;
-
-        case _ENTITY_ANIMATION_FRAME:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->animpos;
-
-            break;
-
-		case _ENTITY_ANIMATION_ID:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->animnum;
-
-			break;
-
-		case _ENTITY_ANIMATION_ID_PREVIOUS:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->animnum_previous;
-
-			break;
-
-		case _ENTITY_ANIMATION_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->animating;
-
-			break;
-
-		case _ENTITY_ANIMATION_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->nextanim;
-
-			break;
-
-        case _ENTITY_ARROW_STATE:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->arrowon;
-
-            break;
-
-        case _ENTITY_ATTACK_ID_INCOMING:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->attack_id_incoming;
-
-            break;
-
-        case _ENTITY_ATTACK_ID_OUTGOING:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->attack_id_outgoing;
-
-            break;
-
-		case _ENTITY_ATTACK_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->attacking;
-
-			break;
-
-        case _ENTITY_AUTOKILL:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->autokill;
-
-            break;
-
-		case _ENTITY_BACK_HIT_DIRECTION:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->normaldamageflipdir;
-
-			break;
-
-        case _ENTITY_BIND:
-
-            ScriptVariant_ChangeType(*pretvar, VT_PTR);
-            (*pretvar)->ptrVal = (s_bind *)&handle->binding;
-
-            break;
-
-		case _ENTITY_BLAST_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->projectile;
-
-			break;
-
-        case _ENTITY_BLINK:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->blink;
-
-            break;
-
-        case _ENTITY_BLOCK_STATE:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->blocking;
-
-            break;
-
-        case _ENTITY_BOOMERANG_LOOP:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->boomerang_loop;
-
-            break;
-
-        case _ENTITY_BOSS:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->boss;
-
-            break;
-
-        case _ENTITY_CHARGE_STATE:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->charging;
-
-            break;
-
-		case _ENTITY_CHILD:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (entity *)handle->subentity;
-
-			break;
-
-        case _ENTITY_COLORSET_DEFAULT:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->map;
-
-            break;
-
-        case _ENTITY_COLORSET_DYING_HEALTH_1:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->per1;
-
-            break;
-
-        case _ENTITY_COLORSET_DYING_HEALTH_2:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->per2;
-
-            break;
-
-        case _ENTITY_COLORSET_DYING_INDEX_1:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->dying;
-
-            break;
-
-        case _ENTITY_COLORSET_DYING_INDEX_2:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->dying2;
-
-            break;
-
-        case _ENTITY_COLORSET_TABLE:
-
-            ScriptVariant_ChangeType(*pretvar, VT_PTR);
-            (*pretvar)->ptrVal = (VOID *)(handle->colourmap);
-
-            break;
-
-        case _ENTITY_COLORSET_TIME:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->maptime;
-
-            break;
-
-        case _ENTITY_COMBO_STEP:
-
-            ScriptVariant_ChangeType(*pretvar, VT_PTR);
-            (*pretvar)->ptrVal = (VOID *)&handle->combostep;
-
-            break;
-
-        case _ENTITY_COMBO_TIME:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->combotime;
-
-            break;
-
-		case _ENTITY_COMMAND_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->movetime;
-
-			break;
-
-        case _ENTITY_DAMAGE_ON_LANDING:
-
-            ScriptVariant_ChangeType(*pretvar, VT_PTR);
-            (*pretvar)->ptrVal = (s_damage_on_landing *)&handle->damage_on_landing;
-
-            break;
-
-		case _ENTITY_DEAD:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->dead;
-
-			break;
-
-        case _ENTITY_DEDUCT_AMMO:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->deduct_ammo;
-
-            break;
-
-		case _ENTITY_DEFENSE_COLLECTION:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (s_defense *)handle->defense;
-
-			break;
-
-		case _ENTITY_DESTINATION_X:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->destx;
-
-			break;
-
-		case _ENTITY_DESTINATION_Z:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->destz;
-
-			break;
-
-		case _ENTITY_DIE_ON_LANDING:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->die_on_landing;
-
-			break;
-
-		case _ENTITY_DRAWMETHOD:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (s_drawmethod *)handle->drawmethod;
-
-			break;
-
-		case _ENTITY_DROP:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->drop;
-
-			break;
-
-		case _ENTITY_DUCK_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->ducking;
-
-			break;
-
-		case _ENTITY_ENTVAR_COLLECTION:
-
-			if (handle->varlist)
-			{
-				ScriptVariant_ChangeType(*pretvar, VT_PTR);
-				(*pretvar)->ptrVal = (Varlist *)handle->varlist;
-			}
-
-			break;
-
-		case _ENTITY_ESCAPE_COUNT:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->escapecount;
-
-			break;
-
-		case _ENTITY_EXISTS:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->exists;
-
-			break;
-
-		case _ENTITY_EXPLODE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->toexplode;
-
-			break;
-
-		case _ENTITY_FALL_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->falling;
-
-			break;
-
-		case _ENTITY_FREEZE_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->frozen;
-
-			break;
-
-		case _ENTITY_FREEZE_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->freezetime;
-
-			break;
-
-		case _ENTITY_FUNCTION_TAKE_ACTION:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (VOID *)handle->takeaction;
-
-			break;
-
-		case _ENTITY_FUNCTION_TAKE_DAMAGE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (VOID *)handle->takedamage;
-
-			break;
-
-		case _ENTITY_FUNCTION_THINK:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (VOID *)handle->think;
-
-			break;
-
-		case _ENTITY_FUNCTION_TRY_MOVE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (VOID *)handle->trymove;
-
-			break;
-
-		case _ENTITY_GET_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->getting;
-
-			break;
-
-		case _ENTITY_GRAB_TARGET:
-
-			if (handle->custom_target)
-			{
-				ScriptVariant_ChangeType(*pretvar, VT_PTR);
-				(*pretvar)->ptrVal = (entity *)handle->grabbing;
-			}
-
-			break;
-
-		case _ENTITY_GRAB_WALK_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->grabwalking;
-
-			break;
-
-		case _ENTITY_GUARD_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->guardtime;
-
-			break;
-
-		case _ENTITY_HP:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->energy_state.health_current;
-
-			break;
-
-		case _ENTITY_HP_OLD:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->energy_state.health_old;
-
-			break;
-
-		case _ENTITY_IDLE_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->idling;
-
-			break;
-
-		case _ENTITY_IN_PAIN:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->inpain;
-
-			break;
-
-		case _ENTITY_IN_PAIN_BACK:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->inbackpain;
-
-			break;
-
-		case _ENTITY_INVINCIBLE_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->invincible;
-
-			break;
-
-		case _ENTITY_INVINCIBLE_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->invinctime;
-
-			break;
-
-		case _ENTITY_ITEM_DATA:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (s_item_properties *)&handle->item_properties;
-
-			break;
-
-		case _ENTITY_JUMP_ANIMATION_ID:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->jump.animation_id;
-
-			break;
-
-		case _ENTITY_JUMP_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->jumping;
-
-			break;
-
-		case _ENTITY_JUMP_VELOCITY_X:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->jump.velocity.x;
-
-			break;
-
-		case _ENTITY_JUMP_VELOCITY_Y:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->jump.velocity.y;
-
-			break;
-
-		case _ENTITY_JUMP_VELOCITY_Z:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->jump.velocity.z;
-
-			break;
-
-		case _ENTITY_KNOCKDOWN_COUNT:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->knockdowncount;
-
-			break;
-
-		case _ENTITY_KNOCKDOWN_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->knockdowntime;
-
-			break;
-
-		case _ENTITY_LAST_DAMAGE_TYPE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->last_damage_type;
-
-			break;
-
-		case _ENTITY_LAST_HIT:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (entity *)handle->lasthit;
-
-			break;
-
-		case _ENTITY_LIFESPAN:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->lifespancountdown;
-
-			break;
-
-		case _ENTITY_LINK:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (entity *)handle->link;
-
-			break;
-
-		case _ENTITY_MODEL:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (s_model *)(handle->model);
-
-			break;
-
-		case _ENTITY_MODEL_DATA:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (s_model *)&handle->modeldata;
-
-			break;
-
-		case _ENTITY_MODEL_DEFAULT:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (s_model *)(handle->defaultmodel);
-
-			break;
-
-		case _ENTITY_MOVE_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->nextmove;
-
-			break;
-
-		case _ENTITY_MOVE_X:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->movex;
-
-			break;
-
-		case _ENTITY_MOVE_Z:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->movez;
-
-			break;
-
-		case _ENTITY_MP:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->energy_state.mp_current;
-
-			break;
-
-		case _ENTITY_MP_CHARGE_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->mpchargetime;
-
-			break;
-
-		case _ENTITY_MP_OLD:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->energy_state.mp_old;
-
-			break;
-
-		case _ENTITY_MP_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->magictime;
-
-			break;
-
-		case _ENTITY_NAME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_STR);
-			(*pretvar)->strVal = StrCache_CreateNewFrom(handle->name);
-			break;
-
-		case _ENTITY_NEXT_ATTACK_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->nextattack;
-
-			break;
-
-		case _ENTITY_NEXT_HIT_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->next_hit_time;
-
-			break;
-
-		case _ENTITY_NOGRAB:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->nograb;
-
-			break;
-
-		case _ENTITY_NOGRAB_DEFAULT:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->nograb_default;
-
-			break;
-
-		case _ENTITY_OBSTRUCTED:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->hitwall;
-
-			break;
-
-		case _ENTITY_OBSTRUCTION_OVERHEAD:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (entity *)handle->hithead;
-
-			break;
-
-		case _ENTITY_OFFENSE_COLLECTION:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (float *)handle->offense_factors;
-
-			break;
-
-        case _ENTITY_OPPONENT:
-
-            ScriptVariant_ChangeType(*pretvar, VT_PTR);
-            (*pretvar)->ptrVal = (entity *)handle->opponent;
-
-            break;
-
-        case _ENTITY_OWNER:
-
-            ScriptVariant_ChangeType(*pretvar, VT_PTR);
-            (*pretvar)->ptrVal = (entity *)handle->owner;
-
-            break;
-
-		case _ENTITY_PARENT:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (entity *)handle->parent;
-
-			break;
-
-		case _ENTITY_PATH_OBSTRUCTED_WAIT:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->pathblocked;
-
-			break;
-
-		case _ENTITY_PAUSE_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->pausetime;
-
-			break;
-
-		case _ENTITY_PLATFORM_LAND:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (entity *)handle->landed_on_platform;
-
-			break;
-
-        case _ENTITY_PLAYER_INDEX:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->playerindex;
-
-            break;
-
-		case _ENTITY_POSITION_BASE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->base;
-
-			break;
-
-        case _ENTITY_POSITION_BASE_ALTERNATE:
-
-            ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-            (*pretvar)->dblVal = (DOUBLE)handle->altbase;
-
-			break;
-
-        case _ENTITY_POSITION_DIRECTION:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->direction;
-
-            break;
-
-		case _ENTITY_POSITION_X:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->position.x;
-
-			break;
-
-		case _ENTITY_POSITION_Y:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->position.y;
-
-			break;
-
-		case _ENTITY_POSITION_Z:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->position.z;
-
-			break;
-
-        case _ENTITY_PROJECTILE_PRIME:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->projectile_prime;
-
-            break;
-
-		case _ENTITY_RECURSIVE_DAMAGE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (s_damage_recursive *)handle->recursive_damage;
-
-			break;
-
-		case _ENTITY_RELEASE_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->releasetime;
-
-			break;
-
-		case _ENTITY_RISE_ATTACK_DELAY:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->staydown.riseattack;
-
-			break;
-
-		case _ENTITY_RISE_ATTACK_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->staydown.riseattack_stall;
-
-			break;
-
-		case _ENTITY_RISE_DELAY:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->staydown.rise;
-
-			break;
-
-		case _ENTITY_RISE_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->rising;
-
-			break;
-
-		case _ENTITY_RUN_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->running;
-
-			break;
-
-		case _ENTITY_RUSH:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (s_rush *)&handle->rush;
-
-			break;
-
-		case _ENTITY_SCRIPT_COLLECTION:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (s_scripts *)handle->scripts;
-
-			break;
-
-		case _ENTITY_SEAL_ENERGY:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->seal;
-
-			break;
-
-		case _ENTITY_SEAL_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->sealtime;
-
-			break;
-
-		case _ENTITY_SLEEP_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->sleeptime;
-
-			break;
-
-		case _ENTITY_SORT_ID:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->sortid;
-
-			break;
-
-		case _ENTITY_SPACE_OTHER:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (entity *)handle->collided_entity;
-
-			break;
-
-        case _ENTITY_SPAWN_TYPE:
-
-            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->spawntype;
-
-            break;
-
-		case _ENTITY_SPEED_MULTIPLIER:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->speedmul;
-
-			break;
-
-		case _ENTITY_STALL_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->stalltime;
-
-			break;
-
-		case _ENTITY_THINK_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->nextthink;
-
-			break;
-
-		case _ENTITY_TIMESTAMP:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->timestamp;
-
-			break;
-
-		case _ENTITY_TO_COST:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->tocost;
-
-			break;
-
-		case _ENTITY_TOSS_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->toss_time;
-
-			break;
-
-		case _ENTITY_TURN_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->turning;
-
-			break;
-
-		case _ENTITY_TURN_TIME:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->turntime;
-
-			break;
-
-		case _ENTITY_UPDATE_MARK:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->update_mark;
-
-			break;
-
-		case _ENTITY_VELOCITY_X:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->velocity.x;
-
-			break;
-
-		case _ENTITY_VELOCITY_Y:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->velocity.y;
-
-			break;
-
-		case _ENTITY_VELOCITY_Z:
-
-			ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-			(*pretvar)->dblVal = (DOUBLE)handle->velocity.z;
-
-			break;
-
-		case _ENTITY_WALK_STATE:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->walking;
-
-			break;
-
-		case _ENTITY_WAYPOINT_COLLECTION:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (s_axis_plane_lateral_float *)handle->waypoints;
-
-			break;
-
-		case _ENTITY_WAYPOINT_COUNT:
-
-			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-			(*pretvar)->lVal = (LONG)handle->numwaypoints;
-
-			break;
-
-		case _ENTITY_WEAPON_ITEM:
-
-			ScriptVariant_ChangeType(*pretvar, VT_PTR);
-			(*pretvar)->ptrVal = (entity *)handle->weapent;
-
-			break;
-
-        default:
-
-            printf("Unsupported property.\n");
-            goto error_local;
-
-            break;
-    }
-
-    return S_OK;
-
-    error_local:
-
-    printf("You must provide a valid handle and property name: " SELF_NAME "\n");
-    *pretvar = NULL;
-
-    return E_FAIL;
-
-    #undef SELF_NAME
-    #undef ARG_MINIMUM
-    #undef ARG_HANDLE
-    #undef ARG_INDEX
+	const char* SELF_NAME = "openbor_set_entity_property(void entity, int property, <mixed> value)";
+	const unsigned int ARG_OBJECT = 0;
+	const unsigned int ARG_PROPERTY = 1;
+	const unsigned int ARG_VALUE = 2;
+	const unsigned int ARG_MINIMUM = 3;
+
+	/*
+	* Should at least be a pointer to the
+	* acting object, a property id, and
+	* a new value.
+	*/
+
+	if (varlist[ARG_OBJECT]->vt != VT_PTR
+		|| varlist[ARG_PROPERTY]->vt != VT_INTEGER
+		|| paramCount < ARG_MINIMUM) {
+		printf("\n\n Script error: %s. You must provide a valid object pointer, property id, and new value.\n\n", SELF_NAME);
+		*pretvar = NULL;
+		return E_FAIL;
+	}
+
+	/*
+	* Now let's make sure the object type is
+	* correct (ex. entity vs. model) so we
+	* can shut down gracefully if there's
+	* a mismatch.
+	*/
+
+	const entity* const acting_object = (const entity* const)varlist[ARG_OBJECT]->ptrVal;
+
+	if (acting_object->object_type != OBJECT_TYPE_ENTITY) {
+		printf("\n\nScript error: %s. Object pointer is not correct type.\n\n", SELF_NAME);
+		*pretvar = NULL;
+		return E_FAIL;
+	}
+
+	const int property_id_param = (const int)varlist[ARG_PROPERTY]->lVal;
+	const e_entity_properties property_id = (e_entity_properties)(property_id_param);
+
+	if (property_id_param < 0 && property_id_param >= ENTITY_PROPERTY_END) {
+		printf("\n\nScript error: %s. Unknown property id (%d). \n\n", SELF_NAME, property_id_param);
+		return E_FAIL;
+	}
+
+	/*
+	* Get map of property. This is a struct
+	* that contains the property variable
+	* type, reference to the acting object's
+	* appropriate data member, text name,
+	* read only, etc.
+	*/
+
+	const s_property_access_map property_map = entity_get_property_map(acting_object, property_id);
+
+	/*
+	* Populate the property value on
+	* acting object and return OK/FAIL.
+	*/
+
+	return property_access_set_member(acting_object, &property_map, varlist[ARG_VALUE]);
+
+	return S_OK;
 }
 
-// Caskey, Damon  V.
-// 2018-04-03
-//
-// Mutate an entity property. Requires
-// the entity handle, a string property
-// name, and new value.
-HRESULT openbor_set_entity_property(ScriptVariant **varlist, ScriptVariant **pretvar, int paramCount)
+/*
+* Caskey, Damon V.
+* 2021-08-04
+*
+* Return an attack ID array element value.
+*/
+HRESULT openbor_get_attack_id_value(ScriptVariant** varlist, ScriptVariant** pretvar, int paramCount)
 {
-    #define SELF_NAME           "openbor_set_entity_property(void handle, char property, value)"
-    #define ARG_MINIMUM         3   // Minimum required arguments.
-    #define ARG_HANDLE          0   // Handle (pointer to property structure).
-    #define ARG_PROPERTY        1   // Property to access.
-    #define ARG_VALUE           2   // New value to apply.
-
-    int                 result      = S_OK; // Success or error?
-    entity              *handle     = NULL; // Property handle.
-    e_entity_properties property    = 0;    // Property to access.
-
-    // Value carriers to apply on properties after
-    // taken from argument.
-    LONG    temp_int;
-    DOUBLE  temp_float;
-	
-    // Verify incoming arguments. There should at least
-    // be a pointer for the property handle and an integer
-    // to determine which property is accessed.
-    if(paramCount < ARG_MINIMUM
-       || varlist[ARG_HANDLE]->vt != VT_PTR
-       || varlist[ARG_PROPERTY]->vt != VT_INTEGER)
-    {
-        *pretvar = NULL;
-        goto error_local;
-    }
-
-    // Populate local handle and property vars.
-    handle      = (entity *)varlist[ARG_HANDLE]->ptrVal;
-    property    = (LONG)varlist[ARG_PROPERTY]->lVal;
-
-    // Which property to modify?
-    switch(property)
-    {
-
-		case _ENTITY_AI_DISABLE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->noaicontrol = temp_int;
-			}
-
-			break;
-
-        case _ENTITY_AI_TARGET_ENTITY:
-
-            handle->custom_target = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-            break;
-
-		case _ENTITY_ALTERNATE_IDLE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->idlemode = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_ALTERNATE_WALK:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->walkmode = temp_int;
-			}
-
-			break;
-
-        case _ENTITY_ANIMATION:
-
-            handle->animation = (s_anim *)varlist[ARG_VALUE]->ptrVal;
-
-            break;
-
-        case _ENTITY_ANIMATION_FRAME:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->animpos = temp_int;
-            }
-
-            break;
-
-		case _ENTITY_ANIMATION_ID:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->animnum = temp_int;
-			}
-
-			break; 
-
-		case _ENTITY_ANIMATION_ID_PREVIOUS:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->animnum_previous = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_ANIMATION_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->animating = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_ANIMATION_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->nextanim = temp_int;
-			}
-
-			break;
-
-        case _ENTITY_ARROW_STATE:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->arrowon = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_ATTACK_ID_INCOMING:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->attack_id_incoming = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_ATTACK_ID_OUTGOING:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->attack_id_outgoing = temp_int;
-            }
-
-            break;
-
-		case _ENTITY_ATTACK_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->attacking = temp_int;
-			}
-
-			break;
-
-        case _ENTITY_AUTOKILL:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->autokill = temp_int;
-            }
-
-            break;
-
-		case _ENTITY_BACK_HIT_DIRECTION:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->normaldamageflipdir = temp_int;
-			}
-
-			break;
-
-        case _ENTITY_BIND:
-
-            // Read only.
-
-            break;
-
-		case _ENTITY_BLAST_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->projectile = temp_int;
-			}
-
-			break;
-
-        case _ENTITY_BLINK:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->blink = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_BLOCK_STATE:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->blocking = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_BOOMERANG_LOOP:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->boomerang_loop = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_BOSS:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->boss = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_CHARGE_STATE:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->charging = temp_int;
-            }
-
-            break;
-
-		case _ENTITY_CHILD:
-
-			handle->subentity = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-        case _ENTITY_COLORSET_DEFAULT:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->map = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_COLORSET_DYING_HEALTH_1:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->per1 = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_COLORSET_DYING_HEALTH_2:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->per2 = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_COLORSET_DYING_INDEX_1:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->dying = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_COLORSET_DYING_INDEX_2:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->dying2 = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_COLORSET_TABLE:
-
-			handle->colourmap = (VOID *)varlist[ARG_VALUE]->ptrVal;
-
-	        break;
-
-        case _ENTITY_COLORSET_TIME:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->maptime = temp_int;
-            }
-
-            break;
-
-        case _ENTITY_COMBO_STEP:
-
-            // Read only.
-
-            break;
-
-        case _ENTITY_COMBO_TIME:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->combotime = temp_int;
-            }
-
-            break;
-
-		case _ENTITY_COMMAND_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->movetime = temp_int;
-			}
-
-			break;
-
-        case _ENTITY_DAMAGE_ON_LANDING:
-
-            // Read only.
-
-            break;
-
-		case _ENTITY_DEAD:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->dead = temp_int;
-			}
-
-			break;
-
-        case _ENTITY_DEDUCT_AMMO:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->deduct_ammo = temp_int;
-            }
-
-            break;
-
-		case _ENTITY_DEFENSE_COLLECTION:
-
-			handle->defense = (s_defense *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_DESTINATION_X:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->destx = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_DESTINATION_Z:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->destz = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_DIE_ON_LANDING:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->die_on_landing = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_DRAWMETHOD:
-
-			handle->drawmethod = (s_drawmethod *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_DROP:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->drop = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_DUCK_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->ducking = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_ENTVAR_COLLECTION:
-
-			handle->varlist = (Varlist *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_ESCAPE_COUNT:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->escapecount = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_EXISTS:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->exists = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_EXPLODE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->toexplode = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_FALL_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->falling = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_FREEZE_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->frozen = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_FREEZE_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->freezetime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_FUNCTION_TAKE_ACTION:
-
-			handle->takeaction = (VOID *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_FUNCTION_TAKE_DAMAGE:
-
-			handle->takedamage = (VOID *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_FUNCTION_THINK:
-
-			handle->think = (VOID *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_FUNCTION_TRY_MOVE:
-
-			handle->trymove = (VOID *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_GET_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->getting = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_GRAB_TARGET:
-
-			handle->grabbing = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_GRAB_WALK_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->grabwalking = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_GUARD_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->guardtime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_HP:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->energy_state.health_current = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_HP_OLD:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->energy_state.health_old = temp_int;
-			}
-
-			break;	
-
-		case _ENTITY_IDLE_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->idling = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_IN_PAIN:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->inpain = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_IN_PAIN_BACK:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->inbackpain = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_INVINCIBLE_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->invincible = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_INVINCIBLE_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->invinctime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_ITEM_DATA:
-
-			// Read only.
-
-			break;
-
-		case _ENTITY_JUMP_ANIMATION_ID:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->jump.animation_id = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_JUMP_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->jumping = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_JUMP_VELOCITY_X:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->jump.velocity.x = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_JUMP_VELOCITY_Y:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->jump.velocity.y = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_JUMP_VELOCITY_Z:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->jump.velocity.z = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_KNOCKDOWN_COUNT:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->knockdowncount = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_KNOCKDOWN_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->knockdowntime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_LAST_DAMAGE_TYPE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->last_damage_type = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_LAST_HIT:
-
-			handle->lasthit = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_LIFESPAN:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->lifespancountdown = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_LINK:
-
-			handle->link = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_MODEL:
-
-			handle->model = (s_model *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_MODEL_DATA:
-
-			// Read only.
-
-			break;
-
-		case _ENTITY_MODEL_DEFAULT:
-
-			handle->defaultmodel = (s_model *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_MOVE_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->nextmove = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_MOVE_X:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->movex = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_MOVE_Z:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->movez = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_MP:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->energy_state.mp_current = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_MP_OLD:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->energy_state.mp_old = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_MP_CHARGE_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->mpchargetime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_MP_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->magictime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_NAME:
-
-			if (varlist[ARG_VALUE]->vt == VT_STR)
-			{
-				strcpy(handle->name, (char *)StrCache_Get(varlist[ARG_VALUE]->strVal));
-			}
-
-			break;
-
-		case _ENTITY_NEXT_ATTACK_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->nextattack = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_NEXT_HIT_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->next_hit_time = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_NOGRAB:
-		
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->nograb = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_NOGRAB_DEFAULT:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->nograb_default = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_OBSTRUCTED:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->hitwall = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_OBSTRUCTION_OVERHEAD:
-
-			handle->hithead = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_OFFENSE_COLLECTION:
-
-			handle->offense_factors = (float *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-        case _ENTITY_OPPONENT:
-
-            handle->opponent = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-            break;
-
-        case _ENTITY_OWNER:
-
-            handle->owner = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-            break;
-
-		case _ENTITY_PARENT:
-
-			handle->parent = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_PATH_OBSTRUCTED_WAIT:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->pathblocked = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_PAUSE_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->pausetime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_PLATFORM_LAND:
-
-			handle->parent = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-        case _ENTITY_PLAYER_INDEX:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->playerindex = temp_int;
-            }
-
-            break;
-
-		case _ENTITY_POSITION_BASE:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->base = temp_float;
-			}
-
-			break;
-
-        case _ENTITY_POSITION_BASE_ALTERNATE:
-
-            if(SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-            {
-                handle->altbase = temp_float;
-            }
-
-            break;        
-
-        case _ENTITY_POSITION_DIRECTION:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->direction = temp_int;
-            }
-
-            break;
-
-		case _ENTITY_POSITION_X:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->position.x = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_POSITION_Y:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->position.y = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_POSITION_Z:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->position.z = temp_float;
-			}
-
-			break;
-
-        case _ENTITY_PROJECTILE_PRIME:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->projectile_prime = temp_int;
-            }
-
-            break;
-
-		case _ENTITY_RECURSIVE_DAMAGE:
-
-			handle->recursive_damage = (s_damage_recursive *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_RELEASE_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->releasetime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_RISE_ATTACK_DELAY:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->staydown.riseattack = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_RISE_ATTACK_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->staydown.riseattack_stall = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_RISE_DELAY:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->staydown.rise = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_RISE_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->rising = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_RUN_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->running = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_RUSH:
-
-			//  Read only.
-
-			break;
-
-		case _ENTITY_SCRIPT_COLLECTION:
-
-			handle->scripts = (s_scripts *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-		case _ENTITY_SEAL_ENERGY:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->seal = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_SEAL_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->sealtime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_SLEEP_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->sleeptime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_SORT_ID:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->sortid = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_SPACE_OTHER:
-
-			handle->collided_entity = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-        case _ENTITY_SPAWN_TYPE:
-
-            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-            {
-                handle->spawntype = temp_int;
-            }
-
-            break;
-
-		case _ENTITY_SPEED_MULTIPLIER:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->speedmul = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_STALL_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->stalltime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_THINK_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->nextthink = temp_int;
-			}
-
-			break;
-			
-		case _ENTITY_TIMESTAMP:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->timestamp = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_TO_COST:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->tocost = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_TOSS_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->toss_time = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_TURN_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->turning = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_TURN_TIME:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->turntime = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_UPDATE_MARK:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->update_mark = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_VELOCITY_X:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->velocity.x = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_VELOCITY_Y:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->velocity.y = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_VELOCITY_Z:
-
-			if (SUCCEEDED(ScriptVariant_DecimalValue(varlist[ARG_VALUE], &temp_float)))
-			{
-				handle->velocity.z = temp_float;
-			}
-
-			break;
-
-		case _ENTITY_WALK_STATE:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->walking = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_WAYPOINT_COLLECTION:
-
-			// Read only.
-
-			break;
-
-		case _ENTITY_WAYPOINT_COUNT:
-
-			if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
-			{
-				handle->numwaypoints = temp_int;
-			}
-
-			break;
-
-		case _ENTITY_WEAPON_ITEM:
-
-			handle->weapent = (entity *)varlist[ARG_VALUE]->ptrVal;
-
-			break;
-
-        default:
-
-            printf("Unsupported property.\n");
-            goto error_local;
-
-            break;
-    }
-
-    return result;
-
-    // Error trapping.
-    error_local:
-
-    printf("You must provide a valid handle, property, and new value: " SELF_NAME "\n");
-
-    result = E_FAIL;
-    return result;
-
-    #undef SELF_NAME
-    #undef ARG_MINIMUM
-    #undef ARG_HANDLE
-    #undef ARG_PROPERTY
-    #undef ARG_VALUE
+#define SELF_NAME       "get_attack_id_value(void handle, int element)"
+#define ARG_MINIMUM     2   // Minimum required arguments.
+#define ARG_OBJECT      0   // Handle (pointer to property structure).
+#define ARG_ELEMENT		1   // Array element to access.
+
+	LONG* handle = NULL; // Property handle.
+	int  element = 0;    // Property argument.
+
+	/*
+	* Clear pass by reference argument used to send
+	* property data back to calling script.
+	*/
+	ScriptVariant_Clear(*pretvar);
+
+	/*
+	* Verify arguments.There should at least
+	* be a pointer for the property handle and an integer
+	* to determine which element of the array is accessed.
+	*/
+	if (paramCount < ARG_MINIMUM
+		|| varlist[ARG_OBJECT]->vt != VT_PTR
+		|| varlist[ARG_ELEMENT]->vt != VT_INTEGER)
+	{
+		*pretvar = NULL;
+		goto error_local;
+	}
+	else
+	{
+		// Populate local vars for readability.
+		handle = (LONG*)varlist[ARG_OBJECT]->ptrVal;
+		element = (LONG)varlist[ARG_ELEMENT]->lVal;
+	}
+
+	/* Don't allow an out of bounds element. */
+	if (element < 0 || element > MAX_ATTACK_IDS)
+	{
+		element = 0;
+	}
+
+	ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
+	(*pretvar)->lVal = (LONG)handle[element];
+
+	return S_OK;
+
+error_local:
+
+	printf("\nYou must provide a valid handle and element: " SELF_NAME "\n");
+	*pretvar = NULL;
+
+	return E_FAIL;
+
+#undef SELF_NAME
+#undef ARG_MINIMUM
+#undef ARG_ELEMENT
+}
+
+/*
+* Caskey, Damon  V.
+* 2018-04-03
+*
+* Mutate an entity property. Requires
+* the entity handle, a string property
+* name, and new value.
+*/
+HRESULT openbor_set_attack_id_value(ScriptVariant** varlist, ScriptVariant** pretvar, int paramCount)
+{
+#define SELF_NAME           "set_attack_id_value(void handle, char property, value)"
+#define ARG_MINIMUM         3   // Minimum required arguments.
+#define ARG_OBJECT          0   // Handle (pointer to property structure).
+#define ARG_ELEMENT        1	// Element to access.
+#define ARG_VALUE           2   // New value to apply.
+
+	int     result = S_OK; // Success or error?
+	LONG*	handle = NULL; // Property handle.
+	int		element = 0;    // Array element to access.
+
+	/*
+	* Value carriers to apply on properties after
+	* taken from argument.
+	*/
+	LONG    temp_int;
+
+	/*
+	* Verify incoming arguments. There should at least
+	* be a pointer for the property handle and an integer
+	* to determine which property is accessed.
+	*/
+	if (paramCount < ARG_MINIMUM
+		|| varlist[ARG_OBJECT]->vt != VT_PTR
+		|| varlist[ARG_ELEMENT]->vt != VT_INTEGER)
+	{
+		*pretvar = NULL;
+		goto error_local;
+	}
+
+	// Populate local handle and property vars.
+	handle = (LONG*)varlist[ARG_OBJECT]->ptrVal;
+	element = (LONG)varlist[ARG_ELEMENT]->lVal;
+
+	/* Don't allow an out of bounds element. */
+	if (element < 0 || element > MAX_ATTACK_IDS)
+	{
+		element = 0;
+	}
+
+	if (SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
+	{
+		handle[element] = temp_int;
+	}
+
+	return result;
+
+	/* Error trapping. */
+error_local:
+
+	printf("\nYou must provide a valid handle, element, and new value: " SELF_NAME "\n");
+
+	result = E_FAIL;
+	return result;
+
+#undef SELF_NAME
+#undef ARG_MINIMUM
+#undef ARG_OBJECT
+#undef ARG_ELEMENT
+#undef ARG_VALUE
 }

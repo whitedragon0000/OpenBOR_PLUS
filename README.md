@@ -41,6 +41,8 @@ To find out more, stop into the OpenBOR community at [ChronoCrash.com](chronocra
 
 * **2021 -** Development continues on OpenBOR 4.0, with various internal source cleanups, a more object centric script engine, and fixes for long standing issues.
 
+* **2024 -** After an extended development cycle, the first official 4.0 build drops. Development continues to refine and fill requests that did not make the initial 4.0 release deadline.
+
 ## Platforms
 OpenBOR has a very modular and portable design inherited from Beats of Rage - several ports have been made available.
 
@@ -50,18 +52,18 @@ These platforms are actively supported and may be compiled with the latest OpenB
 * Android
 * Windows
 * Linux
-* Mac OS X
 * Wii
-* PSP
 * PS3
 
 ### Discontinued
 
 The following platforms are still available as legacy binaries but are no longer supported and may not be compatible with current iterations of OpenBOR.
 
+* PSP
 * Dreamcast
 * GP2X
 * GP2X Wiz
+* Mac OS X
 * OpenDingux (Dingoo A320 & GCW-Zero)
 
 ## OpenBOR Team
@@ -82,25 +84,25 @@ A developer who prefers to work on OpenBOR's supporting libraries and platform-s
 #### [Malik](https://github.com/msmalik681) (2018-)
 Malik came to the team with a strong OpenBOR scripting background, and quickly established himself as a resident go-to for the Android Port. Malik dedicates himself to keeping the Android port of OpenBOR a commercially viable platform for authors who wish to sell their original IP projects.
 
+### Former members and contributors
+
 #### [Douglas Baldan](https://github.com/dbaldan) (2018-2021)
 Known as O'Ilusionista, Douglas was a highly respected administrator of the OpenBOR community and a prolific member of the Mugen scene. His professional background in graphic design brought a plethora of graphic and game development experience to the team. Citing personal reasons, Douglas officially retired from the OpenBOR team mid-2021.
 
 #### [Wasin Thonkaew](https://github.com/haxpor) (2019)
 Haxpor in the forums, a Linux centric developer who works hard to ensure our penguin crowd has the proper tools for development and underlying libraries of OpenBOR remain compatible to compile for mobile platforms.
 
-#### [crxtrdude](https://github.com/crxtrdude) (2016-2018)
-crxtrdude focused on the android port in particular on the module Activity, Manifest and on the virtual gamepad.
+#### [White Dragon](https://github.com/whitedragon0000) (2016-2018)
+A long time module author and extremely knowledgeable coder who joined the development team in 2016. White Dragon generally focused on level and menu properties, but branched out into other facets of the engine over time.
 
 #### [uTunnels](https://github.com/utunnels) (2007-2014)
-Among many other powerful additions, contributed the original scripting engine to OpenBOR, single handedly
-breaking nearly every limitation module authors faced. While not officially retired, uTunnels' presence became gradually more infrequent before stopping altogether in early 2014.
+Among many other powerful additions, contributed the original scripting engine to OpenBOR, single handedly breaking nearly every limitation module authors faced. While not officially retired, uTunnels' presence became gradually more infrequent before stopping altogether in early 2014.
 
 #### Anallyst (2011)
 This developer's work centered mainly around trimming the fat and optimizing the codebase.
 
 #### SumolX (2006-2011)
-Former project manager and lead programmer, retired from the scene in 2011. Known for porting PSP,
-PS3, Linux, Wii, GP2X and maintaining all other platforms and code base.
+Former project manager and lead programmer, retired from the scene in 2011. Known for porting PSP, PS3, Linux, Wii, GP2X and maintaining all other platforms and code base.
 
 #### KBbandressen (2007-2011)
 Contributed a plethora of features, including the powerful text object and filestream capabilities.
@@ -109,13 +111,13 @@ Contributed a plethora of features, including the powerful text object and files
 Main developer after Kirby2K. Introduced many exciting features to engine.
 
 #### LordBall (2006)
-Developed offshoot engine based on OpenBOR.  Shared features with both engines.
+Developed offshoot engine based on OpenBOR. Shared features with both engines.
 
 #### Tails (2006)
-Developed offshoot engine based on OpenBOR.  Shared features with both engines.
+Developed offshoot engine based on OpenBOR. Shared features with both engines.
 
 #### Fugue (2006)
-Developed offshoot engine based on OpenBOR.  Shared features with both engines.
+Developed offshoot engine based on OpenBOR. Shared features with both engines.
 
 #### Kirby2K (2004-2005)
 The original developer of OpenBOR who asked Senile Team for permission to open

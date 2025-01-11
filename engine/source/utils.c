@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2013 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #include <fcntl.h>
@@ -20,9 +20,8 @@
 #include "openbor.h"
 #include "packfile.h"
 
-#if !DC && !VITA
+#if !DC
 #include <dirent.h>
-#endif
 
 #ifdef SDL
     #ifdef PS3
@@ -40,27 +39,9 @@
 #endif
 #endif
 
-#ifdef DC
-#include "dcport.h"
-#endif
-
-#ifdef PSP
-#include "image.h"
-#endif
-
 #if WII
 #include "wiiport.h"
 #include "savepng.h"
-#endif
-
-#if VITA
-#include "vitaport.h"
-#include "savepng.h"
-#include <sys/stat.h>
-#include <psp2/io/dirent.h>
-typedef void DIR;
-#define opendir(X) ((DIR*)sceIoDopen(X))
-#define closedir(X) sceIoDclose((SceUID)(X))
 #endif
 
 #ifdef PS3
@@ -82,8 +63,6 @@ typedef void DIR;
 
 #ifdef WIN
 #define MKDIR(x) mkdir(x)
-#elif VITA
-#define MKDIR(x) sceIoMkdir(x, 0777)
 #elif PS3
 #define MKDIR(x) sysLv2FsMkdir(realName, 0777)
 //#define MKDIR(x) sysFsMkdir(x, S_IRWXO | S_IRWXU | S_IRWXG | S_IFDIR)
@@ -98,13 +77,6 @@ typedef void DIR;
 #define READ_LOGFILE(type)   type ? fopen(getFullPath("Logs/OpenBorLog.txt"), "rt") : fopen(getFullPath("Logs/ScriptLog.txt"), "rt")
 #define COPY_ROOT_PATH(buf, name) strcpy(buf, rootDir); strcat(buf, name); strcat(buf, "/");
 #define COPY_PAKS_PATH(buf, name) strcpy(buf, paksDir); strcat(buf, "/"); strcat(buf, name);
-#elif VITA
-#define CHECK_LOGFILE(type)  type ? fileExists("ux0:/data/OpenBOR/Logs/OpenBorLog.txt") : fileExists("ux0:/data/OpenBOR/Logs/ScriptLog.txt")
-#define OPEN_LOGFILE(type)   type ? fopen("ux0:/data/OpenBOR/Logs/OpenBorLog.txt", "wt") : fopen("ux0:/data/OpenBOR/Logs/ScriptLog.txt", "wt")
-#define APPEND_LOGFILE(type) type ? fopen("ux0:/data/OpenBOR/Logs/OpenBorLog.txt", "at") : fopen("ux0:/data/OpenBOR/Logs/ScriptLog.txt", "at")
-#define READ_LOGFILE(type)   type ? fopen("ux0:/data/OpenBOR/Logs/OpenBorLog.txt", "rt") : fopen("ux0:/data/OpenBOR/Logs/ScriptLog.txt", "rt")
-#define COPY_ROOT_PATH(buf, name) strcpy(buf, "ux0:/data/OpenBOR/"); strcat(buf, name); strcat(buf, "/");
-#define COPY_PAKS_PATH(buf, name) strcpy(buf, "ux0:/data/OpenBOR/Paks/"); strcat(buf, name);
 #elif PS3
 #define CHECK_LOGFILE(type)  type ? fileExists("/dev_hdd0/OpenBOR/Logs/OpenBorLog.txt") : fileExists("/dev_hdd0/OpenBOR/Logs/ScriptLog.txt")
 #define OPEN_LOGFILE(type)   type ? fopen("/dev_hdd0/OpenBOR/Logs/OpenBorLog.txt", "wt") : fopen("/dev_hdd0/OpenBOR/Logs/ScriptLog.txt", "wt")
@@ -191,7 +163,6 @@ u32 debug_time = 0;
 
 void getBasePath(char *newName, char *name, int type)
 {
-#ifndef DC
     char buf[MAX_BUFFER_LEN] = {""};
     switch(type)
     {
@@ -203,14 +174,9 @@ void getBasePath(char *newName, char *name, int type)
         break;
     }
     strcpy(newName, buf);
-#else
-    strncpy(newName, name, MAX_LABEL_LEN - 1);
-#endif
 }
 
 
-
-#ifndef DC
 int dirExists(char *dname, int create)
 {
     char realName[MAX_LABEL_LEN] = {""};
@@ -292,18 +258,11 @@ CLOSE_AND_QUIT:
     fclose(handle);
     return buffer;
 }
-#endif
+
 
 void writeToLogFile(const char *msg, ...)
 {
     va_list arglist;
-
-#ifdef DC
-    va_start(arglist, msg);
-    vfprintf(stdout, msg, arglist);
-    va_end(arglist);
-    fflush(stdout);
-#else
     if(openborLog == NULL)
     {
         openborLog = OPEN_LOGFILE(OPENBOR_LOG);
@@ -316,12 +275,10 @@ void writeToLogFile(const char *msg, ...)
     vfprintf(openborLog, msg, arglist);
     va_end(arglist);
     fflush(openborLog);
-#endif
 }
 
 void writeToScriptLog(const char *msg)
 {
-#ifndef DC
     if(scriptLog == NULL)
     {
         scriptLog = OPEN_LOGFILE(SCRIPT_LOG);
@@ -332,7 +289,6 @@ void writeToScriptLog(const char *msg)
     }
     fwrite(msg, 1, strlen(msg), scriptLog);
     fflush(scriptLog);
-#endif
 }
 
 void debug_printf(char *format, ...)
@@ -344,6 +300,49 @@ void debug_printf(char *format, ...)
     va_end(arglist);
 
     debug_time = 0xFFFFFFFF;
+}
+
+void *checkAlloc(void *ptr, size_t size, const char *func, const char *file, int line)
+{
+    if (size > 0 && ptr == NULL)
+    {
+        writeToLogFile("\n\n********** An Error Occurred **********"
+                       "\n*            Shutting Down            *\n\n");
+        writeToLogFile("Out of memory!\n");
+        writeToLogFile("Allocation of size %i failed in function '%s' at %s:%i.\n", size, func, file, line);
+#if LINUX && !DARWIN
+        writeToLogFile("Memory usage at exit: %u\n", mallinfo2().arena);
+#else
+        writeToLogFile("Memory usage at exit: %u\n", getUsedRam(BYTES));
+#endif
+        borExit(2);
+    }
+    return ptr;
+}
+
+// replacement for assert that writes the error to the log file
+void exitIfFalse(int value, const char *assertion, const char *func, const char *file, int line)
+{
+    if(!value)
+    {
+        writeToLogFile("\n\n********** An Error Occurred **********"
+                       "\n*            Shutting Down            *\n\n");
+        writeToLogFile("Assertion `%s' failed in function '%s' at %s:%i.\n", assertion, func, file, line);
+        writeToLogFile("This is an OpenBOR bug.  Please report this at www.chronocrash.com.\n\n");
+        borExit(1);
+    }
+}
+
+// gives the same behavior as the assert macro defined by C, which we can't use directly since
+// we redefine the assert macro to exitIfFalse
+void abortIfFalse(int value, const char *assertion, const char *func, const char *file, int line)
+{
+    if(!value)
+    {
+        fprintf(stderr, "%s:%i: %s: Assertion `%s' failed.\n", file, line, func, assertion);
+        fflush(stderr);
+        abort();
+    }
 }
 
 void getPakName(char *name, int type)
@@ -370,9 +369,6 @@ void getPakName(char *name, int type)
         break;
     case 4:
         strcat(mod, ".cfg");
-        break;
-    case 5:
-        strcat(mod, ".controls");
         break;
     default:
         // Loose extension!
@@ -408,48 +404,30 @@ void getPakName(char *name, int type)
 
 void screenshot(s_screen *vscreen, unsigned char *pal, int ingame)
 {
-#ifndef DC
     int	 shotnum = 0;
     char shotname[1024] = {""};
     char modname[MAX_FILENAME_LEN]  = {""};
 
     getPakName(modname, 99);
-#ifdef PSP
-    if(dirExists("ms0:/PICTURE/", 1) && dirExists("ms0:/PICTURE/Beats Of Rage/", 1))
+    do
     {
-#endif
-        do
-        {
-#if PSP
-            sprintf(shotname, "ms0:/PICTURE/Beats Of Rage/%s - ScreenShot - %02u.png", modname, shotnum);
-#elif SDL || WII
-            sprintf(shotname, "%s/%s - %04u.png", screenShotsDir, modname, shotnum);
+#if SDL || WII
+        sprintf(shotname, "%s/%s - %04u.png", screenShotsDir, modname, shotnum);
 #else
-            sprintf(shotname, "./ScreenShots/%s - %04u.png", modname, shotnum);
+        sprintf(shotname, "./ScreenShots/%s - %04u.png", modname, shotnum);
 #endif
-            ++shotnum;
-        }
-        while(fileExists(shotname) && shotnum < 10000);
-
-#ifdef PSP
-        if(shotnum < 10000)
-        {
-            saveImage(shotname);
-        }
-#else
-        if(shotnum < 10000)
-        {
-            savepng(shotname, vscreen, pal);
-        }
-#endif
-        if(ingame)
-        {
-            debug_printf("Saved %s", shotname);
-        }
-#ifdef PSP
+        ++shotnum;
     }
-#endif
-#endif
+    while(fileExists(shotname) && shotnum < 10000);
+
+    if(shotnum < 10000)
+    {
+        savepng(shotname, vscreen, pal);
+    }
+    if(ingame)
+    {
+        debug_printf("Saved %s", shotname);
+    }
 }
 
 unsigned readlsb32(const unsigned char *src)
@@ -465,6 +443,8 @@ unsigned readlsb32(const unsigned char *src)
 int searchList(const char *list[], const char *value, int length)
 {
     int low = 0, high = length-1, mid = 0;
+
+    //printf("\n\n searchList(%p, %s, %d)", &list, value, length);
 
     while(low <= high)
     {

@@ -1,16 +1,14 @@
 #
-# OpenBOR - http://www.ChronoCrash.com
+# OpenBOR - https://www.ChronoCrash.com
 # ---------------------------------------------------------------------------------------------------
 # All rights reserved, see LICENSE in OpenBOR root for details.
 #
-# Copyright (c) 2004 - 2018 OpenBOR Team
+# Copyright (c) OpenBOR Team
 #
 
 #----------------------------------------------------------------------------------------------------
 #
 #               	OpenBOR Makefile for ALL TARGET_PLATFORMs
-#
-#             PSP, PS3, Wii, Pandora, Windows, Darwin & Linux
 #
 #----------------------------------------------------------------------------------------------------
 
@@ -21,20 +19,6 @@ endif
 #----------------------------------------------------------------------------------------------------
 # Defines
 #----------------------------------------------------------------------------------------------------
-
-
-ifdef BUILD_PSP
-TARGET          = $(VERSION_NAME)
-TARGET_FINAL    = EBOOT.PBP
-TARGET_PLATFORM = PSP
-PBPNAME_STR     = $(TARGET)
-BUILD_TREMOR    = 1
-BUILDING        = 1
-ifeq ($(BUILD_PSP), 0)
-BUILD_DEBUG     = 1
-endif
-endif
-
 
 ifdef BUILD_WIN
 TARGET          = $(VERSION_NAME).elf
@@ -206,27 +190,6 @@ BUILD_DEBUG     = 1
 endif
 endif
 
-ifdef BUILD_PANDORA
-TARGET 	        = $(VERSION_NAME).elf
-TARGET_FINAL    = $(VERSION_NAME)
-TARGET_PLATFORM = PANDORA
-BUILD_LINUX     = 1
-BUILD_SDL       = 1
-BUILD_GFX       = 1
-BUILD_PTHREAD   = 1
-BUILD_SDL_IO    = 1
-BUILD_TREMOR    = 1
-BUILDING        = 1
-CC  	        = $(PNDDEV)/bin/arm-none-linux-gnueabi-gcc
-INCLUDES        = $(PNDDEV)/include \
-                  $(PNDDEV)/include/SDL
-OBJTYPE         = elf
-LIBRARIES       = $(PNDDEV)/lib
-ifeq ($(BUILD_PANDORA), 0)
-BUILD_DEBUG     = 1
-endif
-endif
-
 ifdef BUILD_WII
 TARGET 	        = $(VERSION_NAME).elf
 TARGET_MAP      = $(TARGET).map
@@ -245,20 +208,6 @@ BUILD_DEBUG     = 1
 endif
 endif
 
-ifdef BUILD_VITA
-TARGET 	        = $(VERSION_NAME).elf
-TARGET_FINAL    = $(VERSION_NAME).vpk
-TITLE_ID        = OPENBOR30
-TARGET_PLATFORM = VITA
-CC  	        = arm-vita-eabi-gcc
-BUILD_TREMOR    = 1
-BUILDING        = 1
-ifeq ($(BUILD_VITA), 0)
-BUILD_DEBUG     = 1
-endif
-endif
-
-ifndef BUILD_PS3
 STRIP           = cp $(TARGET) $(TARGET_FINAL)
 ifndef BUILD_DEBUG
 ifndef NO_STRIP
@@ -270,9 +219,6 @@ STRIP 	        = $(LNXDEV)/$(PREFIX)strip $(TARGET) -o $(TARGET_FINAL)
 endif
 ifdef BUILD_DARWIN
 STRIP           = $(PREFIX)strip $(TARGET) -o $(TARGET_FINAL)
-endif
-ifdef BUILD_PANDORA
-STRIP 	        = $(PNDDEV)/bin/arm-none-linux-gnueabi-strip $(TARGET) -o $(TARGET_FINAL)
 endif
 ifdef BUILD_WII
 ELF2DOL         = elf2dol $< $@
@@ -286,18 +232,8 @@ endif
 # Directories
 #----------------------------------------------------------------------------------------------------
 
-ifdef BUILD_PSP
-INCS           += psp
-endif
-
-
 ifdef BUILD_WII
 INCS           += wii
-endif
-
-
-ifdef BUILD_VITA
-INCS           += vita
 endif
 
 ifdef BUILD_PS3
@@ -308,7 +244,6 @@ endif
 ifdef BUILD_SDL
 INCS           += sdl
 endif
-
 
 ifdef BUILD_LINUX
 INCS           += 'libpng-config --prefix'/include/libpng
@@ -399,18 +334,28 @@ SCRIPT          = source/scriptlib/StackedSymbolTable.o                         
                   source/preprocessorlib/pp_expr.o
 SCRIPT_BUILTINS = source/openborscript/commands.o                                                   \
 				  source/openborscript/animation.o                                                  \
+                  source/openborscript/audio.o                                           			\
 				  source/openborscript/axis.o                                           			\
 				  source/openborscript/binding.o                                           			\
 				  source/openborscript/drawmethod.o                                           		\
                   source/openborscript/collision_attack.o                                           \
+                  source/openborscript/common_property.o                                            \
                   source/openborscript/collision_body.o                                             \
 				  source/openborscript/collision_entity.o                                           \
+                  source/openborscript/colorset.o                                                   \
                   source/openborscript/constants.o                                                  \
                   source/openborscript/entity.o                                                   	\
+                  source/openborscript/faction.o                                                   	\
+                  source/openborscript/flash.o                                             	        \
+                  source/openborscript/global_config.o                                             	\
+                  source/openborscript/icon.o                                                       \
                   source/openborscript/index.o                                                      \
                   source/openborscript/layer.o                                                      \
                   source/openborscript/level.o                                                      \
                   source/openborscript/math.o                                                       \
+                  source/openborscript/model.o                                                      \
+                  source/openborscript/spawn_hud.o                                                  \
+                  source/openborscript/status_dial.o                                               \
 				  source/openborscript/recursive_damage.o											\
                   source/openborscript/string.o
 RAM             = source/ramlib/ram.o
@@ -471,7 +416,8 @@ GAME	       += source/gamelib/filters.o
 endif
 
 ifdef BUILD_SDL_IO
-GAME_CONSOLE   += sdl/control.o                                                                     \
+GAME_CONSOLE   += sdl/joysticks.o                                                                   \
+                  sdl/control.o                                                                     \
                   sdl/sblaster.o                                                                    \
                   sdl/timer.o                                                                       \
                   sdl/sdlport.o                                                                     \
@@ -667,7 +613,7 @@ endif
 
 ifdef BUILD_SDL
 ifeq ($(findstring DGE, $(SDKPATH)), DGE)
-LIBS           += -lSDL
+LIBS           += -lSDL -lts
 else
 COMMA		=,
 RPATH_LIBS	= $(addprefix -Wl$(COMMA)-rpath$(COMMA),"$(LIBRARIES)")
@@ -940,6 +886,6 @@ version:
 	@echo "All rights reserved."
 	@echo "See LICENSE and README within OpenBOR root for details."
 	@echo
-	@echo "Copyright (c) 2004 - 2018 OpenBOR Team"
+	@echo "Copyright (c) OpenBOR Team"
 	@echo "-------------------------------------------------------"
 

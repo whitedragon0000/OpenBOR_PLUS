@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2012 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 /**
@@ -14,10 +14,6 @@
 
 #include "gfx.h"
 #include "types.h"
-
-#ifdef MMX
-extern void _BilinearMMX(u8 *srcPtr, u32 srcPitch, u8 *dstPtr, u32 dstPitch, int width, int height);
-#endif
 
 static inline u16 blend16_2(u16 a, u16 b)
 {
@@ -31,14 +27,6 @@ static inline u16 blend16_4(u16 a, u16 b, u16 c, u16 d)
 
 void Bilinear(u8 *srcPtr, u32 srcPitch, u8 *deltaPtr, u8 *dstPtr, u32 dstPitch, int width, int height)
 {
-#ifdef MMX
-    if (GetMMX())
-    {
-        _BilinearMMX(srcPtr, srcPitch, dstPtr, dstPitch, width, height);
-        return;
-    }
-#endif
-
     while (height--)
     {
         u16 *src0 = (u16 *)srcPtr, *src1 = (u16 *)(srcPtr + srcPitch);

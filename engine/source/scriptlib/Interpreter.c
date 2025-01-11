@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2013 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #include "../openborscript/config.h"
@@ -230,7 +230,7 @@ HRESULT Interpreter_Call(Interpreter *pinterpreter)
         if(FAILED(hr))
         {
             List_Includes(pinterpreter->ptheFunctionList, currentCall->functionRef);
-            printf("Script function '%s' returned an exception, check the manual for details.\n", List_GetName(pinterpreter->ptheFunctionList));
+            printf("Script function '%s' returned an exception. See any preceding error messages above for details.\n", List_GetName(pinterpreter->ptheFunctionList));
             if(currentCall->theRef->lVal)
             {
                 printf(" parameters: ");
@@ -526,6 +526,8 @@ HRESULT Interpreter_CompileInstructions(Interpreter *pinterpreter)
         case BNOT:
             //use the UNARYOP macro to do a logical not
         case NOT:
+            //use the UNARYOP macro to do a bitwise not
+        case BIT_NOT:
             COMPILEUNARYOP;
             break;
 
@@ -1011,6 +1013,12 @@ HRESULT Interpreter_EvalInstruction(Interpreter *pinterpreter)
         case NOT:
             UNARYOP(ScriptVariant_Boolean_Not);
             break;
+
+            //use the UNARYOP macro to do a bitwise not
+        case BIT_NOT:
+            UNARYOP(ScriptVariant_Bitwise_Not);
+            break;
+
 
             //Use the BINARYOP macro to do a multipy
         case MUL:
