@@ -18,8 +18,8 @@
 
 typedef struct {
     int deviceID;
-    uint32_t keyflags;
-    uint32_t newkeyflags;
+	u64		keyflags, newkeyflags;
+	int		kb_break;
 } s_playercontrols;
 
 void control_init();
