@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #ifndef SPK_SUPPORTED
@@ -22,14 +22,6 @@
 
 #ifdef SDL
 #include <SDL.h>
-#endif
-
-#ifdef PSP
-#include "image.h"
-#endif
-
-#ifdef VITA
-#include "types.h"
 #endif
 
 #define PACKFILE_PATH_MAX 512 // Maximum length of file path string.
@@ -55,10 +47,6 @@ typedef struct fileliststruct
     unsigned int bgmTracks[MAX_TRACKS];
 #ifdef SDL
     SDL_Surface *preview;
-#elif PSP
-    Image *preview;
-#elif VITA
-    s_screen *preview;
 #endif
 } fileliststruct;
 

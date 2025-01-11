@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #ifndef SCRIPTVARIANT_H
@@ -34,6 +34,21 @@ typedef struct ScriptVariant
     VARTYPE vt;//variatn type
 } ScriptVariant;
 
+/*
+* Caskey, Damon V.
+* 2023-04-17
+* 
+* Keep meta data about a variant type
+* for debugging output.
+*/
+typedef struct s_script_variant_meta
+{
+    const char* id_string;
+    const char* print_format;
+} s_script_variant_meta;
+
+extern const s_script_variant_meta script_variant_meta_list[];
+
 #pragma pack()
 
 //clear the string cache
@@ -41,7 +56,7 @@ void StrCache_Clear();
 // int the string cache
 //void StrCache_Init();
 void StrCache_Collect(int index);
-int StrCache_Pop();
+int StrCache_Pop(int length);
 int StrCache_CreateNewFrom(const CHAR *str);
 CHAR *StrCache_Get(int index);
 void ScriptVariant_Clear(ScriptVariant *var);
@@ -88,5 +103,6 @@ ScriptVariant *ScriptVariant_Dec_Op2(ScriptVariant *svar );
 void ScriptVariant_Pos( ScriptVariant *svar);
 void ScriptVariant_Neg( ScriptVariant *svar);
 void ScriptVariant_Boolean_Not(ScriptVariant *svar );
+void ScriptVariant_Bitwise_Not(ScriptVariant *svar );
 
 #endif

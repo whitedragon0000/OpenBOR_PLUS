@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #ifndef	FONT_H
@@ -13,7 +13,7 @@
 #define FONT_MBS 2
 #define FONT_MONO 1
 
-#define		MAX_FONTS		10
+#define		MAX_FONTS		20 // Kratus (10-2021) Increased the maximum fonts from 10 to 20
 #define		FONT_LAYER		0x0FFFFFFF
 
 

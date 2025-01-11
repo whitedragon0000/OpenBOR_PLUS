@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #ifndef VIDEO_H
@@ -18,6 +18,7 @@ extern u8 pDeltaBuffer[480 * 2592];
 extern int opengl;
 
 int SetVideoMode(int, int, int, bool);
+void FramerateDelay();
 
 // Frees all VESA shit when returning to textmode
 int video_set_mode(s_videomodes);
@@ -32,6 +33,8 @@ void video_set_color_correction(int, int);
 int video_setup_yuv_overlay(const yuv_video_mode*);
 int video_prepare_yuv_frame(yuv_frame*);
 int video_display_yuv_frame(void);
+
+int video_current_refresh_rate();
 
 #endif
 

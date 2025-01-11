@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 /*
@@ -29,6 +29,7 @@
 #elif LINUX
 #include <sys/sysinfo.h>
 #include <unistd.h>
+#include <features.h>
 #elif PSP
 #include "kernel/kernel.h"
 #elif GP2X

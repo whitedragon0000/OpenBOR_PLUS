@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #include <stdio.h>
@@ -13,6 +13,40 @@
 #include "ScriptVariant.h"
 
 #define STRCACHE_INC      64
+
+/*
+* Caskey, Damon V.
+* 2023-04-17
+* 
+* Populate a list of metadata for
+* each variant type.
+*/
+const s_script_variant_meta script_variant_meta_list[] = {
+    [VT_EMPTY] = {        
+        .id_string = "VT_EMPTY",
+        .print_format = "%s",
+    },
+
+    [VT_INTEGER] = {
+        .id_string = "VT_INTEGER",
+        .print_format = "%d",
+    },
+
+    [VT_DECIMAL] = {        
+        .id_string = "VT_DECIMAL",
+        .print_format = "%f",
+    },
+
+    [VT_PTR] = {
+        .id_string = "VT_PTR",
+        .print_format = "%p",
+    },
+
+    [VT_STR] = {
+        .id_string = "VT_STR",
+        .print_format = "%s",
+    },
+};
 
 typedef struct
 {
@@ -947,6 +981,14 @@ void ScriptVariant_Boolean_Not(ScriptVariant *svar )
     ScriptVariant_ChangeType(svar, VT_INTEGER);
     svar->lVal = b;
 
+}
+
+void ScriptVariant_Bitwise_Not(ScriptVariant *svar )
+{
+    if (svar->vt == VT_INTEGER)
+    {
+        svar->lVal = ~(svar->lVal);
+    }
 }
 
 

@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------
 # All rights reserved. See LICENSE in OpenBOR root for details.
 #
-# Copyright (c) 2004 - 2014 OpenBOR Team
+# Copyright (c) OpenBOR Team
 #
 
 #!/bin/bash
@@ -34,6 +34,8 @@ function get_revnum {
   else # manually add build number if missing
 	echo "Missing version build, please add it manually and press ENTER: "; read -r VERSION_BUILD
 	echo "Missing version commit, please add it manually and press ENTER: "; read -r VERSION_COMMIT
+  if [ -z $VERSION_BUILD ]; then VERSION_BUILD=0; fi
+  if [ -z $VERSION_COMMIT ]; then VERSION_COMMIT="0000000"; fi
 	echo "VERSION_BUILD is set to: $VERSION_BUILD"
 	echo "VERSION_COMMIT is set to: $VERSION_COMMIT"
   fi
@@ -44,7 +46,7 @@ function read_version {
 check_git
 get_revnum
 VERSION_NAME="OpenBOR"
-VERSION_MAJOR=3
+VERSION_MAJOR=4
 VERSION_MINOR=0
 VERSION_DATE=`date '+%Y%m%d%H%M%S'`
 
@@ -58,13 +60,14 @@ fi
 }
 
 function write_version {
-rm -rf version.h
+rm -rf version.tmp
+echo "$VERSION_NAME-v$VERSION_MAJOR.$VERSION_MINOR.$VERSION_BUILD-$VERSION_COMMIT" > version.txt
 echo "/*
  * OpenBOR - http://www.ChronoCrash.com
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c) OpenBOR Team
  */
 
 #ifndef VERSION_H
@@ -74,17 +77,17 @@ echo "/*
 #define VERSION_MAJOR \"$VERSION_MAJOR\"
 #define VERSION_MINOR \"$VERSION_MINOR\"
 #define VERSION_BUILD \"$VERSION_BUILD\"
-#define VERSION_BUILD_INT $VERSION_BUILD" >> version.h
+#define VERSION_BUILD_INT $VERSION_BUILD" >> version.tmp
 
 if [ -z "${VERSION_COMMIT}" ]; then
   echo "#define VERSION \"v\"VERSION_MAJOR\".\"VERSION_MINOR\" Build \"VERSION_BUILD
 
-#endif" >> version.h
+#endif" >> version.tmp
 else
   echo "#define VERSION_COMMIT \"${VERSION_COMMIT}\"
 #define VERSION \"v\"VERSION_MAJOR\".\"VERSION_MINOR\" Build \"VERSION_BUILD\" (commit hash: \"VERSION_COMMIT\")\"
 
-#endif" >> version.h
+#endif" >> version.tmp
 fi
 
 rm -rf resources/meta.xml
@@ -174,6 +177,25 @@ All Rights Reserved</string>
 </plist>" >> resources/Info.plist
 }
 
+function replace_version {
+  if [ ! -f version.h ]; then
+    mv version.tmp version.h
+  else
+    OLD=""
+    NEW=""
+    if command -v md5sum &> /dev/null; then
+      OLD=`md5sum version.h | awk '{print $1}'`
+      NEW=`md5sum version.tmp | awk '{print $1}'`
+    elif command -v md5 &> /dev/null; then
+      OLD=`md5 version.h | awk '{print $4}'`
+      NEW=`md5 version.tmp | awk '{print $4}'`
+    fi
+    if [ "${OLD}" != "${NEW}" ]; then
+      mv version.tmp version.h
+    fi
+  fi
+}
+
 function archive_release {
 #TRIMMED_URL=`svn info | grep "URL:" | sed s/URL:\ svn\+ssh//g`
 #if test -n $TRIMMED_URL;  then
@@ -198,6 +220,7 @@ case $1 in
 *)
     read_version
     write_version
+    replace_version
     ;;
 esac
 

@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 /************************ OpenGL video backend *************************/
@@ -252,7 +252,7 @@ int video_gl_set_mode(s_videomodes videomodes)
 	}
 
 	// try to disable vertical retrace syncing (VSync)
-	if(SDL_GL_SetSwapInterval(!!savedata.vsync) < 0)
+	if(SDL_GL_SetSwapInterval(savedata.fpslimit == 1) < 0)
 	{
 		printf("Warning: can't disable vertical retrace sync (%s)...\n", SDL_GetError());
 	}
@@ -282,6 +282,9 @@ int video_gl_set_mode(s_videomodes videomodes)
 		printf("Unable to create a %ix%i OpenGL texture (max texture size %i)...", textureWidth, textureHeight, maxTextureSize);
 		goto error;
 	}
+
+	// set proper viewport width/height for high-DPI support
+	SDL_GL_GetDrawableSize(window, &viewportWidth, &viewportHeight);
 
 	// set background to black
 	glClearColor(0.0, 0.0, 0.0, 0.0);
@@ -391,6 +394,8 @@ int video_gl_copy_screen(s_videosurface* surface)
 
 	// display the rendered frame on the screen
 	SDL_GL_SwapWindow(window);
+
+	if (savedata.fpslimit >= 2) FramerateDelay();
 
 	return 1;
 }

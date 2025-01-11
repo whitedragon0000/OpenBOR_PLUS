@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 // Primitive drawing functions. Should really be done in ASM...
@@ -359,7 +359,7 @@ static int draw_init( s_drawmethod *drawmethod)
     int alpha = 0;
     drawmethod_global_init(drawmethod);
 
-    if (drawmethod && drawmethod->flag)
+    if (drawmethod && drawmethod->config & DRAWMETHOD_CONFIG_ENABLED)
     {
         alpha = drawmethod->alpha;
     }

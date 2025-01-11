@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved. See LICENSE in OpenBOR root for license details.
  *
- * Copyright (c) 2004 - 2017 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 // Attack Properties
@@ -31,12 +31,12 @@ HRESULT openbor_get_attack_collection(ScriptVariant **varlist, ScriptVariant **p
 {
     #define SELF_NAME       "get_attack_collection(void handle, int frame)"
     #define ARG_MINIMUM     2   // Minimum required arguments.
-    #define ARG_HANDLE      0   // Handle (pointer to property structure).
+    #define ARG_OBJECT      0   // Handle (pointer to property structure).
     #define ARG_FRAME       1   // Frame to access.
 
 
     int         result      = S_OK;     // Success or error?
-    s_collision_attack    **handle     = NULL;    // Property handle.
+    s_attack    **handle     = NULL;    // Property handle.
     int         frame       = 0;        // Property argument.
 
     // Clear pass by reference argument used to send
@@ -47,7 +47,7 @@ HRESULT openbor_get_attack_collection(ScriptVariant **varlist, ScriptVariant **p
     // be a pointer for the property handle and an integer
     // to determine which frame is accessed.
     if(paramCount < ARG_MINIMUM
-       || varlist[ARG_HANDLE]->vt != VT_PTR
+       || varlist[ARG_OBJECT]->vt != VT_PTR
        || varlist[ARG_FRAME]->vt != VT_INTEGER)
     {
         *pretvar = NULL;
@@ -55,7 +55,7 @@ HRESULT openbor_get_attack_collection(ScriptVariant **varlist, ScriptVariant **p
     }
     else
     {
-        handle  = (s_collision_attack **)varlist[ARG_HANDLE]->ptrVal;
+        handle  = (s_attack **)varlist[ARG_OBJECT]->ptrVal;
         frame   = (LONG)varlist[ARG_FRAME]->lVal;
     }
 
@@ -78,7 +78,7 @@ HRESULT openbor_get_attack_collection(ScriptVariant **varlist, ScriptVariant **p
 
     #undef SELF_NAME
     #undef ARG_MINIMUM
-    #undef ARG_HANDLE
+    #undef ARG_OBJECT
     #undef ARG_FRAME
 }
 
@@ -92,11 +92,11 @@ HRESULT openbor_get_attack_instance(ScriptVariant **varlist, ScriptVariant **pre
 {
     #define SELF_NAME       "get_attack_instance(void handle, int index)"
     #define ARG_MINIMUM     2   // Minimum required arguments.
-    #define ARG_HANDLE      0   // Handle (pointer to property structure).
+    #define ARG_OBJECT      0   // Handle (pointer to property structure).
     #define ARG_INDEX       1   // Index to access.
 
     int         result     = S_OK; // Success or error?
-    s_collision_attack    *handle    = NULL; // Property handle.
+    s_attack    *handle    = NULL; // Property handle.
     //int         index      = 0;    // Property argument.
 
     // Clear pass by reference argument used to send
@@ -107,7 +107,7 @@ HRESULT openbor_get_attack_instance(ScriptVariant **varlist, ScriptVariant **pre
     // be a pointer for the property handle and an integer
     // to determine which index is accessed.
     if(paramCount < ARG_MINIMUM
-       || varlist[ARG_HANDLE]->vt != VT_PTR
+       || varlist[ARG_OBJECT]->vt != VT_PTR
        || varlist[ARG_INDEX]->vt != VT_INTEGER)
     {
         *pretvar = NULL;
@@ -115,7 +115,7 @@ HRESULT openbor_get_attack_instance(ScriptVariant **varlist, ScriptVariant **pre
     }
     else
     {
-        handle  = (s_collision_attack *)varlist[ARG_HANDLE]->ptrVal;
+        handle  = (s_attack *)varlist[ARG_OBJECT]->ptrVal;
         //index   = (LONG)varlist[ARG_INDEX]->lVal;
     }
 
@@ -140,7 +140,7 @@ HRESULT openbor_get_attack_instance(ScriptVariant **varlist, ScriptVariant **pre
 
     #undef SELF_NAME
     #undef ARG_MINIMUM
-    #undef ARG_HANDLE
+    #undef ARG_OBJECT
     #undef ARG_INDEX
 }
 
@@ -149,11 +149,11 @@ HRESULT openbor_get_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 {
     #define SELF_NAME       "get_attack_property(void handle, int property)"
     #define ARG_MINIMUM     2   // Minimum required arguments.
-    #define ARG_HANDLE      0   // Handle (pointer to property structure).
+    #define ARG_OBJECT      0   // Handle (pointer to property structure).
     #define ARG_PROPERTY    1   // Property to access.
 
     int                     result      = S_OK; // Success or error?
-    s_collision_attack                *handle     = NULL; // Property handle.
+    s_attack                *handle     = NULL; // Property handle.
     e_attack_properties     property    = 0;    // Property argument.
 
     // Clear pass by reference argument used to send
@@ -164,7 +164,7 @@ HRESULT openbor_get_attack_property(ScriptVariant **varlist, ScriptVariant **pre
     // be a pointer for the property handle and an integer
     // to determine which property is accessed.
     if(paramCount < ARG_MINIMUM
-       || varlist[ARG_HANDLE]->vt != VT_PTR
+       || varlist[ARG_OBJECT]->vt != VT_PTR
        || varlist[ARG_PROPERTY]->vt != VT_INTEGER)
     {
         *pretvar = NULL;
@@ -172,152 +172,152 @@ HRESULT openbor_get_attack_property(ScriptVariant **varlist, ScriptVariant **pre
     }
     else
     {
-        handle      = (s_collision_attack *)varlist[ARG_HANDLE]->ptrVal;
+        handle      = (s_attack *)varlist[ARG_OBJECT]->ptrVal;
         property    = (LONG)varlist[ARG_PROPERTY]->lVal;
     }
 
     // Which property to get?
     switch(property)
     {
-        case ATTACK_PROP_BLOCK_COST:
+        case ATTACK_PROPERTY_BLOCK_COST:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->guardcost;
             break;
 
-        case ATTACK_PROP_BLOCK_PENETRATE:
+        case ATTACK_PROPERTY_BLOCK_PENETRATE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->no_block;
             break;
 
-        case ATTACK_PROP_COUNTER:
+        case ATTACK_PROPERTY_COUNTER:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->counterattack;
             break;
 
-        case ATTACK_PROP_DAMAGE_FORCE:
+        case ATTACK_PROPERTY_DAMAGE_FORCE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->attack_force;
             break;
 
-        case ATTACK_PROP_DAMAGE_LAND_FORCE:
+        case ATTACK_PROPERTY_DAMAGE_LAND_FORCE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->damage_on_landing.attack_force;
             break;
 
-        case ATTACK_PROP_DAMAGE_LAND_MODE:
+        case ATTACK_PROPERTY_DAMAGE_LAND_MODE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->blast;
             break;
 
-        case ATTACK_PROP_DAMAGE_LETHAL_DISABLE:
+        case ATTACK_PROPERTY_DAMAGE_LETHAL_DISABLE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->no_kill;
             break;
 
-        case ATTACK_PROP_DAMAGE_STEAL:
+        case ATTACK_PROPERTY_DAMAGE_STEAL:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->steal;
             break;
 
-        case ATTACK_PROP_DAMAGE_TYPE:
+        case ATTACK_PROPERTY_DAMAGE_TYPE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->attack_type;
             break;
 
-//        case ATTACK_PROP_DAMAGE_RECURSIVE_FORCE:
+//        case ATTACK_PROPERTY_DAMAGE_RECURSIVE_FORCE:
 //
 //            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
 //            (*pretvar)->lVal = (LONG)handle->dot_force;
 //            break;
 //
-//        case ATTACK_PROP_DAMAGE_RECURSIVE_INDEX:
+//        case ATTACK_PROPERTY_DAMAGE_RECURSIVE_INDEX:
 //
 //            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
 //            (*pretvar)->lVal = (LONG)handle->dot_index;
 //            break;
 //
-//        case ATTACK_PROP_DAMAGE_RECURSIVE_MODE:
+//        case ATTACK_PROPERTY_DAMAGE_RECURSIVE_MODE:
 //
 //            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
 //            (*pretvar)->lVal = (LONG)handle->dot;
 //            break;
 //
-//        case ATTACK_PROP_DAMAGE_RECURSIVE_TIME_EXPIRE:
+//        case ATTACK_PROPERTY_DAMAGE_RECURSIVE_TIME_EXPIRE:
 //
 //            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
 //            (*pretvar)->lVal = (LONG)handle->dot_time;
 //            break;
 //
-//        case ATTACK_PROP_DAMAGE_RECURSIVE_TIME_RATE:
+//        case ATTACK_PROPERTY_DAMAGE_RECURSIVE_TIME_RATE:
 //
 //            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
 //            (*pretvar)->lVal = (LONG)handle->dot_rate;
 //            break;
 
-        case ATTACK_PROP_EFFECT_BLOCK_FLASH:
+        case ATTACK_PROPERTY_EFFECT_BLOCK_FLASH:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->blockflash;
+            (*pretvar)->lVal = (LONG)handle->flash.model_block;
             break;
 
-        case ATTACK_PROP_EFFECT_BLOCK_SOUND:
+        case ATTACK_PROPERTY_EFFECT_BLOCK_SOUND:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->blocksound;
             break;
 
-        case ATTACK_PROP_EFFECT_HIT_FLASH:
+        case ATTACK_PROPERTY_EFFECT_HIT_FLASH:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->hitflash;
+            (*pretvar)->lVal = (LONG)handle->flash.model_hit;
             break;
 
-        case ATTACK_PROP_EFFECT_HIT_FLASH_DISABLE:
+        case ATTACK_PROPERTY_EFFECT_HIT_FLASH_DISABLE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->no_flash;
             break;
 
-        case ATTACK_PROP_EFFECT_HIT_SOUND:
+        case ATTACK_PROPERTY_EFFECT_HIT_SOUND:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->hitsound;
             break;
 
-        case ATTACK_PROP_GROUND:
+        case ATTACK_PROPERTY_GROUND:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->otg;
             break;
 
-        case ATTACK_PROP_MAP_INDEX:
+        case ATTACK_PROPERTY_MAP_INDEX:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->forcemap;
             break;
 
-        case ATTACK_PROP_MAP_TIME:
+        case ATTACK_PROPERTY_MAP_TIME:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->maptime;
             break;
 
-        case ATTACK_PROP_REACTION_FALL_FORCE:
+        case ATTACK_PROPERTY_REACTION_FALL_FORCE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->attack_drop;
             break;
 
-        case ATTACK_PROP_REACTION_FALL_VELOCITY:
+        case ATTACK_PROPERTY_REACTION_FALL_VELOCITY:
 
             // Get memory address of sub structure
             // and pass it on as a handle.
@@ -326,82 +326,82 @@ HRESULT openbor_get_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 
             break;
 
-        case ATTACK_PROP_REACTION_FREEZE_MODE:
+        case ATTACK_PROPERTY_REACTION_FREEZE_MODE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->freeze;
             break;
 
-        case ATTACK_PROP_REACTION_FREEZE_TIME:
+        case ATTACK_PROPERTY_REACTION_FREEZE_TIME:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->freezetime;
             break;
 
-        case ATTACK_PROP_REACTION_INVINCIBLE_TIME:
+        case ATTACK_PROPERTY_REACTION_INVINCIBLE_TIME:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->next_hit_time;
             break;
 
-        case ATTACK_PROP_REACTION_PAIN_SKIP:
+        case ATTACK_PROPERTY_REACTION_PAIN_SKIP:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->no_pain;
             break;
 
-        case ATTACK_PROP_REACTION_PAUSE_TIME:
+        case ATTACK_PROPERTY_REACTION_PAUSE_TIME:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->pause_add;
             break;
 
-        case ATTACK_PROP_REACTION_REPOSITION_DIRECTION:
+        case ATTACK_PROPERTY_REACTION_REPOSITION_DIRECTION:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->force_direction;
             break;
 
-        case ATTACK_PROP_REACTION_REPOSITION_DISTANCE:
+        case ATTACK_PROPERTY_REACTION_REPOSITION_DISTANCE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->grab_distance;
             break;
 
-        case ATTACK_PROP_REACTION_REPOSITION_MODE:
+        case ATTACK_PROPERTY_REACTION_REPOSITION_MODE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->grab;
             break;
 
-        case ATTACK_PROP_SEAL_COST:
+        case ATTACK_PROPERTY_SEAL_COST:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->seal;
             break;
 
-        case ATTACK_PROP_SEAL_TIME:
+        case ATTACK_PROPERTY_SEAL_TIME:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->sealtime;
             break;
 
-        case ATTACK_PROP_STAYDOWN_RISE:
+        case ATTACK_PROPERTY_STAYDOWN_RISE:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->staydown.rise;
             break;
 
-        case ATTACK_PROP_STAYDOWN_RISEATTACK:
+        case ATTACK_PROPERTY_STAYDOWN_RISEATTACK:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->staydown.riseattack;
             break;
 
-        case ATTACK_PROP_TAG:
+        case ATTACK_PROPERTY_TAG:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)handle->tag;
+            (*pretvar)->lVal = (LONG)handle->meta_tag;
             break;
 
         default:
@@ -423,7 +423,7 @@ HRESULT openbor_get_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 
     #undef SELF_NAME
     #undef ARG_MINIMUM
-    #undef ARG_HANDLE
+    #undef ARG_OBJECT
     #undef ARG_PROPERTY
 }
 
@@ -432,12 +432,12 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 {
     #define SELF_NAME           "set_attack_property(void handle, int property, value)"
     #define ARG_MINIMUM         3   // Minimum required arguments.
-    #define ARG_HANDLE          0   // Handle (pointer to property structure).
+    #define ARG_OBJECT          0   // Handle (pointer to property structure).
     #define ARG_PROPERTY        1   // Property to access.
     #define ARG_VALUE           2   // New value to apply.
 
     int                     result      = S_OK; // Success or error?
-    s_collision_attack                *handle     = NULL; // Property handle.
+    s_attack                *handle     = NULL; // Property handle.
     e_attack_properties     property    = 0;    // Property to access.
 
     // Value carriers to apply on properties after
@@ -448,7 +448,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
     // pointer for the animation handle, an integer
     // property, and a new value to apply.
     if(paramCount < ARG_MINIMUM
-       || varlist[ARG_HANDLE]->vt != VT_PTR
+       || varlist[ARG_OBJECT]->vt != VT_PTR
        || varlist[ARG_PROPERTY]->vt != VT_INTEGER)
     {
         *pretvar = NULL;
@@ -456,14 +456,14 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
     }
     else
     {
-        handle      = (s_collision_attack *)varlist[ARG_HANDLE]->ptrVal;
+        handle      = (s_attack *)varlist[ARG_OBJECT]->ptrVal;
         property    = (LONG)varlist[ARG_PROPERTY]->lVal;
     }
 
     // Which property to modify?
     switch(property)
     {
-        case ATTACK_PROP_BLOCK_COST:
+        case ATTACK_PROPERTY_BLOCK_COST:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -471,7 +471,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_BLOCK_PENETRATE:
+        case ATTACK_PROPERTY_BLOCK_PENETRATE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -479,7 +479,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_COUNTER:
+        case ATTACK_PROPERTY_COUNTER:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -487,7 +487,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_DAMAGE_FORCE:
+        case ATTACK_PROPERTY_DAMAGE_FORCE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -495,7 +495,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_DAMAGE_LAND_FORCE:
+        case ATTACK_PROPERTY_DAMAGE_LAND_FORCE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -503,7 +503,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_DAMAGE_LAND_MODE:
+        case ATTACK_PROPERTY_DAMAGE_LAND_MODE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -511,7 +511,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_DAMAGE_LETHAL_DISABLE:
+        case ATTACK_PROPERTY_DAMAGE_LETHAL_DISABLE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -519,7 +519,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_DAMAGE_STEAL:
+        case ATTACK_PROPERTY_DAMAGE_STEAL:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -527,7 +527,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_DAMAGE_TYPE:
+        case ATTACK_PROPERTY_DAMAGE_TYPE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -535,7 +535,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-//        case ATTACK_PROP_DAMAGE_RECURSIVE_FORCE:
+//        case ATTACK_PROPERTY_DAMAGE_RECURSIVE_FORCE:
 //
 //            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
 //            {
@@ -543,7 +543,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 //            }
 //            break;
 //
-//        case ATTACK_PROP_DAMAGE_RECURSIVE_INDEX:
+//        case ATTACK_PROPERTY_DAMAGE_RECURSIVE_INDEX:
 //
 //            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
 //            {
@@ -551,7 +551,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 //            }
 //            break;
 //
-//        case ATTACK_PROP_DAMAGE_RECURSIVE_MODE:
+//        case ATTACK_PROPERTY_DAMAGE_RECURSIVE_MODE:
 //
 //            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
 //            {
@@ -559,7 +559,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 //            }
 //            break;
 //
-//        case ATTACK_PROP_DAMAGE_RECURSIVE_TIME_EXPIRE:
+//        case ATTACK_PROPERTY_DAMAGE_RECURSIVE_TIME_EXPIRE:
 //
 //            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
 //            {
@@ -567,7 +567,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 //            }
 //            break;
 //
-//        case ATTACK_PROP_DAMAGE_RECURSIVE_TIME_RATE:
+//        case ATTACK_PROPERTY_DAMAGE_RECURSIVE_TIME_RATE:
 //
 //            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
 //            {
@@ -575,15 +575,15 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 //            }
 //            break;
 
-        case ATTACK_PROP_EFFECT_BLOCK_FLASH:
+        case ATTACK_PROPERTY_EFFECT_BLOCK_FLASH:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
-                handle->blockflash = temp_int;
+                handle->flash.model_block = temp_int;
             }
             break;
 
-        case ATTACK_PROP_EFFECT_BLOCK_SOUND:
+        case ATTACK_PROPERTY_EFFECT_BLOCK_SOUND:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -591,15 +591,15 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_EFFECT_HIT_FLASH:
+        case ATTACK_PROPERTY_EFFECT_HIT_FLASH:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
-                handle->hitflash = temp_int;
+                handle->flash.model_hit = temp_int;
             }
             break;
 
-        case ATTACK_PROP_EFFECT_HIT_FLASH_DISABLE:
+        case ATTACK_PROPERTY_EFFECT_HIT_FLASH_DISABLE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -607,7 +607,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_EFFECT_HIT_SOUND:
+        case ATTACK_PROPERTY_EFFECT_HIT_SOUND:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -615,7 +615,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_GROUND:
+        case ATTACK_PROPERTY_GROUND:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -623,7 +623,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_MAP_INDEX:
+        case ATTACK_PROPERTY_MAP_INDEX:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -631,7 +631,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_MAP_TIME:
+        case ATTACK_PROPERTY_MAP_TIME:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -639,7 +639,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_REACTION_FALL_FORCE:
+        case ATTACK_PROPERTY_REACTION_FALL_FORCE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -648,7 +648,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 
             break;
 
-        case ATTACK_PROP_REACTION_FALL_VELOCITY:
+        case ATTACK_PROPERTY_REACTION_FALL_VELOCITY:
 
             // Reassign sub structure memory address
             // to new handle.
@@ -656,7 +656,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 
             break;
 
-        case ATTACK_PROP_REACTION_FREEZE_MODE:
+        case ATTACK_PROPERTY_REACTION_FREEZE_MODE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -664,7 +664,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_REACTION_FREEZE_TIME:
+        case ATTACK_PROPERTY_REACTION_FREEZE_TIME:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -672,7 +672,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_REACTION_INVINCIBLE_TIME:
+        case ATTACK_PROPERTY_REACTION_INVINCIBLE_TIME:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -680,7 +680,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_REACTION_PAIN_SKIP:
+        case ATTACK_PROPERTY_REACTION_PAIN_SKIP:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -688,7 +688,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_REACTION_PAUSE_TIME:
+        case ATTACK_PROPERTY_REACTION_PAUSE_TIME:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -696,7 +696,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_REACTION_REPOSITION_DIRECTION:
+        case ATTACK_PROPERTY_REACTION_REPOSITION_DIRECTION:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -704,7 +704,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_REACTION_REPOSITION_DISTANCE:
+        case ATTACK_PROPERTY_REACTION_REPOSITION_DISTANCE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -712,7 +712,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_REACTION_REPOSITION_MODE:
+        case ATTACK_PROPERTY_REACTION_REPOSITION_MODE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -720,7 +720,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_SEAL_COST:
+        case ATTACK_PROPERTY_SEAL_COST:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -728,7 +728,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_SEAL_TIME:
+        case ATTACK_PROPERTY_SEAL_TIME:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -736,7 +736,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_STAYDOWN_RISE:
+        case ATTACK_PROPERTY_STAYDOWN_RISE:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -744,7 +744,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_STAYDOWN_RISEATTACK:
+        case ATTACK_PROPERTY_STAYDOWN_RISEATTACK:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
@@ -752,11 +752,11 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
             }
             break;
 
-        case ATTACK_PROP_TAG:
+        case ATTACK_PROPERTY_TAG:
 
             if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
             {
-                handle->tag = temp_int;
+                handle->meta_tag = temp_int;
             }
             break;
 
@@ -779,7 +779,7 @@ HRESULT openbor_set_attack_property(ScriptVariant **varlist, ScriptVariant **pre
 
     #undef SELF_NAME
     #undef ARG_MINIMUM
-    #undef ARG_HANDLE
+    #undef ARG_OBJECT
     #undef ARG_PROPERTY
     #undef ARG_VALUE
 }
