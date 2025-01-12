@@ -522,8 +522,6 @@ HRESULT Interpreter_CompileInstructions(Interpreter *pinterpreter)
         case POS:
             //use the UNARYOP macro to do a unary minus
         case NEG:
-            //use the UNARYOP macro to do a unary bitwise not
-        case BNOT:
             //use the UNARYOP macro to do a logical not
         case NOT:
             //use the UNARYOP macro to do a bitwise not
@@ -1002,11 +1000,6 @@ HRESULT Interpreter_EvalInstruction(Interpreter *pinterpreter)
             //use the UNARYOP macro to do a unary minus
         case NEG:
             UNARYOP(ScriptVariant_Neg);
-            break;
-
-            //use the UNARYOP macro to do a unary bitwise not
-        case BNOT:
-            UNARYOP(ScriptVariant_Bitwise_Not);
             break;
 
             //use the UNARYOP macro to do a logical not
