@@ -1062,7 +1062,6 @@ static const char *svlist[] =
     "lightz",
     "max_wall_height",
     "maxanimations",
-	"maxcollisions",
     "maxattacktypes",
     "maxcollisions",
     "maxentityvars",

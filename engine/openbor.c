@@ -50618,8 +50618,10 @@ void menu_options_input()
     int selector = 0;
 	int active_devices = 0;
 	const int max_players = levelsets[current_set].maxplayers;
-	int x_pos = -6;
-    int OPTIONS_NUM = max_players + 1;
+	int y_pos = -7;
+	int y_start_conf = 4;
+	int first_options = 1;
+    int OPTIONS_NUM = max_players + first_options;
     #if ANDROID
     int dir = 0;
     OPTIONS_NUM += 3;
@@ -50634,29 +50636,30 @@ void menu_options_input()
 
     while(!quit)
     {
-        _menutextm(2, x_pos-1, 0, Tr("Control Options"));
+		//debug_printf("selector: %d ,max_players: %d, active_devices: %d",selector,max_players,active_devices);
+        _menutextm(2, y_pos, 0, Tr("Control Options"));
 		
 		#if WII
 		if(savedata.usejoy)
 		{
-			_menutext((selector == 0), x_pos+2, -2, Tr("Nunchuk Analog Enabled"));
+			_menutextm((selector == 0), y_pos + y_start_conf, 2, Tr("Nunchuk Analog Enabled"));
 		}
 		else
 		{
-			_menutext((selector == 0), x_pos+2, -2, Tr("Nunchuk Analog Disabled"));
+			_menutextm((selector == 0), y_pos + y_start_conf, 2, Tr("Nunchuk Analog Disabled"));
 		}
 		#else
 		if(savedata.usejoy)
 		{
-			_menutext((selector == 0), x_pos, -2, Tr("GamePads Enabled"));
+			_menutextm((selector == 0), y_pos + y_start_conf, 0, Tr("GamePads Enabled"));
 			if(!control_getjoyenabled())
 			{
-				_menutext((selector == 0), x_pos+11, -2, Tr(" - Device Not Ready"));
+				_menutext((selector == 0), y_pos + y_start_conf, 0+11, Tr(" - Device Not Ready"));
 			}
 		}
 		else
 		{
-			_menutext((selector == 0), x_pos, -2, Tr("GamePads Disabled"));
+			_menutextm((selector == 0), y_pos + y_start_conf, 0, Tr("GamePads Disabled"));
 		}
 		#endif
 
@@ -50670,31 +50673,31 @@ void menu_options_input()
         active_devices = 0;
         for (int i = 0; i < max_players; i++)
         {
-			_menutextm((selector == max_players + i), 1 + active_devices, 0, Tr("Setup Player %i..."), i + 1);
+			_menutextm((selector == first_options + i), y_pos + y_start_conf+1 + active_devices, 0, Tr("Setup Player %i..."), i + 1);
 			++active_devices;
         }
 		
         #if ANDROID
         if(savedata.is_touchpad_vibration_enabled)
         {
-            _menutextm((selector == max_players + active_devices + 1), 2 + active_devices, 0, Tr("Touchpad Vibration Enabled"));
+            _menutextm((selector == first_options + active_devices), y_pos + y_start_conf+2 + active_devices, 0, Tr("Touchpad Vibration Enabled"));
         }
         else
         {
-            _menutextm((selector == max_players + active_devices + 1), 2 + active_devices, 0, Tr("Touchpad Vibration Disabled"));
+            _menutextm((selector == first_options + active_devices), y_pos + y_start_conf+2 + active_devices, 0, Tr("Touchpad Vibration Disabled"));
         }
-        _menutextm((selector == max_players + active_devices + 2), 3 + active_devices, 0, Tr("Touchpad Vibration Intensity: %d%%"), savedata.touchpad_vibration_intensity);
+        _menutextm((selector == first_options + active_devices + 1), y_pos + y_start_conf+3 + active_devices, 0, Tr("Touchpad Vibration Intensity: %d%%"), savedata.touchpad_vibration_intensity);
         if(savedata.is_touchpad_visible)
         {
-            _menutextm((selector == max_players + active_devices + 3), 4 + active_devices, 0, Tr("Touchpad Visible"));
+            _menutextm((selector == first_options + active_devices + 2), y_pos + y_start_conf+4 + active_devices, 0, Tr("Touchpad Visible"));
         }
         else
         {
-            _menutextm((selector == max_players + active_devices + 3), 4 + active_devices, 0, Tr("Touchpad Hidden"));
+            _menutextm((selector == first_options + active_devices + 2), y_pos + y_start_conf+4 + active_devices, 0, Tr("Touchpad Hidden"));
         }
-        _menutextm((selector == max_players + active_devices + 4 ), 6 + active_devices, 0, Tr("Back"));
+        _menutextm((selector == first_options + active_devices + 3), y_pos + y_start_conf+6 + active_devices, 0, Tr("Back"));
         #else
-        _menutextm((selector == max_players + active_devices + 1), 2 + active_devices, 0, Tr("Back"));
+        _menutextm((selector == first_options + active_devices), y_pos + y_start_conf+2 + active_devices, 0, Tr("Back"));
         #endif
 
         update((level != NULL), 0);
@@ -50711,12 +50714,6 @@ void menu_options_input()
             {
                 sound_play_sample(global_sample_list.beep, 0, savedata.effectvol, savedata.effectvol, 100);
             }
-
-            // skip over invisible configuration entries for non-existent devices
-            while (selector >= max_players && selector <= max_players + active_devices)
-            {
-                --selector;
-            }
         }
         if(bothnewkeys & FLAG_MOVEDOWN)
         {
@@ -50724,12 +50721,6 @@ void menu_options_input()
             if(global_sample_list.beep >= 0)
             {
                 sound_play_sample(global_sample_list.beep, 0, savedata.effectvol, savedata.effectvol, 100);
-            }
-
-            // skip over invisible configuration entries for non-existent devices
-            while (selector >= max_players && selector <= max_players + active_devices)
-            {
-                ++selector;
             }
         }
         if(selector < 0)
@@ -50750,32 +50741,30 @@ void menu_options_input()
         if (bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
         {
 			
-			// Left/right only make sense for device reassignment
-            if (selector >= max_players && selector <= max_players + active_devices
-                    && !(bothnewkeys & FLAG_ANYBUTTON))
-            {
-                continue;
-            }
-			
             if(global_sample_list.beep_2 >= 0)
             {
                 sound_play_sample(global_sample_list.beep_2, 0, savedata.effectvol, savedata.effectvol, 100);
             }
 
             // actions
-            if (selector >= max_players && selector <= max_players + active_devices) {
-                keyboard_setup(selector - max_players);
+			if (selector == 0)
+			{
+				control_usejoy((savedata.usejoy ^= 1));
+			}
+            else if (selector >= 1 && selector <= active_devices)
+			{
+                keyboard_setup(selector - 1);
             }
 			
             #if ANDROID
-            else if (selector == max_players + active_devices + 1) {
+            else if (selector == active_devices + 1) {
                 savedata.is_touchpad_vibration_enabled = !savedata.is_touchpad_vibration_enabled;
                 if (savedata.is_touchpad_vibration_enabled) jniutils_vibrate_device(savedata.touchpad_vibration_intensity);
-            } else if (selector == max_players + active_devices + 2) {
+            } else if (selector == active_devices + 2) {
                 savedata.touchpad_vibration_intensity += 5 * dir;
                 if (savedata.touchpad_vibration_intensity < 0) savedata.touchpad_vibration_intensity = 0;
                 else if (savedata.touchpad_vibration_intensity > 100) savedata.touchpad_vibration_intensity = 100;
-            } else if (selector == max_players + active_devices + 3) {
+            } else if (selector == active_devices + 3) {
                 savedata.is_touchpad_visible = !savedata.is_touchpad_visible;
             }
             #endif
