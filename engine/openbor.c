@@ -5395,47 +5395,17 @@ void free_frames(s_anim *anim)
         collision_body_free_list(*anim->collision_body);
         anim->collision_body = NULL;
     }
+	
+    if (anim->collision_entity)
+    {
+        collision_entity_free_list(*anim->collision_entity);
+        anim->collision_entity = NULL;
+    }
 
     if (anim->child_spawn)
     {
         child_spawn_free_list(*anim->child_spawn);
         anim->child_spawn = NULL;
-    }
-
-    if(anim->collision_entity)
-    {
-        for(i = 0; i < anim->numframes; i++)
-        {
-            if(anim->collision_entity[i])
-            {
-                // Check each instance and free memory as needed.
-                // Momma always said put your toys away when you're done!
-                for(instance = 0; instance < max_collisions; instance++)
-                {
-                    if(anim->collision_entity[i]->instance[instance])
-                    {
-                        // First free any pointers allocated
-                        // for sub structures.
-
-                        // Coords.
-                        if(anim->collision_entity[i]->instance[instance]->coords)
-                        {
-                            free(anim->collision_entity[i]->instance[instance]->coords);
-                            anim->collision_entity[i]->instance[instance]->coords = NULL;
-                        }
-
-                        free(anim->collision_entity[i]->instance[instance]);
-                        anim->collision_entity[i]->instance[instance] = NULL;
-                    }
-                }
-
-                free(anim->collision_entity[i]->instance);
-                free(anim->collision_entity[i]);
-                anim->collision_entity[i] = NULL;
-            }
-        }
-        free(anim->collision_entity);
-        anim->collision_entity = NULL;
     }
     
     if(anim->shadow)
@@ -8322,7 +8292,665 @@ s_body* collision_body_upsert_property(s_collision_body** head, int index)
     return temp_collision_current->body;
 }
 
+/* **** Collision Entity **** */
 
+/*
+* White Dragon
+* 2021-08-22
+*
+* Allocate a blank collision object
+* and return its pointer. Does not
+* allocate sub-objects.
+*/
+s_collision_entity* collision_entity_allocate_object()
+{
+    s_collision_entity* result;
+    size_t       alloc_size;
+
+    /* Get amount of memory we'll need. */
+    alloc_size = max_collisions * sizeof(s_collision_entity);
+
+    /* Allocate memoryand get pointer. */
+    result = malloc(alloc_size);
+
+    /*
+    * Make sure the data members are
+    * zero'd and that "next" member
+    * is NULL.
+    */
+
+    memset(result, 0, alloc_size);
+
+    result->next = NULL;
+
+    return result;
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Allocate new collision node and append it to
+* end of collision linked list. If no lists exists
+* yet, the new node becomes head of a new list.
+*
+* First step in adding another collision instance.
+*
+* Returns pointer to new node.
+*/
+s_collision_entity* collision_entity_append_node(struct s_collision_entity* head)
+{
+    /* Allocate node. */
+    struct s_collision_entity* new_node = NULL;
+    struct s_collision_entity* last = NULL;
+
+    /*
+    * Allocate memory and get pointer for new
+    * collision node, then default last to head.
+    */
+    new_node = collision_entity_allocate_object();
+    last = head;
+
+    /*
+    * New node is going to be the last node in
+    * list, so set its next as NULL.
+    */
+    new_node->next = NULL;
+
+    /*
+    * If there wasn't already a list, the
+    * new node is our head. We are done and
+    * can return the new node pointer.
+    */
+
+    if (head == NULL)
+    {
+        head = new_node;
+
+        return new_node;
+    }
+
+    /*
+    * If we got here, there was already a
+    * list in place. Iterate to its last
+    * node.
+    */
+
+    while (last->next != NULL)
+    {
+        last = last->next;
+    }
+
+    /*
+    * Populate existing last node's next
+    * with new node pointer. The new node
+    * is now the last node in list.
+    */
+
+    last->next = new_node;
+
+    return new_node;
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Return TRUE if a collision object
+* has coordinates set, FALSE otherwise.
+*/
+int collision_entity_check_has_coords(s_collision_entity* target)
+{
+    /*
+    * If target missing or coordinates
+    * are not allocated then return FALSE.
+    */
+
+    if (!target)
+    {
+        return FALSE;
+    }
+
+    if (!target->coords)
+    {
+        return FALSE;
+    }
+
+    /*
+    * If any one coordinate property has a value
+    * then return TRUE instantly.
+    */
+    if (target->coords->x || target->coords->y || target->coords->height || target->coords->width)
+    {
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Allocate new collision list with same values as source.
+* Returns pointer to head of new list.
+*/
+s_collision_entity* collision_entity_clone_list(s_collision_entity* source_head, int check_coords)
+{
+    s_collision_entity* source_cursor = NULL;
+    s_collision_entity* clone_head = NULL;
+    s_collision_entity* clone_node = NULL;
+
+    /* Head is null? Get out now. */
+    if (source_head == NULL)
+    {
+        return source_cursor;
+    }
+
+    source_cursor = source_head;
+
+    while (source_cursor != NULL)
+    {
+        /*
+        * If check coords flag set, only
+        * clone nodes with valid coordinates.
+        */
+
+        if (check_coords && !collision_entity_check_has_coords(source_cursor))
+        {
+            source_cursor = source_cursor->next;
+            continue;
+        }
+
+        clone_node = collision_entity_append_node(clone_head);
+
+        /*
+        * Populate head if NULL so we
+        * have one for the next cycle.
+        */
+        if (clone_head == NULL)
+        {
+            clone_head = clone_node;
+        }
+
+        /* Copy the values. */
+        clone_node->entity = entity_clone_object(source_cursor->entity);
+
+        if (source_cursor->coords != NULL)
+        {
+            clone_node->coords = collision_allocate_coords(source_cursor->coords);
+        }
+
+        clone_node->index = source_cursor->index;
+        clone_node->meta_data = source_cursor->meta_data;
+        clone_node->meta_tag = source_cursor->meta_tag;
+
+        source_cursor = source_cursor->next;
+    }
+
+    return clone_head;
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Send all collision entity list data to log for debugging.
+*/
+void collision_entity_dump_list(s_collision_entity* head)
+{
+    printf("\n\n -- Collision Entity List (head: %p) Dump --", head);
+
+    s_collision_entity* cursor;
+    int count = 0;
+
+    cursor = head;
+
+    while (cursor != NULL)
+    {
+        count++;
+
+        printf("\n\n\t Node: %p", cursor);
+        printf("\n\t\t ->entity: %p", cursor->entity);
+
+		if (cursor->entity)
+        {
+            entity_dump_object(cursor->entity);
+        }
+
+        printf("\n\t\t ->coords: %p", cursor->coords);
+
+        if (cursor->coords)
+        {
+            printf("\n\t\t\t ->height: %d", cursor->coords->height);
+            printf("\n\t\t\t ->width: %d", cursor->coords->width);
+            printf("\n\t\t\t ->x: %d", cursor->coords->x);
+            printf("\n\t\t\t ->y: %d", cursor->coords->y);
+            printf("\n\t\t\t ->z_background: %d", cursor->coords->z_background);
+            printf("\n\t\t\t ->z_foreground: %d", cursor->coords->z_foreground);
+        }
+
+        printf("\n\t\t ->index: %d", cursor->index);
+        printf("\n\t\t ->meta_data: %p", cursor->meta_data);
+        printf("\n\t\t ->meta_tag: %d", cursor->meta_tag);
+        printf("\n\t\t ->next: %p", cursor->next);
+
+        cursor = cursor->next;
+    }
+
+    printf("\n\n %d nodes.", count);
+    printf("\n\n -- Collision entity list (head: %p) dump complete! -- \n", head);
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Find a collision node by index and return pointer, or
+* NULL if no match found.
+*/
+s_collision_entity* collision_entity_find_node_index(s_collision_entity* head, int index)
+{
+    s_collision_entity* current = NULL;
+
+    /*
+    * Starting from head node, iterate through
+    * all collision nodes and free them.
+    */
+    current = head;
+
+    while (current != NULL)
+    {
+        /* If we found a collision index match, return the pointer. */
+        if (current->index == index)
+        {
+            return current;
+        }
+
+        /* Go to next node. */
+        current = current->next;
+    }
+
+    /*
+    * If we got here, find failed.
+    * Just return NULL.
+    */
+    return NULL;
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Clear a collision linked list from memory.
+*/
+void collision_entity_free_list(s_collision_entity* head)
+{
+    s_collision_entity* cursor = NULL;
+    s_collision_entity* next = NULL;
+
+    /*
+    * Starting from head node, iterate through
+    * all collision nodes and free them.
+    */
+    cursor = head;
+
+    while (cursor != NULL)
+    {
+        /*
+        * We still need the next member after we
+        * delete collision object, so we'll store
+        * it in a temp var.
+        */
+
+        next = cursor->next;
+
+        /* Free the current collision object. */
+        collision_entity_free_node(cursor);
+
+        cursor = next;
+    }
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Clear a single collision object from memory.
+* Note this does NOT remove node from list.
+* Be careful not to create a dangling pointer!
+*/
+void collision_entity_free_node(s_collision_entity* target)
+{
+    /* Free sub objects. */
+
+    if (target->entity)
+    {
+        entity_free_object(target->entity);
+        target->entity = NULL;
+    }
+
+    if (target->coords)
+    {
+        free(target->coords);
+        target->coords = NULL;
+    }
+
+    /* To Do: Free tag function. */
+    if (target->meta_data)
+    {
+        meta_data_free_list(target->meta_data);
+        target->meta_data = NULL;
+    }
+
+    /* Free the collision structure. */
+    free(target);
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Allocate and apply collision settings to target frame.
+*/
+void collision_entity_initialize_frame_property(s_addframe_data* data, ptrdiff_t frame)
+{
+    s_collision_entity* temp_collision;
+    size_t memory_size;
+
+    if (!data->collision_entity)
+    {
+        return;
+    }
+
+    /*
+    * If collision is not allocated yet, we need to allocate
+    * an array of collision pointers (one element for each
+    * animation frame). If the frame has a collision, its
+    * collision property is populated with pointer to head
+    * of a linked list of collision objects.
+    */
+    if (!data->animation->collision_entity)
+    {
+        memory_size = data->framecount * sizeof(*data->animation->collision_entity);
+
+        data->animation->collision_entity = malloc(memory_size);
+        memset(data->animation->collision_entity, 0, memory_size);
+    }
+
+    /*
+    * Clone source list and populate frame's collision
+    * property with the pointer to clone list head.
+    */
+    temp_collision = collision_entity_clone_list(data->collision_entity, 1);
+
+    /* Apply final adjustments to any collision coordinates. */
+    collision_entity_prepare_coordinates_for_frame(temp_collision, data->model, data);
+
+    /* Frame collision property is head of collision list. */
+    data->animation->collision_entity[frame] = temp_collision;
+
+    /* Turn on vulnerability so we can detect collisions. */
+    data->animation->vulnerable[frame] = 1;
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Apply final adjustments to collision coordinates
+* with defaults settings for required properties
+* author did not provide values for.
+*/
+void collision_entity_prepare_coordinates_for_frame(s_collision_entity* collision_head, s_model* model, s_addframe_data* add_frame_data)
+{
+    s_collision_entity* cursor;
+    s_hitbox* coords;
+
+    cursor = collision_head;
+
+    while (cursor != NULL)
+    {
+        coords = cursor->coords;
+
+        if (coords)
+        {
+            /* Position includes offset.Size includes position. */
+            coords->x = coords->x - add_frame_data->offset->x;
+            coords->y = coords->y - add_frame_data->offset->y;
+            coords->width = coords->width + coords->x;
+            coords->height = coords->height + coords->y;
+
+            /*
+            * We aren't forgetting about Z depth. We just don't 
+            * need to worry about it because entity box Z depth 
+            * defaults to 0.
+            */
+			
+			if(coords->z_background > coords->z_foreground)
+			{
+				coords->z_background -= offset.y;
+				coords->z_foreground -= offset.y;
+			}	
+        }
+
+        cursor = cursor->next;
+    }
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Receives a reference (pointer to pointer) to the head
+* of a list, deletes all occurrence of undefined collision
+* coordinates (no coords pointer or X/Y/H/W are all 0).
+*
+* This is to replicate legacy behavior of removing a collision
+* box during read in from text when all 0 values are provided
+* by author.
+*
+* Reference pointer is swapped for new head pointer if head
+* is deleted.
+*/
+void collision_entity_remove_undefined_coordinates(s_collision_entity** head)
+{
+    s_collision_entity* cursor = NULL;
+    s_collision_entity* prev = NULL;
+
+    /* Start with head. */
+    cursor = *head;
+    prev = *head;
+
+    /*
+    * If head node or mutiple nodes lack defined collision
+    * cordinates.
+    */
+    while (cursor != NULL && !collision_entity_check_has_coords(cursor))
+    {
+        /* Update head value. */
+        *head = cursor->next;
+
+        /* Free collision memory. */
+        collision_entity_free_node(cursor);
+
+        /* Change cursor to head. */
+        cursor = *head;
+    }
+
+    /* Delete occurrences other than head. */
+    while (cursor != NULL)
+    {
+        /*
+        * Search for and delete nodes without collision
+        * coordinates defined. Keep track of the previous
+        * node as we need to change 'prev->next'.
+        */
+        while (cursor != NULL && collision_entity_check_has_coords(cursor))
+        {
+            prev = cursor;
+            cursor = cursor->next;
+
+        }
+
+        /*
+        * If we didn't find any blank coordinate sets
+        * then just get out now.
+        */
+        if (cursor == NULL)
+        {
+            return;
+        }
+
+        /* Unlink the node from linked list. */
+        prev->next = cursor->next;
+
+        /* Free collision memory. */
+        collision_entity_free_node(cursor);
+
+        /* Update cursor for next iteration of outer loop.  */
+        cursor = prev->next;
+    }
+}
+
+/*
+* 2021-08-22
+* White Dragon
+*
+* Used when building a list of entity objects on
+* a frame during model load. Locates or allocates
+* an object matching index parameter, and returns
+* the resulting object pointer.
+*/
+s_hitbox* collision_entity_upsert_coordinates_property(s_collision_entity** head, int index)
+{
+    s_collision_entity* temp_collision_current;
+
+    /*
+    * 1. First we need to know index.
+    *  -- temp_collision_index
+
+    * 2. Look for index and get pointer (found or allocated).
+
+    * Get the node we want to work on by searching
+    * for a matched index. In most cases, this will
+    * just be the head node.
+    */
+    temp_collision_current = collision_entity_upsert_index(*head, index);
+
+    /*
+    * If head is NULL, this must be the first allocated
+    * collision for current frame. Populate head with
+    * current so we have a head for the next pass.
+    */
+    if (*head == NULL)
+    {
+        *head = temp_collision_current;
+    }
+
+    /* 3. Get attack pointer (find or allocate). */
+
+    /* Have collision coordinates ? If not we'll need to allocate them. */
+    if (!temp_collision_current->coords)
+    {
+        temp_collision_current->coords = collision_allocate_coords(temp_collision_current->coords);
+    }
+
+    /* Return pointer to the coords structure. */
+    return temp_collision_current->coords;
+}
+
+/*
+* White Dragon
+* 2021-08-22
+*
+* Find a collision node by index, or append a new node
+* with target index if no match is found. Returns pointer
+* to found or appended node.
+*/
+s_collision_entity* collision_entity_upsert_index(s_collision_entity* head, int index)
+{
+    s_collision_entity* result = NULL;
+
+    /* Run index search. */
+    result = collision_entity_find_node_index(head, index);
+
+    /*
+    * If we couldn't find an index match, lets add
+    * a node and apply the index we wanted.
+    */
+    if (!result)
+    {
+        result = collision_entity_append_node(head);
+        result->index = index;
+    }
+
+    return result;
+}
+
+/*
+* 2021-08-22
+* White Dragon
+*
+* Get pointer to entity object for modification. Used when
+* loading a model and reading in entity properties.
+*
+* 1. Receive pointer to head node of collision list. If
+* the head node is NULL a new collision list is allocated
+* and the head property value is populated with head node.
+*
+* 2. Search collision list for an entity node with index 
+* matching received index property. New node allocated if 
+* not found. See collision_entity_upsert_index().
+*
+* 3. Find or allocate entity object on collision node.
+* Returns pointer to entity object.
+*/
+s_entity* collision_entity_upsert_property(s_collision_entity** head, int index)
+{
+    // printf("\n\t collision_entity_upsert_property(%p, %d)", *head, index);
+
+    s_collision_entity* temp_collision_current;
+
+    /*
+    * 1. First we need to know index.
+                *  -- temp_collision_index
+
+                * 2. Look for index and get pointer (found or allocated).
+
+                * Get the node we want to work on by searching
+                * for a matched index. In most cases, this will
+                * just be the head node.
+    */
+
+    temp_collision_current = collision_entity_upsert_index(*head, index);
+
+    /*
+    * If head is NULL, this must be the first allocated
+    * collision for current frame. Populate head with
+    * current so we have a head for the next pass.
+    */
+
+    if (*head == NULL)
+    {
+        *head = temp_collision_current;
+    }
+
+    /* 3. Get entity pointer (find or allocate). */
+
+    // printf("\n\t\t temp_collision_current->entity (pre check): %p", temp_collision_current->entity);
+
+    /* Have a entity? if not we'll need to allocate it.*/
+    if (!temp_collision_current->entity)
+    {
+        temp_collision_current->entity = entity_allocate_object();
+    }
+
+    // printf("\n\t\t result: %p", temp_collision_current->entity);
+
+    /* Return pointer to the entity structure. */
+    return temp_collision_current->entity;
+}
 
 /*
 * Caskey, Damon V.
@@ -8588,6 +9216,98 @@ void body_dump_object(s_body* body)
 * Free body properties from memory.
 */
 void body_free_object(s_body* target)
+{
+    if (target->defense)
+    {
+        defense_free_object(target->defense);
+        target->defense = NULL;
+    }
+
+    free(target);
+}
+
+/*
+* White Dragon
+* 2021-08-08
+*
+* Allocate a entity property structure and return pointer.
+*/
+s_entity* entity_allocate_object()
+{
+    s_entity* result;
+
+    /* Allocate memory and get the pointer. */
+    result = malloc(sizeof(*result));
+
+    /*
+    * Default values.
+    *
+    * -- Copy the universal empty entity structure. This
+    * takes care of most default values in one shot.
+    */
+    memcpy(result, &empty_entity, sizeof(*result));
+
+    return result;
+}
+
+/*
+* White Dragon
+* 2021-08-08
+*
+* Allocate new entity object with same values (but not same
+* pointers) as received entity object. Returns pointer to
+* new object.
+*/
+s_entity* entity_clone_object(s_entity* source)
+{
+    s_entity* result = NULL;
+
+    if (!source)
+    {
+        return result;
+    }
+
+    result = entity_allocate_object();
+
+    /*
+    * Rather than do everything piecemeal, we'll memcopy
+    * to get all the basic values, and then overwrite
+    * members individually as needed.
+    */
+
+    memcpy(result, source, sizeof(*result));
+
+    return result;
+}
+
+/*
+* White Dragon
+* 2020-03-12
+*
+* Send all entity data to log for debugging.
+*/
+void entity_dump_object(s_entity* entity)
+{
+    printf("\n\n -- Entity (%p) dump --", entity);
+
+    if (entity)
+    {        
+        printf("\n\t ->flash.layer_adjust: %d", entity->flash.layer_adjust);
+        printf("\n\t ->flash.layer_source: %d", entity->flash.layer_source);
+        printf("\n\t ->flash.z_source: %d", entity->flash.z_source);
+
+    }
+
+    printf("\n\n -- Entity (%p) dump complete... -- \n", entity);
+}
+
+/*
+* White Dragon
+* 2021-08-21
+*
+* Free entity properties from memory.
+*/
+void entity_free_object(s_entity* target)
 {
     if (target->defense)
     {
@@ -9178,41 +9898,10 @@ int addframe(s_addframe_data* data)
     data->animation->sprite[currentframe] = data->spriteindex;
     data->animation->delay[currentframe] = data->delay * GAME_SPEED / 100;
 
-    // Allocate entity boxes.
-    if((data->entity_coords->width - data->entity_coords->x)
-        && (data->entity_coords->height - data->entity_coords->y))
-    {
-        if(!data->animation->collision_entity)
-        {
-            size_col_on_frame = data->framecount * sizeof(*data->animation->collision_entity);
-
-            data->animation->collision_entity = malloc(size_col_on_frame);
-            memset(data->animation->collision_entity, 0, size_col_on_frame);
-        }
-
-        size_col_on_frame_struct = sizeof(**data->animation->collision_entity);
-        data->animation->collision_entity[currentframe] = malloc(size_col_on_frame_struct);
-
-        data->animation->collision_entity[currentframe]->instance = collision_alloc_entity_list();
-
-        for(i=0; i<max_collisons; i++)
-        {
-            collision_entity = collision_alloc_entity_instance(data->ebox);
-            data->animation->collision_entity[currentframe]->instance[i] = collision_entity;
-
-            collision_entity->index = i;
-
-            // Coordinates.
-            if(!collision_entity->coords)
-            {
-                collision_entity->coords = collision_allocate_coords(data->entity_coords);
-            }
-        }
-    }
-
     /* Allocate collision. */
     collision_attack_initialize_frame_property(data, currentframe);
     collision_body_initialize_frame_property(data, currentframe);
+	collision_entity_initialize_frame_property(data, currentframe);
     
     /* Child spawns. */
     child_spawn_initialize_frame_property(data, currentframe);
@@ -9529,7 +10218,7 @@ static int translate_attack_type(char *command)
 //move here to ease animation name to id logic
 static int translate_ani_id(const char *value, s_model *newchar, s_anim *newanim)
 {
-    int ani_id = -1, tempInt, i;
+    int ani_id = -1, tempInt;
     //those are dummy values to simplify code
     static s_model mdl;
     static s_anim ani;
@@ -10909,15 +11598,9 @@ void lcmHandleCommandSubtype(ArgList *arglist, s_model *newchar, char *filename)
         {
             newchar->offscreenkill = 200;
         }
-        newchar->subject_to_hole        = 0;
-        newchar->subject_to_gravity     = 1;
-        newchar->subject_to_basemap     = 0;
-        newchar->subject_to_wall        = 0;
-        newchar->subject_to_platform    = 0;
-        newchar->subject_to_screen      = 0;
-        newchar->subject_to_minz        = 1;
-        newchar->subject_to_maxz        = 1;
-        newchar->no_adjust_base         = 1;
+
+		newchar->move_config_flags &= ~(MOVE_CONFIG_SUBJECT_TO_BASEMAP | MOVE_CONFIG_SUBJECT_TO_HOLE | MOVE_CONFIG_SUBJECT_TO_OBSTACLE | MOVE_CONFIG_SUBJECT_TO_PLATFORM | MOVE_CONFIG_SUBJECT_TO_SCREEN | MOVE_CONFIG_SUBJECT_TO_WALL);
+		newchar->move_config_flags &= (MOVE_CONFIG_SUBJECT_TO_MAX_Z | MOVE_CONFIG_SUBJECT_TO_MIN_Z | MOVE_CONFIG_NO_ADJUST_BASE | MOVE_CONFIG_SUBJECT_TO_GRAVITY);
     }
     else if(stricmp(value, "notgrab") == 0)
     {
@@ -12764,7 +13447,10 @@ s_model *load_cached_model(char *name, char *owner, char unload)
     int aiattackset = 0;
     int maskindex = -1;
     int nopalette = 0;
-    
+	int abox_index = 0;
+	int bbox_index = 0;
+	int ebox_index = 0;
+		
     size_t size = 0;
     size_t line = 0;
     size_t len = 0;
@@ -12797,8 +13483,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                                     .base = -1    //-1 = Disabled, 0+ base set
                                 };
 
-    s_collision_entity  ebox_con;
-    s_hitbox            entity_coords;
     s_drawmethod        drawmethod;
     s_drawmethod        dm;
 
@@ -12933,8 +13617,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
     //since recursive calls will change it!
     models_loaded++;
     addModel(newchar);
-        
-    ebox_con = empty_entity_collision;
 
     drawmethod = plainmethod;  // better than memset it to 0
 
@@ -14700,7 +15382,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 memset(platform, 0, sizeof(platform));
 
                 shadow_set                      = 0;
-                ebox_con                        = empty_entity_collision;
                 drawmethod                      = plainmethod;
                 idle                            = 0;
                 move.base                       = -1;
@@ -14709,6 +15390,9 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 move.axis.z                     = 0;
                 frameshadow                     = FRAME_SHADOW_NONE;
                 soundtoplay                     = SAMPLE_ID_NONE;
+				abox_index 						= 0;
+				bbox_index 						= 0;
+				ebox_index 						= 0;
 
                 /*
                 * Other than Min X, default ranges are 
@@ -15028,7 +15712,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->projectile->knife = get_cached_model_index(GET_ARG(1));
                 break;
             case CMD_MODEL_CUSTBOOMERANG:
-                newanim->projectile.boomerang = get_cached_model_index(GET_ARG(1));
+                newanim->projectile->boomerang = get_cached_model_index(GET_ARG(1));
                 break;
             case CMD_MODEL_CUSTPSHOTNO:
 				// If we don't have a projectile allcated, do it now.
@@ -15601,37 +16285,93 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 break;
             case CMD_MODEL_EBOX:
-                ebox.x = GET_INT_ARG(1);
-                ebox.y = GET_INT_ARG(2);
-                ebox.width = GET_INT_ARG(3);
-                ebox.height = GET_INT_ARG(4);
-                ebox.z_background = GET_INT_ARG(5);
-                ebox.z_foreground = GET_INT_ARG(6);
+                collision_entity_upsert_property(&temp_collision_entity_head, temp_collision_index);
+
+                value = GET_ARG(1);
+                if (stricmp(value, "none") == 0)
+                {
+                    collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->x = 0;
+                    collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->y = 0;
+                    collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->width = 0;
+                    collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->height = 0;
+
+                    break;
+                }
+
+                collision_entity_upsert_property(&temp_collision_entity_head, temp_collision_index);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->x = GET_INT_ARG(1);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->y = GET_INT_ARG(2);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->width = GET_INT_ARG(3);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->height = GET_INT_ARG(4);
+                
+                /*
+                * 2023-01-13: If only the first Z depth provided, 
+                * use it for both directions. We verify a numeric
+                * instead of checking for empty because the creator
+                * might intentionally apply a 0 value to foreground
+                * depth and a simple empty check would override it.
+                */
+
+                tempInt = GET_INT_ARG(5);
+
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->z_background = tempInt;
+
+                value = GET_ARG(6);
+
+                if (isNumeric(value))
+                {
+                    tempInt = GET_INT_ARG(6);
+                }                
+
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->z_foreground = tempInt;
                 break;
             case CMD_MODEL_EBOX_INDEX:
                 // Nothing yet - for future support of multiple boxes.
                 break;
             case CMD_MODEL_EBOX_POSITION_X:
-                ebox[ebox_index].x = GET_INT_ARG(1);
+
+				collision_entity_upsert_property(&temp_collision_entity_head, temp_collision_index);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->x = GET_INT_ARG(1);
+				
                 break;
             case CMD_MODEL_EBOX_POSITION_Y:
-                ebox[ebox_index].y = GET_INT_ARG(1);
+			
+			    collision_entity_upsert_property(&temp_collision_entity_head, temp_collision_index);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->y = GET_INT_ARG(1);
+
                 break;
             case CMD_MODEL_EBOX_SIZE_X:
-                ebox[ebox_index].width = GET_INT_ARG(1);
+			
+                collision_entity_upsert_property(&temp_collision_entity_head, temp_collision_index);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->width = GET_INT_ARG(1);
+				
                 break;
             case CMD_MODEL_EBOX_SIZE_Y:
-                ebox[ebox_index].height = GET_INT_ARG(1);
+			
+                collision_entity_upsert_property(&temp_collision_entity_head, temp_collision_index);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->height = GET_INT_ARG(1);
+				
                 break;
             case CMD_MODEL_EBOX_SIZE_Z_1:
-                ebox.z_background = GET_INT_ARG(1);
+			case CMD_MODEL_EBOX_SIZE_Z_BACKGROUND:
+			
+                collision_entity_upsert_property(&temp_collision_entity_head, temp_collision_index);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->z_background = GET_INT_ARG(1);
+				
                 break;
             case CMD_MODEL_EBOX_SIZE_Z_2:
-                ebox.z_foreground = GET_INT_ARG(1);
+			case CMD_MODEL_EBOX_SIZE_Z_FOREGROUND:
+			
+                collision_entity_upsert_property(&temp_collision_entity_head, temp_collision_index);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->z_foreground = GET_INT_ARG(1);
+				
                 break;
             case CMD_MODEL_EBOXZ:
-                ebox.z_background = GET_INT_ARG(1);
-                ebox.z_foreground = GET_INT_ARG(2);
+			
+                collision_entity_upsert_property(&temp_collision_entity_head, temp_collision_index);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->z_background = GET_INT_ARG(1);
+                collision_entity_upsert_coordinates_property(&temp_collision_entity_head, temp_collision_index)->z_foreground = GET_INT_ARG(2);
+				
                 break;
             case CMD_MODEL_PLATFORM:
                 newchar->hasPlatforms = 1;
@@ -16762,18 +17502,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             case CMD_MODEL_SETA:
                 move.base = GET_INT_ARG(1);
                 break;
-            case CMD_MODEL_SET_ABOX_INDEX:
-                abox_index = GET_INT_ARG(1);
-                if (abox_index < 0) abox_index = 0;
-                break;
-            case CMD_MODEL_SET_BBOX_INDEX:
-                bbox_index = GET_INT_ARG(1);
-                if (bbox_index < 0) bbox_index = 0;
-                break;
-            case CMD_MODEL_SET_EBOX_INDEX:
-                ebox_index = GET_INT_ARG(1);
-                if (ebox_index < 0) ebox_index = 0;
-                break;
             case CMD_MODEL_MOVE:
                 move.axis.x = GET_INT_ARG(1);
                 break;
@@ -16922,14 +17650,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                         sprite_map[index].node->sprite->mask = sprite_map[maskindex].node->sprite;
                         maskindex = -1;
                     }
-                }
-                
-                entity_coords.x      = ebox.x - offset.x;
-                entity_coords.y      = ebox.y - offset.y;
-                entity_coords.width  = ebox.width + entity_coords.x;
-                entity_coords.height = ebox.height + entity_coords.y;
-                entity_coords.z_background     = ebox.z_background;
-                entity_coords.z_foreground     = ebox.z_foreground;                                
+                }   			
                
                 if(platform[PLATFORM_X] == PLATFORM_DEFAULT_X) // old style
                 {
@@ -16981,7 +17702,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 add_frame_data.framecount = framecount;
                 add_frame_data.delay = delay;
                 add_frame_data.idle = idle;
-                add_frame_data.ebox = &ebox_con;
                 add_frame_data.move = &move;
                 add_frame_data.platform = platform_con;
                 add_frame_data.frameshadow = frameshadow;
@@ -16989,7 +17709,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 add_frame_data.soundtoplay = soundtoplay;
                 add_frame_data.drawmethod = &dm;
                 add_frame_data.offset = &offset;
-                add_frame_data.entity_coords = &entity_coords;
                 
                 add_frame_data.model = newchar;                
 
@@ -17007,6 +17726,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 */
                 //collision_attack_remove_undefined_coordinates(&temp_collision_head);
                 //collision_body_remove_undefined_coordinates(&temp_collision_body_head);
+				//collision_entity_remove_undefined_coordinates(&temp_collision_entity_head);
                                 
                 /*
                 * Multiple per frame object heads may have 
@@ -17015,6 +17735,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 */
                 add_frame_data.collision = temp_collision_head;
                 add_frame_data.collision_body = temp_collision_body_head;
+				add_frame_data.collision_entity = temp_collision_entity_head;
                 add_frame_data.child_spawn = temp_child_spawn_head;
 
                 /* 
@@ -22281,6 +23002,26 @@ void draw_visual_debug()
                 collision_body_cursor = NULL;
             }
         }
+		
+        // Collision entity debug requested?
+        if(savedata.debuginfo & DEBUG_DISPLAY_COLLISION_ENTITY)
+        {
+            // Animation has collision?
+            if (entity->animation->collision_entity)
+            {
+                collision_entity_cursor = entity->animation->collision_entity[entity->animpos];
+
+                while (collision_entity_cursor != NULL)
+                {
+                    coords = collision_entity_cursor->coords;
+                    draw_box_on_entity(entity, coords->x, coords->y, entity->position.z + 1, coords->width, coords->height, 2, LOCAL_COLOR_ORANGE, &drawmethod);
+
+                    collision_entity_cursor = collision_entity_cursor->next;
+                }
+
+                collision_entity_cursor = NULL;
+            }
+        }
     }
 
     #undef LOCAL_COLOR_BLUE
@@ -23823,10 +24564,9 @@ void update_frame(entity *ent, unsigned int f)
 			// custstar custknife in animation should be checked first
 			// then if the entity is jumping, check star first, if failed, try knife instead
 			// well, try knife at last, if still failed, try star, or just let if shutdown?
-        #define __tryboomerang boomerang_spawn(NULL, -1, self->position.x, self->position.z, self->position.y + anim->projectile.position.y, self->direction, 0)
-
 #define __trystar star_spawn(self, anim->projectile)
 #define __tryknife knife_spawn(self, anim->projectile)
+#define __tryboomerang boomerang_spawn(self, anim->projectile, NULL, -1, 0)
 			
 			if (anim->projectile->knife >= 0 || anim->projectile->flash >= 0)
 			{
@@ -38575,7 +39315,6 @@ int do_catch(entity *ent, entity *target, int animation_catch)
     return 0;
 }
 
-
 // Caskey, Damon V.
 // 2-18-04-06
 //
@@ -38590,6 +39329,359 @@ void sort_invert_by_parent(entity *ent, entity *parent)
     {
         ent->sortid = parent->sortid - 1;
     }
+}
+
+// Caskey, Damon V.
+// 2018-04-06
+//
+// Broken off from White Dragon's boomerang_move() function.
+// Verify boomerang is in catchable state and attempt
+// catch action.
+int boomerang_catch(entity *ent, float distance_x_current)
+{
+    int animation_catch; // Animation for owner catching boomerang.
+    entity* owner = NULL;
+
+    if (ent->owner) owner = ent->owner;
+    else owner = ent->parent;
+
+    // Only catch if in front of owner and traveling
+    // back toward them. Otherwise exit function since
+    // any further checks are pointless.
+    if(owner->direction == DIRECTION_RIGHT)
+    {
+        // Traveling right?
+        if(ent->velocity.x >= 0)
+        {
+            return 0;
+        }
+
+        // At or to left of owner?
+        if(ent->position.x <= owner->position.x)
+        {
+            return 0;
+        }
+    }
+    else if(owner->direction == DIRECTION_LEFT)
+    {
+        // Traveling left?
+        if(ent->velocity.x <= 0)
+        {
+            return 0;
+        }
+
+        // At or to right of owner?
+        if(ent->position.x >= owner->position.x)
+        {
+            return 0;
+        }
+    }
+
+    // Can't catch if owner is under any sort of duress.
+
+    // Pain?
+    if(owner->inpain)
+    {
+        return 0;
+    }
+
+    // Knocked down?
+    if(owner->falling)
+    {
+        return 0;
+    }
+
+    // Dead?
+    if(owner->dead)
+    {
+        return 0;
+    }
+
+    // Have to be beyond first cycle of
+    // boomerang logic.
+    if(ent->boomerang_loop <= 1)
+    {
+        return 0;
+    }
+
+    // In air? Then use air catch. Otherwise use ground catch.
+    if(inair(owner))
+    {
+        animation_catch = ANI_GETBOOMERANGINAIR;
+    }
+    else
+    {
+        animation_catch = ANI_GETBOOMERANG;
+    }
+
+    // Verify owner has catch animation and that we
+    // are in catch animation range, attempt to
+    // perform catch, and return result.
+    return do_catch(owner, ent, animation_catch);
+}
+
+// White Dragon
+// 2018-04-06
+//
+// Offloaded from boomerang_move().
+// Gets a boomerang type projectile set up when
+// first thrown.
+void boomerang_initialize(entity *ent)
+{
+    #define GRABFORCE           -99999
+    #define OFF_SCREEN_LIMIT    80
+
+    entity* owner = NULL;
+
+    if (ent->owner) owner = ent->owner;
+    else owner = ent->parent;
+
+    // We don't want our directional facing
+    // changing automatically.
+    ent->modeldata.noflip = 1;
+
+    // Populate offscreenkill in case our
+    // boomerang gets out of bounds.
+    ent->modeldata.offscreenkill = OFF_SCREEN_LIMIT;
+
+    // If we have a owner entity, then we need
+    // should set up to match the owner's attributes.
+    if(owner)
+    {
+        // Make sure we're not hostile to our owner
+        // model type.
+        ent->modeldata.hostile &= ~(owner->modeldata.type);
+
+        // If we were thrown by an enemy or player faction
+        // then make sure we're hostile to the opposite
+        // faction.
+        if (owner->modeldata.type == TYPE_PLAYER
+            || owner->modeldata.type == TYPE_NPC)
+        {
+            ent->modeldata.hostile |= TYPE_ENEMY;
+        }
+        else if(owner->modeldata.type == TYPE_ENEMY)
+        {
+            ent->modeldata.hostile |= (TYPE_PLAYER | TYPE_NPC);
+        }
+
+        // Match the owner's direction and drawing order
+        // layer position in the sprite que.
+        ent->direction = owner->direction;
+        ent->sortid = owner->sortid + 1;
+    }
+
+    // Move along X axis according to the direction
+    // we're facing.
+    if(ent->direction == DIRECTION_LEFT)
+    {
+        ent->velocity.x = -ent->modeldata.speed;
+    }
+    else if(ent->direction == DIRECTION_RIGHT)
+    {
+        ent->velocity.x = ent->modeldata.speed;
+    }
+
+    // Synchronize with owner's vertical
+    // and lateral position.
+    ent->position.z = owner->position.z;
+    ent->position.y = owner->position.y;
+
+    // Make sure that we can't grab or be grabbed.
+    ent->modeldata.antigrab = 1;
+    ent->modeldata.grabforce = GRABFORCE;
+
+    ++ent->boomerang_loop;
+
+    #undef GRABFORCE
+    #undef OFF_SCREEN_LIMIT
+}
+
+// for common boomerang types
+int boomerang_move()
+{
+    float acceleration;             // Rate of velocity difference per update.
+    float distance_x_current;       // Current X axis distance from owner.
+    float distance_x_max;           // Maximum X axis distance allowed from owner.
+    float velocity_x_accelerated;   // X velocity after acceleration applied as an addition vs. current velocity.
+    float velocity_x_decelerated;   // X velocity after acceleration applied as a reduction vs. current velocity.
+
+    if(!self->modeldata.nomove)
+    {
+        // Populate local vars with acceleration and
+        // maximum horizontal distance from modeldata.
+        // If there is no model data defined then we'll
+        // need to use some default values instead.
+        entity* owner = NULL;
+
+        if (self->owner) owner = self->owner;
+        else owner = self->parent;
+
+        // Acceleration.
+        if(self->modeldata.boomerang_prop.acceleration != 0)
+        {
+            acceleration = self->modeldata.boomerang_prop.acceleration;
+        }
+        else
+        {
+            acceleration = self->modeldata.speed/(GAME_SPEED/20);
+        }
+
+        // Maximum X distance from owner.
+        if(self->modeldata.boomerang_prop.hdistance > 0)
+        {
+            distance_x_max = self->modeldata.boomerang_prop.hdistance;
+        }
+        else
+        {
+            distance_x_max = videomodes.hRes/(3);
+        }
+
+        // If not moving on X axis and loop count
+        // is 0, then this must be a new boomerang.
+        // Run the initialize function to set up
+        // all of the attributes we'll need.
+        if(self->velocity.x == 0)
+        {
+            if(!self->boomerang_loop)
+            {
+               boomerang_initialize(self);
+            }
+        }
+
+        // No lateral movement.
+        if(self->velocity.z != 0) self->velocity.z = 0;
+
+        // If our boomerang has no owner and gets
+        // too far off the screen, then we will
+        // destroy it and exit the function.
+        if(!owner)
+        {
+            // Did check_lost() kill us?
+            if (check_lost())
+            {
+               return 0;
+            }
+        }
+
+        if(owner)
+        {
+            distance_x_current = diff(self->position.x,owner->position.x);
+            self->position.z = owner->position.z;
+            self->position.y = owner->position.y;
+
+            // Movement.
+
+            // Right of owner on X axis?
+            if (self->position.x >= owner->position.x)
+            {
+                // Get a possible X velocity to apply that
+                // will slightly decelerate us.
+                velocity_x_decelerated = self->velocity.x - acceleration;
+
+                // Exceeded maximum distance from owner?
+                if (distance_x_current >= distance_x_max)
+                {
+                    // Have we stopped accelerating?
+                    if(velocity_x_decelerated <= 0)
+                    {
+                        // Moving right along X axis?
+                        if(self->velocity.x > 0)
+                        {
+                            // Increment tracking loop
+                            ++self->boomerang_loop;
+
+                            // Reverse sorting in relation to owner.
+                            sort_invert_by_parent(self,owner);
+                        }
+                    }
+
+                    // This is where we reverse our X velocity and
+                    // return to thrower.
+                    //
+                    // If we're already reversed, then we just make sure
+                    // our X axis velocity is equal to our model
+                    // speed (inverted).
+                    //
+                    // If we're still moving forward (away from owner)
+                    // then apply the next velocity. This will
+                    // have the effect of reducing the X velocity
+                    // until it falls below inverted model speed, at
+                    // which point our reversed condition will be true.
+                    if(velocity_x_decelerated < -self->modeldata.speed)
+                    {
+                        self->velocity.x = -self->modeldata.speed;
+                    }
+                    else
+                    {
+                        self->velocity.x = velocity_x_decelerated;
+                    }
+                }
+                else if (self->velocity.x <= 0)
+                {
+                    if(velocity_x_decelerated < -self->modeldata.speed)
+                    {
+                        self->velocity.x = -self->modeldata.speed;
+                    }
+                    else
+                    {
+                        self->velocity.x = velocity_x_decelerated;
+                    }
+                }
+            }
+            else if (self->position.x <= owner->position.x)
+            {
+                // Calculate an X velocity with acceleration added.
+                velocity_x_accelerated = self->velocity.x + acceleration;
+
+                if(distance_x_current >= distance_x_max)
+                {
+                    if(velocity_x_accelerated >= 0 && self->velocity.x < 0)
+                    {
+                        ++self->boomerang_loop;
+
+                        // Reverse sorting in relation to owner.
+                        sort_invert_by_parent(self,owner);
+                    }
+
+                    // Make sure X velocity is no greater than
+                    // the model speed setting.
+                    if(velocity_x_accelerated > self->modeldata.speed)
+                    {
+                        self->velocity.x = self->modeldata.speed;
+                    }
+                    else
+                    {
+                        self->velocity.x = velocity_x_accelerated;
+                    }
+                }
+                else if (self->velocity.x >= 0)
+                {
+                    if(velocity_x_accelerated > self->modeldata.speed)
+                    {
+                        self->velocity.x = self->modeldata.speed;
+                    }
+                    else
+                    {
+                        self->velocity.x = velocity_x_accelerated;
+                    }
+                }
+            }
+
+            // Catch the boomerang.
+            boomerang_catch(self, distance_x_current);
+
+            //debug_printf("cur_distx:%f velx:%f",distance_x_current,self->velocity.x);
+            //debug_printf("acceleration:%f speed:%f",acceleration,self->modeldata.speed);
+            //debug_printf("boomerang_loop:%d",self->boomerang_loop);
+            //debug_printf("sortid:%d",self->sortid);
+        }
+    }
+
+    // Bounce off walls or platforms.
+    projectile_wall_deflect(self);
+
+    return 1;
 }
 
 int star_move()
@@ -43545,10 +44637,13 @@ entity *knife_spawn(entity *parent, s_projectile *projectile)
 	return projectile_entity;
 }
 
-
-entity *boomerang_spawn(char *name, int index, float x, float z, float a, int direction, int map)
+entity *boomerang_spawn(entity *parent, s_projectile *projectile, char *name, int index, int map)
 {
     entity *e = NULL;
+	float x = self->position.x;
+	float z = self->position.z;
+	float a = self->position.y + projectile->position.y;
+	int direction = self->direction;
 
     if(index >= 0 || name)
     {
@@ -49623,7 +50718,7 @@ finish:
 void menu_options_input()
 {
     int quit = 0;
-    int selector = 1; // 0
+    int selector = 0; // 0
     int x_pos = -6;
     int OPTIONS_NUM = max_players + 1;
     #if ANDROID

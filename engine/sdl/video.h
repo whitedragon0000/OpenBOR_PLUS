@@ -41,5 +41,4 @@ void on_system_ui_visibility_change_event(int);
 void reset_touchstates(void);
 #endif
 
-#endif
 

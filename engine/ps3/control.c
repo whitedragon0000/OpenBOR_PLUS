@@ -496,12 +496,12 @@ const char *control_getdevicename(int deviceID)
     return devices[deviceID].deviceType == DEVICE_TYPE_NONE ? "None" : devices[deviceID].name;
 }
 
-void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec)
+void control_rumble(int port, int ratio, int msec)
 {
     padActParam actparam;
     actparam.small_motor = 1;
     actparam.large_motor = (255 * ratio) / 100;
-    ioPadSetActDirect(player, &actparam);
+    ioPadSetActDirect(port, &actparam);
 }
 
 #define MAPPINGS_FILE_SENTINEL 0x9cf232d4

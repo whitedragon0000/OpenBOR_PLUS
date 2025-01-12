@@ -19,7 +19,7 @@ Feeling ambitious? Delve into the built-in script engine and graphical suite to 
 
 To find out more, stop into the OpenBOR community at [ChronoCrash.com](chronocrash.com). You will also find dozens of game modules already finished to download and play.
 
-[![Masters of The Universe](http://img.youtube.com/vi/gaEPwqtjbrQ/0.jpg)](https://www.youtube.com/watch?v=gaEPwqtjbrQ "Teenage Mutant Ninja Turtles: Shell Shocked")
+[![Teenage Mutant Ninja Turtles: Shell Shocked](http://img.youtube.com/vi/_87C9D5Rtws/0.jpg)](https://www.youtube.com/watch?v=_87C9D5Rtws "Teenage Mutant Ninja Turtles: Shell Shocked")
 
 [![Masters of The Universe](http://img.youtube.com/vi/GOsYJkdqbOk/0.jpg)](https://www.youtube.com/watch?v=GOsYJkdqbOk&t=2m41s "Masters of The Universe")
 
@@ -211,19 +211,16 @@ localvars:<br/>
 #### ***MULTPLE COLLISION BOXES***
 opened multiple collision boxes to openbor:<br/>
 you establish the max collision boxes into model.txt file with<br/>
-maxcollisions {int} (default: 2)<br/>
+collisions.max {int} (default: 2) in the model<br/>
 then you can change into animation the index of boxes:<br/>
-setaboxindex {int} for attack collision boxes (default: 0)<br/>
-setbboxindex {int} for body collision boxes (default: 0)<br/>
-seteboxindex {int} for entity collision boxes (default: 0)<br/>
-
+collision.index {int} for attack collision boxes (default: 0)<br/>
 by default the index relative to a box is set to 0 of course.<br/>
 
 example:<br/>
 ```
 ANIM IDLE
 bbox 1 2 3 4 5
-setbboxindex 1
+collision.index 1
 bbox 5 6 7 8 9
 ```
 
@@ -234,7 +231,7 @@ see this example too:
 ```
 ANIM IDLE
 bbox 1 2 3 4 5
-setbboxindex 1
+collision.index 1
 bbox 5 6 7 8 9
 bbox 1 2 3 4 5
 ```

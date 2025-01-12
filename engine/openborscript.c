@@ -54,7 +54,6 @@ extern char	*currentScene;
 extern int  num_difficulties;
 extern u32  _time;
 extern int goto_mainmenu_flag;
-extern s_playercontrols   *playercontrolpointers[];
 extern int _pause;
 extern int timeleft;
 extern int gfx_x_offset;
@@ -1063,6 +1062,7 @@ static const char *svlist[] =
     "lightz",
     "max_wall_height",
     "maxanimations",
+	"maxcollisions",
     "maxattacktypes",
     "maxcollisions",
     "maxentityvars",
@@ -9021,6 +9021,13 @@ int getsyspropertybyindex(ScriptVariant *var, int index)
         ScriptVariant_ChangeType(var, VT_INTEGER);
         var->lVal = max_animations;
         break;
+		
+    case SYSTEM_PROPERTY_MAXCOLLISIONS:
+	
+        ScriptVariant_ChangeType(var, VT_INTEGER);
+        var->lVal = max_collisions;
+		
+        break;
 
     case SYSTEM_PROPERTY_MAXATTACKTYPES:
 
@@ -16476,11 +16483,11 @@ HRESULT openbor_gotomainmenu(ScriptVariant **varlist , ScriptVariant **pretvar, 
 //rumble(player_index, ratio, msec);
 HRESULT openbor_rumble(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
-    LONG player_index = 0, ratio = 0, msec = 0;
+    LONG port = 0, ratio = 0, msec = 0;
 
     *pretvar = NULL;
 
-    if(paramCount >= 1 && FAILED(ScriptVariant_IntegerValue(varlist[0], &player_index)) )
+    if(paramCount >= 1 && FAILED(ScriptVariant_IntegerValue(varlist[0], &port)) )
     {
         return E_FAIL;
     }
@@ -16493,7 +16500,7 @@ HRESULT openbor_rumble(ScriptVariant **varlist , ScriptVariant **pretvar, int pa
         return E_FAIL;
     }
 
-	if (savedata.joyrumble[player_index]) control_rumble(playercontrolpointers, player_index, ratio, msec);
+	if (savedata.joyrumble[port]) control_rumble(port, ratio, msec);
 
     return S_OK;
 }

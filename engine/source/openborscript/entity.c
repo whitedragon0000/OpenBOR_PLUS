@@ -176,6 +176,13 @@ const s_property_access_map entity_get_property_map(const void* acting_object_pa
 		property_map.id_string = "ENTITY_PROPERTY_BLOCK_STATE";
 		property_map.type = VT_INTEGER;
 		break;
+		
+	case ENTITY_PROPERTY_BOOMERANG_LOOP:
+
+		ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
+		(*pretvar)->lVal = (LONG)handle->boomerang_loop;
+
+		break;
 
 	case ENTITY_PROPERTY_BOSS:
 

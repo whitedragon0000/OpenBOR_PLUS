@@ -680,24 +680,20 @@ const char *control_getdevicename(int deviceID)
     return devices[deviceID].deviceType == DEVICE_TYPE_NONE ? "None" : devices[deviceID].name;
 }
 
-void control_rumble(s_playercontrols ** playercontrols, int player, int ratio, int msec)
+void control_rumble(int port, int ratio, int msec)
 {
-	s_playercontrols * pcontrols = playercontrols[player];
-	int deviceID = pcontrols->deviceID;
-	InputDevice *device = &devices[deviceID];
-	
 	WPADData *wpad;
 	struct WUPCData *wupc;
-	wpad = WPAD_Data(device->port);
-	wupc = WUPC_Data(device->port);
+	wpad = WPAD_Data(port);
+	wupc = WUPC_Data(port);
 
 	device->rumbling = 1;
 	device->rumble_msec = msec * 3;
 	device->time2rumble = ticks_to_millisecs(gettime());
 
-	if (device->is_gc)                     			PAD_ControlMotor(get_gc_chan(device->port), 1);
-	else if(wupc != NULL)							WUPC_Rumble(device->port, true);
-	else if (wpad->exp.type != WPAD_EXP_CLASSIC)    WPAD_Rumble(device->port, 1);
+	if (device->is_gc)                     			PAD_ControlMotor(get_gc_chan(port), 1);
+	else if(wupc != NULL)							WUPC_Rumble(port, true);
+	else if (wpad->exp.type != WPAD_EXP_CLASSIC)    WPAD_Rumble(port, 1);
 }
 
 #define MAPPINGS_FILE_SENTINEL 0x9cf232d4

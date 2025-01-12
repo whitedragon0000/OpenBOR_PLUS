@@ -77,7 +77,11 @@ int mapstrings_animation_property(ScriptVariant** varlist, int paramCount)
 		"sub_entity_summon",
 		"sub_entity_unsummon"
 		"sync",
-		"weapon_frame"		
+		"weapon_frame",
+		"numframes",
+		"platform",
+		"body_collision",
+		"entity_collision"
 	};
 
 	// If the minimum argument count
@@ -434,6 +438,91 @@ HRESULT openbor_get_animation_property(ScriptVariant **varlist, ScriptVariant **
 			ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
 			(*pretvar)->lVal = (LONG)handle->sub_entity_unsummon;
 			break;
+			
+        case _ANIMATION_PROP_BODY_COLLISION:
+
+            // Verify animation has any bbox.
+            if(handle->collision_body)
+            {
+                ScriptVariant_ChangeType(*pretvar, VT_PTR);
+                (*pretvar)->ptrVal = (VOID *)handle->collision_body;
+            }
+
+            break;
+
+        case _ANIMATION_PROP_ENTITY_COLLISION:
+
+            // Verify animation has any ebox.
+            if(handle->collision_entity)
+            {
+                ScriptVariant_ChangeType(*pretvar, VT_PTR);
+                (*pretvar)->ptrVal = (VOID *)handle->collision_entity;
+            }
+
+            break;
+			
+        case _ANIMATION_PROP_PROP_NUMFRAMES:
+
+            ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
+            (*pretvar)->lVal = (LONG)handle->numframes;
+            break;
+
+        case _ANIMATION_PROP_PROP_PLATFORM:
+        {
+            LONG subprop, frame;
+            if(paramCount > 1 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[1], &frame)))
+            {
+                if(varlist[1]->vt != VT_INTEGER)
+                {
+                    printf("You must provide an integer value for frame.\n");
+                    goto error_local;
+                }
+            }
+            if(paramCount > 3 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[3], &subprop)))
+            {
+                if(varlist[3]->vt != VT_INTEGER)
+                {
+                    printf("You must provide an integer value for subproperty.\n");
+                    goto error_local;
+                }
+            }
+
+            ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
+            (*pretvar)->dblVal = (DOUBLE)0.0f;
+            if (handle->platform)
+            {
+                switch(subprop)
+                {
+                    case PLATFORM_X:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_X];
+                        break;
+                    case PLATFORM_Z:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_Z];
+                        break;
+                    case PLATFORM_UPPERLEFT:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_UPPERLEFT];
+                        break;
+                    case PLATFORM_LOWERLEFT:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_LOWERLEFT];
+                        break;
+                    case PLATFORM_UPPERRIGHT:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_UPPERRIGHT];
+                        break;
+                    case PLATFORM_LOWERRIGHT:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_LOWERRIGHT];
+                        break;
+                    case PLATFORM_DEPTH:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_DEPTH];
+                        break;
+                    case PLATFORM_HEIGHT:
+                        (*pretvar)->dblVal = (DOUBLE)handle->platform[frame][PLATFORM_HEIGHT];
+                        break;
+                    default:
+                        break;
+                }
+            }
+            break;
+        }
 			
         default:
 
@@ -919,6 +1008,79 @@ HRESULT openbor_set_animation_property(ScriptVariant **varlist, ScriptVariant **
 			}
 
 			break;
+			
+        case _ANIMATION_PROP_NUMFRAMES:
+
+            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[ARG_VALUE], &temp_int)))
+            {
+                handle->numframes = (int)temp_int;
+            }
+
+            break;
+
+        case _ANIMATION_PROP_PLATFORM:
+        {
+            LONG subprop, frame;
+            if(paramCount > 5 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[3], &subprop)))
+            {
+                if(varlist[3]->vt != VT_INTEGER)
+                {
+                    printf("You must provide an integer value for subproperty.\n");
+                    goto error_local;
+                }
+            }
+            else
+            {
+                printf("You must provide 5 parameters for this property.\n");
+                goto error_local;
+            }
+
+            if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[1], &frame)))
+            {
+                if(varlist[1]->vt != VT_INTEGER)
+                {
+                    printf("You must provide an integer value for frame.\n");
+                    goto error_local;
+                }
+            }
+
+            if(SUCCEEDED(ScriptVariant_DecimalValue(varlist[4], &temp_float)))
+            {
+                if (handle->platform)
+                {
+                    switch(subprop)
+                    {
+                        case PLATFORM_X:
+                            handle->platform[frame][PLATFORM_X] = (float)temp_float;
+                            break;
+                        case PLATFORM_Z:
+                            handle->platform[frame][PLATFORM_Z] = (float)temp_float;
+                            break;
+                        case PLATFORM_UPPERLEFT:
+                            handle->platform[frame][PLATFORM_UPPERLEFT] = (float)temp_float;
+                            break;
+                        case PLATFORM_LOWERLEFT:
+                            handle->platform[frame][PLATFORM_LOWERLEFT] = (float)temp_float;
+                            break;
+                        case PLATFORM_UPPERRIGHT:
+                            handle->platform[frame][PLATFORM_UPPERRIGHT] = (float)temp_float;
+                            break;
+                        case PLATFORM_LOWERRIGHT:
+                            handle->platform[frame][PLATFORM_LOWERRIGHT] = (float)temp_float;
+                            break;
+                        case PLATFORM_DEPTH:
+                            handle->platform[frame][PLATFORM_DEPTH] = (float)temp_float;
+                            break;
+                        case PLATFORM_HEIGHT:
+                            handle->platform[frame][PLATFORM_HEIGHT] = (float)temp_float;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            break;
+        }
 			
         default:
 
