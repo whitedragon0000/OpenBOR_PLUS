@@ -461,13 +461,13 @@ HRESULT openbor_get_animation_property(ScriptVariant **varlist, ScriptVariant **
 
             break;
 			
-        case _ANIMATION_PROP_PROP_NUMFRAMES:
+        case _ANIMATION_PROP_NUMFRAMES:
 
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
             (*pretvar)->lVal = (LONG)handle->numframes;
             break;
 
-        case _ANIMATION_PROP_PROP_PLATFORM:
+        case _ANIMATION_PROP_PLATFORM:
         {
             LONG subprop, frame;
             if(paramCount > 1 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[1], &frame)))

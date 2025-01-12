@@ -5844,29 +5844,6 @@ void meta_data_free_list(s_meta_data* head)
     free(head);
 }
 
-// Allocate a collision entity instance, copy
-// property data if present, and return pointer.
-s_collision_entity *collision_alloc_entity_instance(s_collision_entity *properties)
-{
-    s_collision_entity    *result;
-    size_t              alloc_size;
-
-    // If previous data is provided,
-    // copy into new allocation.
-    if(properties)
-    {
-        // Get amount of memory we'll need.
-        alloc_size = sizeof(s_collision_attack);
-
-        // Allocate memory and get pointer.
-        result = malloc(alloc_size);
-        memcpy(result, properties, alloc_size);
-    }
-
-    // return result.
-    return result;
-}
-
 // Allocate an empty collision entity list.
 s_collision_entity **collision_alloc_entity_list()
 {
@@ -8975,6 +8952,12 @@ s_hitbox *collision_allocate_coords(s_hitbox *coords)
     s_hitbox    *result;
     size_t      alloc_size;
 
+    // Get amount of memory we'll need.
+    alloc_size = sizeof(*result);
+
+    // Allocate memory and get pointer.
+    result = malloc(alloc_size);
+
     // 0 out valules.
     memset(result, 0, sizeof(*result));
 
@@ -8982,11 +8965,6 @@ s_hitbox *collision_allocate_coords(s_hitbox *coords)
     // copy into new allocation.
     if(coords)
     {
-        // Get amount of memory we'll need.
-        alloc_size = sizeof(s_hitbox);
-
-        // Allocate memory and get pointer.
-        result = malloc(alloc_size);
         memcpy(result, coords, alloc_size);
     }
 
@@ -18205,6 +18183,10 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             break;
         case TYPE_ENEMY:
             newchar->faction.type_hostile = TYPE_PLAYER;
+            if(newchar->subtype == SUBTYPE_ARROW || newchar->subtype == SUBTYPE_BOOMERANG)
+            {
+                newchar->faction.type_hostile |= TYPE_OBSTACLE;
+            }
             break;
         case TYPE_PLAYER: // dont really needed, since you don't need A.I. control for players
             newchar->faction.type_hostile = TYPE_PLAYER | TYPE_ENEMY | TYPE_OBSTACLE;
@@ -36452,8 +36434,8 @@ int check_inaction_entity_collision(entity              *ent,
 
 int check_entity_collision(entity *ent, entity *target)
 {
-    s_hitbox *coords_col_entity_ent;
-    s_hitbox *coords_col_entity_target;
+    s_hitbox *coords_col_entity_ent = NULL;
+    s_hitbox *coords_col_entity_target = NULL;
     s_collision_entity  *col_entity_ent = NULL;
     s_collision_entity  *col_entity_target = NULL;
 	s_collision_entity* ent_collision_entity_cursor;
@@ -39404,8 +39386,8 @@ void boomerang_initialize(entity *ent)
     ent->position.y = owner->position.y;
 
     // Make sure that we can't grab or be grabbed.
-    ent->modeldata.antigrab = 1;
-    ent->modeldata.grabforce = GRABFORCE;
+    ent->modeldata.grab_resistance = 1;
+    ent->modeldata.grab_force = GRABFORCE;
 
     ++ent->boomerang_loop;
 
@@ -39422,7 +39404,8 @@ int boomerang_move()
     float velocity_x_accelerated;   // X velocity after acceleration applied as an addition vs. current velocity.
     float velocity_x_decelerated;   // X velocity after acceleration applied as a reduction vs. current velocity.
 
-    if(!self->modeldata.nomove)
+	int nomove = self->modeldata.move_config_flags & (MOVE_CONFIG_NO_MOVE | MOVE_CONFIG_NO_FLIP) && self->modeldata.move_config_flags & MOVE_CONFIG_NO_FLIP;
+	if(!nomove)
     {
         // Populate local vars with acceleration and
         // maximum horizontal distance from modeldata.
@@ -39440,7 +39423,7 @@ int boomerang_move()
         }
         else
         {
-            acceleration = self->modeldata.speed/(GAME_SPEED/20);
+            acceleration = self->modeldata.speed.x/(GAME_SPEED/20);
         }
 
         // Maximum X distance from owner.
@@ -39524,9 +39507,9 @@ int boomerang_move()
                     // have the effect of reducing the X velocity
                     // until it falls below inverted model speed, at
                     // which point our reversed condition will be true.
-                    if(velocity_x_decelerated < -self->modeldata.speed)
+                    if(velocity_x_decelerated < -self->modeldata.speed.x)
                     {
-                        self->velocity.x = -self->modeldata.speed;
+                        self->velocity.x = -self->modeldata.speed.x;
                     }
                     else
                     {
@@ -39535,9 +39518,9 @@ int boomerang_move()
                 }
                 else if (self->velocity.x <= 0)
                 {
-                    if(velocity_x_decelerated < -self->modeldata.speed)
+                    if(velocity_x_decelerated < -self->modeldata.speed.x)
                     {
-                        self->velocity.x = -self->modeldata.speed;
+                        self->velocity.x = -self->modeldata.speed.x;
                     }
                     else
                     {
@@ -39562,9 +39545,9 @@ int boomerang_move()
 
                     // Make sure X velocity is no greater than
                     // the model speed setting.
-                    if(velocity_x_accelerated > self->modeldata.speed)
+                    if(velocity_x_accelerated > self->modeldata.speed.x)
                     {
-                        self->velocity.x = self->modeldata.speed;
+                        self->velocity.x = self->modeldata.speed.x;
                     }
                     else
                     {
@@ -39573,9 +39556,9 @@ int boomerang_move()
                 }
                 else if (self->velocity.x >= 0)
                 {
-                    if(velocity_x_accelerated > self->modeldata.speed)
+                    if(velocity_x_accelerated > self->modeldata.speed.x)
                     {
-                        self->velocity.x = self->modeldata.speed;
+                        self->velocity.x = self->modeldata.speed.x;
                     }
                     else
                     {
@@ -44556,56 +44539,57 @@ entity *knife_spawn(entity *parent, s_projectile *projectile)
 entity *boomerang_spawn(entity *parent, s_projectile *projectile, char *name, int index, int map)
 {
     entity *e = NULL;
-	float x = self->position.x;
-	float z = self->position.z;
-	float a = self->position.y + projectile->position.y;
-	int direction = self->direction;
+	float x = parent->position.x;
+	float z = parent->position.z;
+	float a = parent->position.y + projectile->position.y;
+	int direction = parent->direction;
 
     if(index >= 0 || name)
     {
         e = spawn(x, z, a, direction, name, index, NULL);
     }
-    else if(self->weapent && self->weapent->modeldata.subtype == SUBTYPE_PROJECTILE && self->weapent->modeldata.project >= 0)
+    else if(parent->weapent && parent->weapent->modeldata.subtype == SUBTYPE_PROJECTILE && parent->weapent->modeldata.project >= 0)
     {
-        e = spawn(x, z, a, direction, NULL, self->weapent->modeldata.project, NULL);
+        e = spawn(x, z, a, direction, NULL, parent->weapent->modeldata.project, NULL);
     }
-    else if(self->animation->projectile.boomerang >= 0)
+    else if(parent->animation->projectile->boomerang >= 0)
     {
-        e = spawn(x, z, a, direction, NULL, self->animation->projectile.boomerang, NULL);
+        e = spawn(x, z, a, direction, NULL, parent->animation->projectile->boomerang, NULL);
     }
-    else if(self->modeldata.boomerang >= 0)
+    else if(parent->modeldata.boomerang >= 0)
     {
-        e = spawn(x, z, a, direction, NULL, self->modeldata.boomerang, NULL);
+        e = spawn(x, z, a, direction, NULL, parent->modeldata.boomerang, NULL);
     }
 
     if(e == NULL)
     {
         return NULL;
     }
-    else if(self->modeldata.type & TYPE_PLAYER)
+    else if(parent->modeldata.type & TYPE_PLAYER)
     {
         e->modeldata.type = TYPE_NPC;
     }
-    else if(self->modeldata.type & TYPE_ENEMY)
+    else if(parent->modeldata.type & TYPE_ENEMY)
     {
         e->modeldata.type = TYPE_ENEMY;
     }
     else
     {
-        e->modeldata.type = self->modeldata.type;
+        e->modeldata.type = parent->modeldata.type;
     }
 
-    if(!e->model->speed && !e->modeldata.nomove)
+	int nomove = e->modeldata.move_config_flags & (MOVE_CONFIG_NO_MOVE | MOVE_CONFIG_NO_FLIP) && e->modeldata.move_config_flags & MOVE_CONFIG_NO_FLIP;
+    if(!e->model->speed.x != 0 && !nomove)
     {
-        e->modeldata.speed = 2;
+        e->modeldata.speed.x = 2.0f;
     }
-    else if(e->modeldata.nomove)
+    else if(nomove)
     {
-        e->modeldata.speed = 0;
+        e->modeldata.speed.x = 0;
     }
 
     e->spawntype = SPAWN_TYPE_PROJECTILE_BOOMERANG;
-    e->owner = self;                                                     // Added so projectiles don't hit the owner
+    e->owner = parent;                                                     // Added so projectiles don't hit the owner
     e->nograb = 1;                                                       // Prevents trying to grab a projectile
     e->attacking = ATTACKING_ACTIVE;
     //e->direction = direction;
@@ -44627,7 +44611,7 @@ entity *boomerang_spawn(entity *parent, s_projectile *projectile, char *name, in
 		e->autokill |= AUTOKILL_ATTACK_HIT;
 	}
     // Kill self when we finish animation.
-	if (e->modeldata.nomove)
+	if (nomove)
 	{
 		e->autokill |= AUTOKILL_ANIMATION_COMPLETE;
 	}
@@ -44644,29 +44628,23 @@ entity *boomerang_spawn(entity *parent, s_projectile *projectile, char *name, in
         e->base = a;
     }
 
-    if(e->modeldata.hostile < 0)
+    if(e->faction.type_hostile == 0)
     {
-        e->modeldata.hostile = self->modeldata.hostile;
+        e->faction.type_hostile = parent->faction.type_hostile;
     }
-    if(e->modeldata.candamage < 0)
+	/*
+    if(!faction_check_can_damage(e, parent, 0))
     {
-        e->modeldata.candamage = self->modeldata.candamage;
+        e->faction.type_hostile = parent->faction.type_hostile;
     }
-    if((self->modeldata.type & TYPE_PLAYER) && ((level && level->nohit == DAMAGE_FROM_PLAYER_OFF) || savedata.mode))
+	*/
+    if((parent->modeldata.type & TYPE_PLAYER) && ((level && level->nohit == DAMAGE_FROM_PLAYER_OFF) || savedata.mode))
     {
-        e->modeldata.hostile &= ~TYPE_PLAYER;
-        e->modeldata.candamage &= ~TYPE_PLAYER;
+        e->faction.type_hostile &= ~TYPE_PLAYER;
     }
-
-    e->modeldata.subject_to_hole        = 0;
-    e->modeldata.subject_to_gravity     = 1;
-    e->modeldata.subject_to_basemap     = 0;
-    e->modeldata.subject_to_wall        = 0;
-    e->modeldata.subject_to_platform    = 0;
-    e->modeldata.subject_to_screen      = 0;
-    e->modeldata.subject_to_minz        = 1;
-    e->modeldata.subject_to_maxz        = 1;
-    e->modeldata.no_adjust_base         = 1;
+	
+	e->modeldata.move_config_flags &= ~(MOVE_CONFIG_SUBJECT_TO_BASEMAP | MOVE_CONFIG_SUBJECT_TO_HOLE | MOVE_CONFIG_SUBJECT_TO_OBSTACLE | MOVE_CONFIG_SUBJECT_TO_PLATFORM | MOVE_CONFIG_SUBJECT_TO_SCREEN | MOVE_CONFIG_SUBJECT_TO_WALL);
+	e->modeldata.move_config_flags &= (MOVE_CONFIG_SUBJECT_TO_MAX_Z | MOVE_CONFIG_SUBJECT_TO_MIN_Z | MOVE_CONFIG_NO_ADJUST_BASE | MOVE_CONFIG_SUBJECT_TO_GRAVITY);
 
     return e;
 }
@@ -47440,6 +47418,9 @@ int set_color_correction(int gm, int br)
 #if WII || SDL
     video_set_color_correction(gm, br);
     return 1;
+#else
+    return 0;
+#endif
 #else
     return 0;
 #endif
@@ -50498,7 +50479,7 @@ finish:
             if(!disabledkey[i])
             {
                 _menutext((selector == i), col1, voffset, "%s", buttonnames[i]);
-                _menutext((selector == i), col2, voffset, "%s", control_getkeyname(savedata.keys[player][i]));
+                _menutext((selector == i), col2, voffset, "%s", control_getkeyname(savedata.keys[player_index][i]));
                 voffset++;
             }
         }
@@ -50523,7 +50504,7 @@ finish:
         {
             if(bothnewkeys & FLAG_ESC)
             {
-                savedata.keys[player][setting] = ok;
+                savedata.keys[player_index][setting] = ok;
                 sound_play_sample(global_sample_list.beep_2, 0, savedata.effectvol, savedata.effectvol, 50);
                 setting = -1;
             }
@@ -50532,7 +50513,7 @@ finish:
                 k = control_scankey();
                 if(k)
                 {
-                    safe_set(savedata.keys[player], setting, k, ok);
+                    safe_set(savedata.keys[player_index], setting, k, ok);
                     sound_play_sample(global_sample_list.beep_2, 0, savedata.effectvol, savedata.effectvol, 100);
                     setting = -1;
                     // Prevent accidental screenshot
@@ -50586,7 +50567,7 @@ finish:
 
                 if(selector == OPTIONS_NUM - 3)
                 {
-                    savedata.joyrumble[player] ^= 1;
+                    savedata.joyrumble[player_index] ^= 1;
                 }
                 else if(selector == OPTIONS_NUM - 2) // OK
                 {
@@ -50598,13 +50579,13 @@ finish:
                 }
                 else if(selector == OPTIONS_NUM) // default
                 {
-                    clearbuttons(player);
+                    clearbuttons(player_index);
                 }
                 else
                 {
                     setting = selector;
-                    ok = savedata.keys[player][setting];
-                    savedata.keys[player][setting] = 0;
+                    ok = savedata.keys[player_index][setting];
+                    savedata.keys[player_index][setting] = 0;
                     keyboard_getlastkey();
                 }
             }
@@ -50634,21 +50615,16 @@ finish:
 void menu_options_input()
 {
     int quit = 0;
-    int selector = 0; // 0
-    int x_pos = -6;
+    int selector = 0;
+	int active_devices = 0;
+	const int max_players = levelsets[current_set].maxplayers;
+	int x_pos = -6;
     int OPTIONS_NUM = max_players + 1;
     #if ANDROID
     int dir = 0;
     OPTIONS_NUM += 3;
     #endif
 
-    for (int i = 0; i < max_players; i++)
-    {
-        if (control_isvaliddevice(playercontrolpointers[i]->deviceID))
-        {
-            ++OPTIONS_NUM;
-        }
-    }
     screen_status |= IN_SCREEN_CONTROL_OPTIONS_MENU;
     bothnewkeys = 0;
 
@@ -50659,35 +50635,45 @@ void menu_options_input()
     while(!quit)
     {
         _menutextm(2, x_pos-1, 0, Tr("Control Options"));
-                
-        #if WII
-        if(savedata.usejoy)
-        {
-            _menutext((selector == 0), -4, -2, Tr("Nunchuk Analog Enabled"));
-        }
-        else
-        {
-            _menutext((selector == 0), -4, -2, Tr("Nunchuk Analog Disabled"));
-        }
-        #else
-        if(savedata.usejoy)
-        {
-            _menutext((selector == 0), x_pos, -2, Tr("GamePads Enabled"));
-            if(!control_getjoyenabled())
-            {
-                _menutext((selector == 0), x_pos+11, -2, Tr(" - Device Not Ready"));
-            }
-        }
-        else
-        {
-            _menutext((selector == 0), x_pos, -2, Tr("GamePads Disabled"));
-        }
-        #endif
+		
+		#if WII
+		if(savedata.usejoy)
+		{
+			_menutext((selector == 0), x_pos+2, -2, Tr("Nunchuk Analog Enabled"));
+		}
+		else
+		{
+			_menutext((selector == 0), x_pos+2, -2, Tr("Nunchuk Analog Disabled"));
+		}
+		#else
+		if(savedata.usejoy)
+		{
+			_menutext((selector == 0), x_pos, -2, Tr("GamePads Enabled"));
+			if(!control_getjoyenabled())
+			{
+				_menutext((selector == 0), x_pos+11, -2, Tr(" - Device Not Ready"));
+			}
+		}
+		else
+		{
+			_menutext((selector == 0), x_pos, -2, Tr("GamePads Disabled"));
+		}
+		#endif
 
-        _menutext((selector == 1), x_pos,-1, Tr("Setup Player 1..."));
-        _menutext((selector == 2), x_pos, 0, Tr("Setup Player 2..."));
-        _menutext((selector == 3), x_pos, 1, Tr("Setup Player 3..."));
-        _menutext((selector == 4), x_pos, 2, Tr("Setup Player 4..."));
+		/*
+        if (selector < max_players)
+        {
+            _menutextm(1, selector + base + 1, 0, Tr("Press Start to apply, Up or Down to cancel"));
+        }
+		*/
+
+        active_devices = 0;
+        for (int i = 0; i < max_players; i++)
+        {
+			_menutextm((selector == max_players + i), 1 + active_devices, 0, Tr("Setup Player %i..."), i + 1);
+			++active_devices;
+        }
+		
         #if ANDROID
         if(savedata.is_touchpad_vibration_enabled)
         {
@@ -50727,8 +50713,7 @@ void menu_options_input()
             }
 
             // skip over invisible configuration entries for non-existent devices
-            while (selector >= max_players && selector <= max_players + active_devices
-                        && !control_isvaliddevice(selector - max_players))
+            while (selector >= max_players && selector <= max_players + active_devices)
             {
                 --selector;
             }
@@ -50742,8 +50727,7 @@ void menu_options_input()
             }
 
             // skip over invisible configuration entries for non-existent devices
-            while (selector >= max_players && selector <= max_players + active_devices
-                        && !control_isvaliddevice(selector - max_players))
+            while (selector >= max_players && selector <= max_players + active_devices)
             {
                 ++selector;
             }
@@ -50756,8 +50740,6 @@ void menu_options_input()
         {
             selector = 0;
         }
-        if (selector < max_players && (bothnewkeys & (FLAG_MOVEUP | FLAG_MOVEDOWN)))
-        {
 
         #ifdef ANDROID
         if (bothnewkeys & FLAG_MOVELEFT) dir = -1;
@@ -50765,51 +50747,26 @@ void menu_options_input()
         else dir = 0;
         #endif
 
-        if (global_sample_list.beep_2 >= 0 && bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
+        if (bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
         {
-            // Left/right only make sense for device reassignment
+			
+			// Left/right only make sense for device reassignment
             if (selector >= max_players && selector <= max_players + active_devices
                     && !(bothnewkeys & FLAG_ANYBUTTON))
+            {
+                continue;
+            }
+			
+            if(global_sample_list.beep_2 >= 0)
             {
                 sound_play_sample(global_sample_list.beep_2, 0, savedata.effectvol, savedata.effectvol, 100);
             }
 
-            switch(selector)
-            {
-                sound_play_sample(SAMPLE_BEEP2, 0, savedata.effectvol, savedata.effectvol, 100);
-            }
-
             // actions
-            if (selector < max_players)
-            {
-                if (bothnewkeys & FLAG_MOVELEFT)
-                {
-                    do {
-                        --selected_device;
-                        if (selected_device < 0)
-                        {
-                            selected_device = MAX_DEVICES - 1;
-                        }
-                    } while (!control_isvaliddevice(selected_device));
-                }
-                else if (bothnewkeys & FLAG_MOVERIGHT)
-                {
-                    do {
-                        ++selected_device;
-                        if (selected_device >= MAX_DEVICES)
-                        {
-                            selected_device = 0;
-                        }
-                    } while (!control_isvaliddevice(selected_device));
-                }
-                else // (bothnewkeys & FLAG_ANYBUTTON)
-                {
-                    // assign selected device to player
-                    safe_set_device(selector, selected_device, playercontrolpointers[selector]->deviceID);
-                }
-            } else if (selector >= max_players && selector <= max_players + active_devices) {
+            if (selector >= max_players && selector <= max_players + active_devices) {
                 keyboard_setup(selector - max_players);
             }
+			
             #if ANDROID
             else if (selector == max_players + active_devices + 1) {
                 savedata.is_touchpad_vibration_enabled = !savedata.is_touchpad_vibration_enabled;
@@ -50827,6 +50784,7 @@ void menu_options_input()
             }
         }
     }
+	
     savesettings();
     bothnewkeys = 0;
     screen_status &= ~IN_SCREEN_CONTROL_OPTIONS_MENU;
@@ -51850,6 +51808,33 @@ void menu_options_video()
             selector = 0;
         }
 #endif
+#endif
+
+#if PSP
+        _menutext((selector == 3), col1, 0, Tr("Screen:"));
+        _menutext((selector == 3), col2, 0, displayFormat[(int)videomodes.mode].name);
+        _menutext((selector == 4), col1, 1, Tr("Filters:"));
+        _menutext((selector == 4), col2, 1, filterName[(int)videomodes.filter]);
+        _menutext((selector == 5), col1, 2, Tr("Display:"));
+        _menutext((selector == 5), col2, 2, displayName[displayMode]);
+        _menutext((selector >= 6 && selector <= 9), col1, 3, Tr("Overscan:"));
+        _menutext((selector >= 6 && selector <= 9), col2 + 1.5, 3, ".");
+        _menutext((selector >= 6 && selector <= 9), col2 + 3.5, 3, ".");
+        _menutext((selector >= 6 && selector <= 9), col2 + 5.5, 3, ".");
+        _menutext((selector == 6), col2, 3, "%02d", savedata.overscan[0]);
+        _menutext((selector == 7), col2 + 2, 3, "%02d", savedata.overscan[1]);
+        _menutext((selector == 8), col2 + 4, 3, "%02d", savedata.overscan[2]);
+        _menutext((selector == 9), col2 + 6, 3, "%02d", savedata.overscan[3]);
+        _menutextm((selector == 10), 6, 0, Tr("Back"));
+        if(selector < 0)
+        {
+            selector = 10;
+        }
+        if(selector > 10)
+        {
+            selector = 0;
+        }
+#endif
 
         update((level != NULL), 0);
 
@@ -51939,8 +51924,6 @@ void menu_options_video()
             case 3:
                 //video_fullscreen_flip();
                 video_stretch((savedata.stretch ^= 1));
-                break;
-#endif
 
 #if PSP
                 if(videoMode == 0 || videoMode == 1)
@@ -52020,6 +52003,7 @@ void menu_options_video()
                 }
                 break;
 #endif
+				break;
 #endif
 #endif
 
@@ -52104,6 +52088,7 @@ void menu_options_video()
                 video_stretch((savedata.stretch ^= 1));
                 break;
 #endif
+#endif
 
 #if PS3
             case 0:
@@ -52138,7 +52123,6 @@ void menu_options_video()
     bothnewkeys = 0;
     screen_status &= ~IN_SCREEN_VIDEO_OPTIONS_MENU;
 }
-
 
 void menu_options()
 {

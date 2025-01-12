@@ -20,7 +20,6 @@
 #include "openbor.h"
 #include "packfile.h"
 
-#if !DC
 #include <dirent.h>
 
 #ifdef SDL
@@ -310,7 +309,7 @@ void *checkAlloc(void *ptr, size_t size, const char *func, const char *file, int
                        "\n*            Shutting Down            *\n\n");
         writeToLogFile("Out of memory!\n");
         writeToLogFile("Allocation of size %i failed in function '%s' at %s:%i.\n", size, func, file, line);
-#if LINUX && !DARWIN
+#ifndef WIN
         writeToLogFile("Memory usage at exit: %u\n", mallinfo2().arena);
 #else
         writeToLogFile("Memory usage at exit: %u\n", getUsedRam(BYTES));
@@ -318,31 +317,6 @@ void *checkAlloc(void *ptr, size_t size, const char *func, const char *file, int
         borExit(2);
     }
     return ptr;
-}
-
-// replacement for assert that writes the error to the log file
-void exitIfFalse(int value, const char *assertion, const char *func, const char *file, int line)
-{
-    if(!value)
-    {
-        writeToLogFile("\n\n********** An Error Occurred **********"
-                       "\n*            Shutting Down            *\n\n");
-        writeToLogFile("Assertion `%s' failed in function '%s' at %s:%i.\n", assertion, func, file, line);
-        writeToLogFile("This is an OpenBOR bug.  Please report this at www.chronocrash.com.\n\n");
-        borExit(1);
-    }
-}
-
-// gives the same behavior as the assert macro defined by C, which we can't use directly since
-// we redefine the assert macro to exitIfFalse
-void abortIfFalse(int value, const char *assertion, const char *func, const char *file, int line)
-{
-    if(!value)
-    {
-        fprintf(stderr, "%s:%i: %s: Assertion `%s' failed.\n", file, line, func, assertion);
-        fflush(stderr);
-        abort();
-    }
 }
 
 void getPakName(char *name, int type)
@@ -737,22 +711,6 @@ void Array_Check_Size( const char *f_caller, char **array, int new_size, int *cu
 
     // ReAssign the new allocated array
     *array = copy;
-}
-
-void *checkAlloc(void *ptr, size_t size, const char *func, const char *file, int line)
-{
-    if (size > 0 && ptr == NULL)
-    {
-        writeToLogFile("\n\n********** An Error Occurred **********"
-                       "\n*            Shutting Down            *\n\n");
-        writeToLogFile("Out of memory!\n");
-        writeToLogFile("Allocation of size %i failed in function '%s' at %s:%i.\n", size, func, file, line);
-#ifndef WIN
-        writeToLogFile("Memory usage at exit: %u\n", mallinfo().arena);
-#endif
-        borExit(2);
-    }
-    return ptr;
 }
 
 // replacement for assert that writes the error to the log file

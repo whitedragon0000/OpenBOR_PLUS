@@ -4670,7 +4670,7 @@ void smart_bomb(entity *e, s_attack *attack);
 void anything_walk(void);
 entity* knife_spawn(entity *parent, s_projectile* projectile);
 entity *bomb_spawn(entity *parent, s_projectile *projectile);
-entity *boomerang_spawn(char *name, int index, float x, float z, float a, int direction, int map);
+entity *boomerang_spawn(entity *parent, s_projectile *projectile, char *name, int index, int map);
 void bomb_explode(void);
 int star_spawn(entity *parent, s_projectile *projectile);
 void steam_think(void);

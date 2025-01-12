@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c)  OpenBOR Team
+ * Copyright (c) 2004 - 2014 OpenBOR Team
  */
 
 #include "gfxtypes.h"

@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c)  OpenBOR Team
+ * Copyright (c) 2004 - 2012 OpenBOR Team
  */
 
 /**
@@ -17,10 +17,6 @@
 
 #include "gfx.h"
 #include "types.h"
-
-#ifdef __i586__
-#define MMX 1
-#endif
 
 static inline void scale2x_16_pixel_c(void *src0v, void *src1v, void *src2v, void *dst0v, void *dst1v)
 {
