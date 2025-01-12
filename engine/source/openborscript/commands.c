@@ -349,6 +349,8 @@ List *createModelCommandList(void)
     LIST_ADD(CMD_MODEL_EBOX_SIZE_Y, "ebox.size.y");
     LIST_ADD(CMD_MODEL_EBOX_SIZE_Z_1, "ebox.size.z.1");
     LIST_ADD(CMD_MODEL_EBOX_SIZE_Z_2, "ebox.size.z.2");
+	LIST_ADD(CMD_MODEL_EBOX_SIZE_Z_BACKGROUND, "ebox.size.z.background");
+    LIST_ADD(CMD_MODEL_EBOX_SIZE_Z_FOREGROUND, "ebox.size.z.foreground");
     LIST_ADD(CMD_MODEL_EBOXZ, "eboxz");
     LIST_ADD(CMD_MODEL_EDELAY, "edelay");
     LIST_ADD(CMD_MODEL_EDGERANGE, "edgerange");

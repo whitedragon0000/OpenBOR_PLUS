@@ -2334,7 +2334,7 @@ typedef struct
 * Collision body container for
 * detecting hits.
 */
-typedef struct s_collision_body
+typedef struct s_collision_entity
 {
     struct s_collision_entity* next;    // Next item in linked list.
     s_entity* entity;                       // Body properties.
@@ -3433,10 +3433,10 @@ typedef struct
     e_air_control air_control; /* Mid air control options (turning, moving, etc.). */
     
     /* Grab flags. */
-        int grabback; // Flag to determine if entities grab images display behind opponenets    
-        int grabfinish; // Cannot take further action until grab animation is complete.
-        int grabflip; // Flip target or not, bit0: grabber, bit1: opponent
-        int grabturn; // Turn with grabbed target using Left/Right (if valid ANI_GRABTURN).
+	int grabback; // Flag to determine if entities grab images display behind opponenets    
+	int grabfinish; // Cannot take further action until grab animation is complete.
+	int grabflip; // Flip target or not, bit0: grabber, bit1: opponent
+	int grabturn; // Turn with grabbed target using Left/Right (if valid ANI_GRABTURN).
 
     /* Grab variables. */
     int paingrab; // Added to grab resistance when not in pain.
@@ -3603,7 +3603,7 @@ typedef struct entity
     s_model					modeldata;							// model data copied here ~~
 	s_jump					jump;								// Jumping velocity and animationnid. ~~
 	s_rush					rush;								// Rush combo display. ~~
-	unsigned int boomerang_loop;  // Count of boomerang passes.
+	unsigned int 			boomerang_loop;  					// Count of boomerang passes.
 
 	// Structured pointers.
 	s_anim					*animation;							// Pointer to animation collection. ~~
@@ -4236,24 +4236,25 @@ s_anim                  *alloc_anim();
 */
 typedef struct 
 {
-    s_anim*                     animation;      // Animation we will add frame to.
-    int                         spriteindex;    // Image displayed during frame.
-    int                         framecount;     // Number of frames.
-    int                         delay;          // Frame duration (centiseonds).
-    unsigned                    idle;           // TRUE = Set idle status during frame.
-    s_hitbox*                   entity_coords;  // Coordinates for "Entity" box. To be removed.
-    s_damage_recursive*         recursive;      // Recursive damage properties for attack.
-    s_move*                     move;           // Move <n> horizontal pixels on frame.
-    float*                      platform;       // Platform coordinates.
-    int                         frameshadow;    // TRUE = Display shadow during frame.
-    int*                        shadow_coords;  // Shadow position.
-    int                         soundtoplay;    // Sound index played on frame.
-    s_drawmethod*               drawmethod;     // Drawmethod to apply on frame.
-    s_axis_plane_vertical_int*  offset;         // X & Y offset coordinates.    
-    s_collision_attack*         collision;      // Head node of collision list (attack) for frame.
-    s_collision_body*           collision_body; // Head node of collision list (body) for frame. 
-    s_child_spawn*              child_spawn;    // Head node of child spawn list for frame.
-    s_model*                    model;          // New model in progress.
+    s_anim*                     animation;      	// Animation we will add frame to.
+    int                         spriteindex;    	// Image displayed during frame.
+    int                         framecount;     	// Number of frames.
+    int                         delay;          	// Frame duration (centiseonds).
+    unsigned                    idle;           	// TRUE = Set idle status during frame.
+    s_hitbox*                   entity_coords;  	// Coordinates for "Entity" box. To be removed.
+    s_damage_recursive*         recursive;      	// Recursive damage properties for attack.
+    s_move*                     move;           	// Move <n> horizontal pixels on frame.
+    float*                      platform;       	// Platform coordinates.
+    int                         frameshadow;    	// TRUE = Display shadow during frame.
+    int*                        shadow_coords;  	// Shadow position.
+    int                         soundtoplay;    	// Sound index played on frame.
+    s_drawmethod*               drawmethod;     	// Drawmethod to apply on frame.
+    s_axis_plane_vertical_int*  offset;         	// X & Y offset coordinates.    
+    s_collision_attack*         collision;      	// Head node of collision list (attack) for frame.
+    s_collision_body*           collision_body; 	// Head node of collision list (body) for frame.
+	s_collision_entity*         collision_entity; 	// Head node of collision list (entity) for frame. 
+    s_child_spawn*              child_spawn;    	// Head node of child spawn list for frame.
+    s_model*                    model;          	// New model in progress.
 } s_addframe_data;
 
 int addframe(s_addframe_data* data);

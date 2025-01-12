@@ -200,6 +200,17 @@ const s_body empty_body = { .defense = NULL,
                                 
 };
 
+const s_entity empty_entity = { .flash = {
+									.object_type = OBJECT_TYPE_FLASH,
+									.layer_adjust = 0,
+									.layer_source = 0,
+									.model_block = MODEL_INDEX_NONE,
+									.model_hit = MODEL_INDEX_NONE,
+									.z_source = 0
+								}
+                                
+};
+
 const s_collision_entity empty_entity_collision =   {   .coords     = NULL,
                                                         .index      = 0,
                                                         .meta_data  = NULL,
@@ -5327,7 +5338,7 @@ void alloc_frames(s_anim *anim, int fcount)
 
 void free_frames(s_anim *anim)
 {
-    int i, instance;
+    int i;
 
     if(anim->offset)
     {
@@ -8729,8 +8740,8 @@ void collision_entity_prepare_coordinates_for_frame(s_collision_entity* collisio
 			
 			if(coords->z_background > coords->z_foreground)
 			{
-				coords->z_background -= offset.y;
-				coords->z_foreground -= offset.y;
+				coords->z_background -= add_frame_data->offset->y;
+				coords->z_foreground -= add_frame_data->offset->y;
 			}	
         }
 
@@ -9309,11 +9320,13 @@ void entity_dump_object(s_entity* entity)
 */
 void entity_free_object(s_entity* target)
 {
+	/*
     if (target->defense)
     {
         defense_free_object(target->defense);
         target->defense = NULL;
     }
+	*/
 
     free(target);
 }
@@ -9876,12 +9889,6 @@ void recursive_damage_update(entity* ent)
 */
 int addframe(s_addframe_data* data)
 {
-    int     i;
-    size_t  size_col_on_frame,
-            size_col_on_frame_struct;
-
-    s_collision_entity  *collision_entity;
-
     ptrdiff_t currentframe;
     if(data->framecount > 0)
     {
@@ -13447,9 +13454,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
     int aiattackset = 0;
     int maskindex = -1;
     int nopalette = 0;
-	int abox_index = 0;
-	int bbox_index = 0;
-	int ebox_index = 0;
 		
     size_t size = 0;
     size_t line = 0;
@@ -13500,6 +13504,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
     int temp_collision_index = 0;
     s_collision_attack* temp_collision_head = NULL;     // Attack boxes.
     s_collision_body* temp_collision_body_head = NULL;  // Body boxes.
+	s_collision_entity* temp_collision_entity_head = NULL;  // Entity boxes.
     
     int temp_child_spawn_index = 0;
     s_child_spawn* temp_child_spawn_head = NULL;         // Spawning sub entities.
@@ -15390,9 +15395,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 move.axis.z                     = 0;
                 frameshadow                     = FRAME_SHADOW_NONE;
                 soundtoplay                     = SAMPLE_ID_NONE;
-				abox_index 						= 0;
-				bbox_index 						= 0;
-				ebox_index 						= 0;
 
                 /*
                 * Other than Min X, default ranges are 
@@ -22913,12 +22915,12 @@ void draw_visual_debug()
 
     int i;
     s_hitbox            *coords;
-    s_collision_entity  *collision_entity;
     s_drawmethod        drawmethod = plainmethod;
     entity              *entity;
 
     s_collision_attack* collision_attack_cursor;
     s_collision_body* collision_body_cursor;
+	s_collision_entity* collision_entity_cursor;
 
 	int range_y_min = 0;
 	int range_y_max = 0;
@@ -28579,10 +28581,10 @@ void check_gravity(entity *e)
                             if(self->modeldata.type & TYPE_PLAYER && level->quake >= 1)
                             {
 								// player landing from fall
-                                if (savedata.joyrumble[self->playerindex]) control_rumble(playercontrolpointers, self->playerindex, 1, 75 * ((int)self->velocity.y + 1));
+                                if (savedata.joyrumble[self->playerindex]) control_rumble(self->playerindex, 1, 75 * ((int)self->velocity.y + 1));
 								/*for(int i = 0; i < MAX_PLAYERS; i++)
 								{
-									if (savedata.joyrumble[i] && i != self->playerindex) control_rumble(playercontrolpointers, i, 1, 50 * ((int)self->velocity.y + 1));
+									if (savedata.joyrumble[i] && i != self->playerindex) control_rumble(i, 1, 50 * ((int)self->velocity.y + 1));
 								}*/
                             }
                         }
@@ -33327,7 +33329,7 @@ void checkhitscore(entity *other, s_attack *attack)
         // Added obstacle so explosions can hurt enemies
         addscore(opp->playerindex, attack->attack_force * self->modeldata.multiple);  // New multiple variable
 		// player attack
-        if (savedata.joyrumble[opp->playerindex]) control_rumble(playercontrolpointers, opp->playerindex, 1, attack->attack_force * 20);
+        if (savedata.joyrumble[opp->playerindex]) control_rumble(opp->playerindex, 1, attack->attack_force * 20);
     }
     // Don't animate or fall if hurt by self, since
     // it means self fell to the ground already. :)
@@ -35155,7 +35157,7 @@ int common_takedamage(entity *other, s_attack *attack, int fall_flag, s_defense*
 
     if(acting_entity->modeldata.type & TYPE_PLAYER)
     {
-        if (savedata.joyrumble[acting_entity->playerindex]) control_rumble(acting_entity->playerindex, 1, attack->attack_force * 50);
+        if (savedata.joyrumble[acting_entity->playerindex]) control_rumble(self->playerindex, 1, attack->attack_force * 50);
     }
     if(acting_entity->position.y <= PIT_DEPTH && acting_entity->death_state & DEATH_STATE_DEAD)
     {
@@ -36161,28 +36163,28 @@ int check_potential_entity_collision(entity              *ent,
     z2      = target->position.z + target->movez;
     zdist   = 0;
 
-    if(coords_col_entity_ent->z2 > coords_col_entity_ent->z1)
+    if(coords_col_entity_ent->z_foreground > coords_col_entity_ent->z_background)
     {
-        zdepth1 = (coords_col_entity_ent->z2 - coords_col_entity_ent->z1) / 2;
-        z1 += coords_col_entity_ent->z1 + zdepth1;
+        zdepth1 = (coords_col_entity_ent->z_foreground - coords_col_entity_ent->z_background) / 2;
+        z1 += coords_col_entity_ent->z_background + zdepth1;
         zdist += zdepth1;
     }
-    else if(coords_col_entity_ent->z1)
+    else if(coords_col_entity_ent->z_background)
     {
-        zdepth1 = coords_col_entity_ent->z1;
-        zdist += coords_col_entity_ent->z1;
+        zdepth1 = coords_col_entity_ent->z_background;
+        zdist += coords_col_entity_ent->z_background;
     }
 
-    if(coords_col_entity_target->z2 > coords_col_entity_target->z1)
+    if(coords_col_entity_target->z_foreground > coords_col_entity_target->z_background)
     {
-        zdepth2 = (coords_col_entity_target->z2 - coords_col_entity_target->z1) / 2;
-        z2 += coords_col_entity_target->z1 + zdepth2;
+        zdepth2 = (coords_col_entity_target->z_foreground - coords_col_entity_target->z_background) / 2;
+        z2 += coords_col_entity_target->z_background + zdepth2;
         zdist += zdepth2;
     }
-    else if(coords_col_entity_target->z1)
+    else if(coords_col_entity_target->z_background)
     {
-        zdepth2 = coords_col_entity_target->z1;
-        zdist += coords_col_entity_target->z1;
+        zdepth2 = coords_col_entity_target->z_background;
+        zdist += coords_col_entity_target->z_background;
     }
 
     if(diff(z1, z2) > zdist)
@@ -36212,109 +36214,8 @@ int check_potential_entity_collision(entity              *ent,
 
     if(target->direction == DIRECTION_LEFT)
     {
-        col_entity_ent  = ent->animation->collision_entity[ent->animpos]->instance[col_entity_ent_instance];
-        coords_col_entity_ent   = col_entity_ent->coords;
-
-        for(col_entity_target_instance = 0; col_entity_target_instance < max_collisons; col_entity_target_instance++)
-        {
-            col_entity_target          = target->animation->collision_entity[target->animpos]->instance[col_entity_target_instance];
-            coords_col_entity_target   = col_entity_target->coords;
-
-            z1      = ent->position.z + ent->movez;
-            z2      = target->position.z + target->movez;
-            zdist   = 0;
-
-            if(coords_col_entity_ent->z_foreground > coords_col_entity_ent->z_background)
-            {
-                zdepth1 = (coords_col_entity_ent->z_foreground - coords_col_entity_ent->z_background) / 2;
-                z1 += coords_col_entity_ent->z_background + zdepth1;
-                zdist += zdepth1;
-            }
-            else if(coords_col_entity_ent->z_background)
-            {
-                zdepth1 = coords_col_entity_ent->z_background;
-                zdist += coords_col_entity_ent->z_background;
-            }
-
-            if(coords_col_entity_target->z_foreground > coords_col_entity_target->z_background)
-            {
-                zdepth2 = (coords_col_entity_target->z_foreground - coords_col_entity_target->z_background) / 2;
-                z2 += coords_col_entity_target->z_background + zdepth2;
-                zdist += zdepth2;
-            }
-            else if(coords_col_entity_target->z_background)
-            {
-                zdepth2 = coords_col_entity_target->z_background;
-                zdist += coords_col_entity_target->z_background;
-            }
-
-            if(diff(z1, z2) > zdist)
-            {
-                continue;
-            }
-
-            x1 = (int)ent->position.x + ent->movex;
-            z1 = (int)ent->position.z + ent->movez;
-            y1 = (int)z1 - ent->position.y;
-            x2 = (int)target->position.x + target->movex;
-            z2 = (int)target->position.z + target->movez;
-            y2 = (int)z2 - target->position.y;
-
-            if(ent->direction == DIRECTION_LEFT)
-            {
-                col_entity_ent_pos_x   = x1 - coords_col_entity_ent->width;
-                col_entity_ent_size_x  = x1 - coords_col_entity_ent->x;
-            }
-            else
-            {
-                col_entity_ent_pos_x    = x1 + coords_col_entity_ent->x;
-                col_entity_ent_size_x   = x1 + coords_col_entity_ent->width;
-            }
-            col_entity_ent_pos_y    = y1 + coords_col_entity_ent->y;
-            col_entity_ent_size_y   = y1 + coords_col_entity_ent->height;
-
-            if(target->direction == DIRECTION_LEFT)
-            {
-                col_entity_target_pos_x    = x2 - coords_col_entity_target->width;
-                col_entity_target_size_x   = x2 - coords_col_entity_target->x;
-            }
-            else
-            {
-                col_entity_target_pos_x    = x2 + coords_col_entity_target->x;
-                col_entity_target_size_x   = x2 + coords_col_entity_target->width;
-            }
-            col_entity_target_pos_y    = y2 + coords_col_entity_target->y;
-            col_entity_target_size_y   = y2 + coords_col_entity_target->height;
-
-            if(col_entity_ent_pos_x > col_entity_target_size_x)
-            {
-                continue;
-            }
-            if(col_entity_target_pos_x > col_entity_ent_size_x)
-            {
-                continue;
-            }
-            if(col_entity_ent_pos_y > col_entity_target_size_y)
-            {
-                continue;
-            }
-            if(col_entity_target_pos_y > col_entity_ent_size_y)
-            {
-                continue;
-            }
-
-            // If we got this far, set collision flag
-            // and break this loop.
-            collision_found = 1;
-            break;
-        }
-
-        // If a collision was found
-        // break out of loop.
-        if(collision_found)
-        {
-            break;
-        }
+        col_entity_target_pos_x    = x2 - coords_col_entity_target->width;
+        col_entity_target_size_x   = x2 - coords_col_entity_target->x;
     }
     else
     {
@@ -36445,28 +36346,28 @@ int check_inaction_entity_collision(entity              *ent,
     z2      = target->position.z;
     zdist   = 0;
 
-    if(coords_col_entity_ent->z2 > coords_col_entity_ent->z1)
+    if(coords_col_entity_ent->z_foreground > coords_col_entity_ent->z_background)
     {
-        zdepth1 = (coords_col_entity_ent->z2 - coords_col_entity_ent->z1) / 2;
-        z1 += coords_col_entity_ent->z1 + zdepth1;
+        zdepth1 = (coords_col_entity_ent->z_foreground - coords_col_entity_ent->z_background) / 2;
+        z1 += coords_col_entity_ent->z_background + zdepth1;
         zdist += zdepth1;
     }
-    else if(coords_col_entity_ent->z1)
+    else if(coords_col_entity_ent->z_background)
     {
-        zdepth1 = coords_col_entity_ent->z1;
-        zdist += coords_col_entity_ent->z1;
+        zdepth1 = coords_col_entity_ent->z_background;
+        zdist += coords_col_entity_ent->z_background;
     }
 
-    if(coords_col_entity_target->z2 > coords_col_entity_target->z1)
+    if(coords_col_entity_target->z_foreground > coords_col_entity_target->z_background)
     {
-        zdepth2 = (coords_col_entity_target->z2 - coords_col_entity_target->z1) / 2;
-        z2 += coords_col_entity_target->z1 + zdepth2;
+        zdepth2 = (coords_col_entity_target->z_foreground - coords_col_entity_target->z_background) / 2;
+        z2 += coords_col_entity_target->z_background + zdepth2;
         zdist += zdepth2;
     }
-    else if(coords_col_entity_target->z1)
+    else if(coords_col_entity_target->z_background)
     {
-        zdepth2 = coords_col_entity_target->z1;
-        zdist += coords_col_entity_target->z1;
+        zdepth2 = coords_col_entity_target->z_background;
+        zdist += coords_col_entity_target->z_background;
     }
 
     if(diff(z1, z2) > zdist)
@@ -36555,8 +36456,8 @@ int check_entity_collision(entity *ent, entity *target)
     s_hitbox *coords_col_entity_target;
     s_collision_entity  *col_entity_ent = NULL;
     s_collision_entity  *col_entity_target = NULL;
-    int col_entity_ent_instance;
-    int col_entity_target_instance = 0;
+	s_collision_entity* ent_collision_entity_cursor;
+	s_collision_entity* target_collision_entity_cursor;
     int collision_found = 0;
 
     if(ent == target
@@ -36571,43 +36472,58 @@ int check_entity_collision(entity *ent, entity *target)
     {
         return 0;
     }
+	
+	if (ent->animation->collision_entity)
+	{
+		ent_collision_entity_cursor = ent->animation->collision_entity[ent->animpos];
 
-    for(col_entity_ent_instance = 0; col_entity_ent_instance < max_collisions; col_entity_ent_instance++)
-    {
-        col_entity_ent  = ent->animation->collision_entity[ent->animpos]->instance[col_entity_ent_instance];
-        coords_col_entity_ent   = col_entity_ent->coords;
+		while (ent_collision_entity_cursor != NULL)
+		{
+			if (target->animation->collision_entity)
+			{
+				target_collision_entity_cursor = target->animation->collision_entity[target->animpos];
 
-        for(col_entity_target_instance = 0; col_entity_target_instance < max_collisions; col_entity_target_instance++)
-        {
-            col_entity_target          = target->animation->collision_entity[target->animpos]->instance[col_entity_target_instance];
-            coords_col_entity_target   = col_entity_target->coords;
+				while (target_collision_entity_cursor != NULL)
+				{
+					col_entity_target          = target->animation->collision_entity[target->animpos];
+					coords_col_entity_target   = col_entity_target->coords;
 
-            if ( check_potential_entity_collision(ent,
-                                                  col_entity_ent,
-                                                  coords_col_entity_ent,
-                                                  target,
-                                                  col_entity_target,
-                                                  coords_col_entity_target) ) collision_found |= 1;
-            else if ( check_inaction_entity_collision(ent,
-                                      col_entity_ent,
-                                      coords_col_entity_ent,
-                                      target,
-                                      col_entity_target,
-                                      coords_col_entity_target) ) collision_found |= 1;
+					if ( check_potential_entity_collision(ent,
+														  col_entity_ent,
+														  coords_col_entity_ent,
+														  target,
+														  col_entity_target,
+														  coords_col_entity_target) ) collision_found |= 1;
+					else if ( check_inaction_entity_collision(ent,
+											  col_entity_ent,
+											  coords_col_entity_ent,
+											  target,
+											  col_entity_target,
+											  coords_col_entity_target) ) collision_found |= 1;
 
-            // If we got this far, set collision flag
-            // and break this loop.
-            collision_found = 1;
-            break;
-        }
+					// If we got this far, set collision flag
+					// and break this loop.
+					collision_found = 1;
+					break;
 
-        // If a collision was found
-        // break out of loop.
-        if(collision_found)
-        {
-            break;
-        }
-    }
+					target_collision_entity_cursor = target_collision_entity_cursor->next;
+				}
+
+				target_collision_entity_cursor = NULL;
+				
+				// If a collision was found
+				// break out of loop.
+				if(collision_found)
+				{
+					break;
+				}
+			}
+
+			ent_collision_entity_cursor = ent_collision_entity_cursor->next;
+		}
+
+		ent_collision_entity_cursor = NULL;
+	}
 
     if(!collision_found)
     {
@@ -39282,6 +39198,22 @@ int projectile_wall_deflect(entity *acting_entity)
 }
 
 // Caskey, Damon V.
+// 2-18-04-06
+//
+// Invert current sorting position vs. parent.
+void sort_invert_by_parent(entity *ent, entity *parent)
+{
+    if(ent->sortid <= parent->sortid)
+    {
+        ent->sortid = parent->sortid + 1;
+    }
+    else
+    {
+        ent->sortid = parent->sortid - 1;
+    }
+}
+
+// White Dragon
 // 2018-04-08
 //
 // Destroy target and while ent plays catch animation
@@ -39298,14 +39230,14 @@ int do_catch(entity *ent, entity *target, int animation_catch)
         // If target is in range, then destroy it
         // while we play the catch animation,
         // and return true.
-        if(check_range_target_all(ent, target, animation_catch))
+        if(check_range_target_all(ent, target, animation_catch, 0, 0))
         {
             ent->takeaction = common_animation_normal;
             ent->attacking = ATTACKING_NONE;
             ent->idling = IDLING_NONE;
             ent->ducking = DUCK_NONE;
             ent_set_anim(ent, animation_catch, 0);
-            kill_entity(target);
+            kill_entity(target, KILL_ENTITY_TRIGGER_PARENT_KILL_ALL);
 
             return 1;
         }
@@ -39315,23 +39247,7 @@ int do_catch(entity *ent, entity *target, int animation_catch)
     return 0;
 }
 
-// Caskey, Damon V.
-// 2-18-04-06
-//
-// Invert current sorting position vs. parent.
-void sort_invert_by_parent(entity *ent, entity *parent)
-{
-    if(ent->sortid <= parent->sortid)
-    {
-        ent->sortid = parent->sortid + 1;
-    }
-    else
-    {
-        ent->sortid = parent->sortid - 1;
-    }
-}
-
-// Caskey, Damon V.
+// White Dragon
 // 2018-04-06
 //
 // Broken off from White Dragon's boomerang_move() function.
@@ -39392,7 +39308,7 @@ int boomerang_catch(entity *ent, float distance_x_current)
     }
 
     // Dead?
-    if(owner->dead)
+    if(owner->death_state & DEATH_STATE_DEAD)
     {
         return 0;
     }
@@ -39438,7 +39354,7 @@ void boomerang_initialize(entity *ent)
 
     // We don't want our directional facing
     // changing automatically.
-    ent->modeldata.noflip = 1;
+	ent->modeldata.move_config_flags |= MOVE_CONFIG_NO_FLIP;
 
     // Populate offscreenkill in case our
     // boomerang gets out of bounds.
@@ -39450,7 +39366,7 @@ void boomerang_initialize(entity *ent)
     {
         // Make sure we're not hostile to our owner
         // model type.
-        ent->modeldata.hostile &= ~(owner->modeldata.type);
+        ent->faction.type_hostile &= ~(owner->modeldata.type);
 
         // If we were thrown by an enemy or player faction
         // then make sure we're hostile to the opposite
@@ -39458,11 +39374,11 @@ void boomerang_initialize(entity *ent)
         if (owner->modeldata.type == TYPE_PLAYER
             || owner->modeldata.type == TYPE_NPC)
         {
-            ent->modeldata.hostile |= TYPE_ENEMY;
+            ent->faction.type_hostile |= TYPE_ENEMY;
         }
         else if(owner->modeldata.type == TYPE_ENEMY)
         {
-            ent->modeldata.hostile |= (TYPE_PLAYER | TYPE_NPC);
+            ent->faction.type_hostile |= (TYPE_PLAYER | TYPE_NPC);
         }
 
         // Match the owner's direction and drawing order
@@ -39475,11 +39391,11 @@ void boomerang_initialize(entity *ent)
     // we're facing.
     if(ent->direction == DIRECTION_LEFT)
     {
-        ent->velocity.x = -ent->modeldata.speed;
+        ent->velocity.x = -ent->modeldata.speed.x;
     }
     else if(ent->direction == DIRECTION_RIGHT)
     {
-        ent->velocity.x = ent->modeldata.speed;
+        ent->velocity.x = ent->modeldata.speed.x;
     }
 
     // Synchronize with owner's vertical
@@ -40745,7 +40661,7 @@ void player_die()
         execute_respawn_script(playerindex);
         if(!nodropen)
         {
-            if (savedata.joyrumble[playerindex]) control_rumble(playercontrolpointers, playerindex, 1, 125);
+            if (savedata.joyrumble[playerindex]) control_rumble(playerindex, 1, 125);
             drop_all_enemies();
         }
     }
@@ -45259,7 +45175,7 @@ void bike_crash()
     }
     for(i = 0; i < levelsets[current_set].maxplayers; i++)
     {
-        if (savedata.joyrumble[i]) control_rumble(playercontrolpointers, i, 1, 100);
+        if (savedata.joyrumble[i]) control_rumble(i, 1, 100);
     }
     //if(self->position.x < advancex-100 || self->position.x > advancex+(videomodes.hRes+100)) kill_entity(self);
 }
@@ -45367,7 +45283,7 @@ int obstacle_takedamage(entity *other, s_attack *attack, int fall_flag, s_defens
     set_opponent(other, self);
     if(self->opponent && (self->opponent->modeldata.type & TYPE_PLAYER))
     {
-        if (savedata.joyrumble[self->opponent->playerindex]) control_rumble(playercontrolpointers, self->opponent->playerindex, 1, 75);
+        if (savedata.joyrumble[self->opponent->playerindex]) control_rumble(self->opponent->playerindex, 1, 75);
     }
     
     /* Calculate and apply HP damage. */
@@ -46598,7 +46514,7 @@ void update_scrolled_bg()
 		{
 			for(int i = 0; i < levelsets[current_set].maxplayers; i++)
 			{
-				if (savedata.joyrumble[i]) control_rumble(playercontrolpointers, i, 1, 100);
+				if (savedata.joyrumble[i]) control_rumble(i, 1, 100);
 			}
 		}*/
     }
