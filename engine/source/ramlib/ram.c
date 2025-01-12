@@ -30,7 +30,8 @@
 #include <sys/sysinfo.h>
 #include <unistd.h>
 
-#include <features.h>#elif PS3
+#include <features.h>
+#elif PS3
 #include <sys/unistd.h>
 #include <ppu-lv2.h>
 #elif PSP
