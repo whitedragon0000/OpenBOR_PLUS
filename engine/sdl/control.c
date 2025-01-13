@@ -19,6 +19,7 @@
 #define T_AXIS 7000
 
 #ifdef ANDROID
+#define ANDROID_ACCELEROMETER "Android Accelerometer"
 #include "jniutils.h"
 #endif
 
@@ -75,7 +76,7 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
                         touch_info.pstatus[i] = TOUCH_STATUS_DOWN;
 						
                         // migration for White Dragon's vibration logic from SDLActivity.java
-                        if (is_touchpad_vibration_enabled() && keyboardDeviceID >= 0
+                        if (is_touchpad_vibration_enabled()
                                 && is_touch_area(touch_info.px[i], touch_info.py[i]))
                         {
                           jniutils_vibrate_device(savedata.touchpad_vibration_intensity);
@@ -85,7 +86,7 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
                     }
                 }
 
-                control_update_android_touch(&touch_info, MAX_POINTERS);
+                control_update_android_touch(&touch_info, MAX_POINTERS, keystate, keystate_def);
                 break;
             }
 			
@@ -100,8 +101,7 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
                     }
                 }
 
-                control_update_android_touch(&touch_info, MAX_POINTERS);
-                if (remapDevice && remapDevice->deviceType == DEVICE_TYPE_KEYBOARD) remapKeycode = -1;
+                control_update_android_touch(&touch_info, MAX_POINTERS, keystate, keystate_def);
                 break;
             }
 				
@@ -119,7 +119,7 @@ void getPads(Uint8* keystate, Uint8* keystate_def)
                             break;
                         }
                     }
-                    control_update_android_touch(&touch_info, MAX_POINTERS);
+                    control_update_android_touch(&touch_info, MAX_POINTERS, keystate, keystate_def);
                 }
                 break;
             }

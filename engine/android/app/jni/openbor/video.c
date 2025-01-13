@@ -663,6 +663,14 @@ int video_display_yuv_frame(void)
 	return 1;
 }
 
+int video_current_refresh_rate()
+{
+    SDL_DisplayMode display_mode;
+    if (SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &display_mode) != 0)
+        return 60;
+    return display_mode.refresh_rate;
+}
+
 void on_system_ui_visibility_change_event(int is_system_bars_visible)
 {
 	if (window && renderer)
