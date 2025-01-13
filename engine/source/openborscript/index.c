@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved. See LICENSE in OpenBOR root for license details.
  *
- * Copyright (c) 2004 - 2017 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #include "scriptcommon.h"
@@ -11,6 +11,7 @@
 //return name of function from pointer to function
 const char *Script_GetFunctionName(void *functionRef)
 {
+
     if (functionRef == ((void *)system_isempty))
     {
         return "isempty";
@@ -62,6 +63,14 @@ const char *Script_GetFunctionName(void *functionRef)
     else if (functionRef == ((void *)system_typeof))
     {
         return "typeof";
+    }
+    else if (functionRef == ((void*)system_string_to_float))
+    {
+        return "string_to_float";
+    }
+    else if (functionRef == ((void*)system_string_to_int))
+    {
+        return "string_to_int";
     }
     else if (functionRef == ((void *)math_sin))
     {
@@ -237,10 +246,6 @@ const char *Script_GetFunctionName(void *functionRef)
 	{
 		return "copy_drawmethod";
 	}
-	else if (functionRef == ((void *)openbor_free_drawmethod))
-	{
-	return "free_drawmethod";
-	}
 	else if (functionRef == ((void *)openbor_get_drawmethod_property))
 	{
 		return "get_drawmethod_property";
@@ -249,6 +254,27 @@ const char *Script_GetFunctionName(void *functionRef)
 	{
 		return "set_drawmethod_property";
 	}
+
+    else if (functionRef == ((void*)openbor_allocate_palette))
+    {
+        return "allocate_palette";
+    }
+    else if (functionRef == ((void*)openbor_copy_palette))
+    {
+        return "copy_palette";
+    }
+    else if (functionRef == ((void*)openbor_get_palette_property))
+    {
+        return "get_palette_property";
+    }
+    else if (functionRef == ((void*)openbor_load_palette))
+    {
+        return "load_palette";
+        }
+    else if (functionRef == ((void*)openbor_set_palette_property))
+    {
+        return "set_palette_property";
+    }
 
     else if (functionRef == ((void *)openbor_getplayerproperty))
     {
@@ -262,6 +288,23 @@ const char *Script_GetFunctionName(void *functionRef)
     {
         return "getentityproperty";
     }
+    else if (functionRef == ((void*)openbor_get_attack_id_value))
+    {
+    return "get_attack_id_value";
+    }
+    else if (functionRef == ((void*)openbor_set_attack_id_value))
+    {
+    return "set_attack_id_value";
+    }
+    
+    else if (functionRef == ((void*)openbor_get_colorset_property))
+    {
+        return "get_colorset_property";
+    }
+    else if (functionRef == ((void*)openbor_set_colorset_property))
+    {
+        return "set_colorset_property";
+    }
     else if (functionRef == ((void *)openbor_get_entity_property))
     {
         return "get_entity_property";
@@ -270,6 +313,54 @@ const char *Script_GetFunctionName(void *functionRef)
     {
         return "set_entity_property";
     }
+    else if (functionRef == ((void*)openbor_get_faction_property))
+    {
+        return "get_faction_property";
+    }
+    else if (functionRef == ((void*)openbor_set_faction_property))
+    {
+        return "set_faction_property";
+    }
+    else if (functionRef == ((void*)openbor_get_icon_property))
+    {
+        return "get_icon_property";
+    }
+    else if (functionRef == ((void*)openbor_set_icon_property))
+    {
+        return "set_icon_property";
+    }
+    else if (functionRef == ((void*)openbor_get_model_property))
+    {
+        return "get_model_property";
+    }
+    else if (functionRef == ((void*)openbor_set_model_property))
+    {
+        return "set_model_property";
+    }
+    else if (functionRef == ((void*)openbor_get_music_channel_property))
+    {
+        return "get_music_channel_property";
+    }
+    else if (functionRef == ((void*)openbor_set_music_channel_property))
+    {
+        return "set_music_channel_property";
+    }
+    else if (functionRef == ((void*)openbor_get_spawn_hud_property))
+    {
+        return "get_spawn_hud_property";
+        }
+    else if (functionRef == ((void*)openbor_set_spawn_hud_property))
+    {
+        return "set_spawn_hud_property";
+        }
+    else if (functionRef == ((void*)openbor_get_status_dial_property))
+    {
+        return "get_status_dial_property";
+        }
+    else if (functionRef == ((void*)openbor_set_status_dial_property))
+    {
+        return "set_status_dial_property";
+        }
     else if (functionRef == ((void *)openbor_get_animation_property))
     {
         return "get_animation_property";
@@ -278,7 +369,17 @@ const char *Script_GetFunctionName(void *functionRef)
     {
         return "set_animation_property";
     }
-    else if (functionRef == ((void *)openbor_get_attack_collection))
+
+	else if (functionRef == ((void*)openbor_get_sub_entity_property))
+	{
+	return "get_sub_entity_property";
+	}
+	else if (functionRef == ((void*)openbor_set_sub_entity_property))
+	{
+	return "set_sub_entity_property";
+	}
+
+	else if (functionRef == ((void *)openbor_get_attack_collection))
     {
         return "get_attack_collection";
     }
@@ -339,6 +440,26 @@ const char *Script_GetFunctionName(void *functionRef)
     else if (functionRef == ((void *)openbor_set_entity_collision_property))
     {
         return "set_entity_collision_property";
+    }
+
+    /* Flash config properties */
+    else if (functionRef == ((void*)openbor_get_flash_property))
+    {
+        return "get_flash_property";
+        }
+    else if (functionRef == ((void*)openbor_set_flash_property))
+    {
+        return "set_flash_property";
+    }
+
+    /* Global config property. */
+    else if (functionRef == ((void*)openbor_get_global_config_property))
+    {
+        return "get_global_config_property";
+    }
+    else if (functionRef == ((void*)openbor_set_global_config_property))
+    {
+        return "set_global_config_property";
     }
 
     else if (functionRef == ((void *)openbor_tossentity))
@@ -500,22 +621,6 @@ const char *Script_GetFunctionName(void *functionRef)
     else if (functionRef == ((void *)openbor_get_set_handle))
     {
         return "get_set_handle";
-    }
-    else if (functionRef == ((void *)openbor_set_item_property))
-    {
-        return "set_item_property";
-    }
-    else if (functionRef == ((void *)openbor_get_item_property))
-    {
-        return "get_item_property";
-    }
-    else if (functionRef == ((void *)openbor_get_spawnentry_property))
-    {
-        return "get_spawnentry_property";
-    }
-    else if (functionRef == ((void *)openbor_set_spawnentry_property))
-    {
-        return "set_spawnentry_property";
     }
     else if (functionRef == ((void *)openbor_get_layer_handle))
     {
@@ -704,6 +809,10 @@ const char *Script_GetFunctionName(void *functionRef)
     else if (functionRef == ((void *)openbor_isfirst))
     {
         return "isfirst";
+    }
+    else if (functionRef == ((void*)openbor_isarray))
+    {
+        return "isarray";
     }
     else if (functionRef == ((void *)openbor_allocscreen))
     {
@@ -918,23 +1027,39 @@ void *Script_GetStringMapFunction(void *functionRef)
     {
         return (void *)mapstrings_systemvariant;
     }
-    else if (functionRef == ((void *)openbor_getentityproperty))
+    
+	// Animation
+	else if (functionRef == ((void*)openbor_get_animation_property))
+	{
+		return (void*)mapstrings_animation_property;
+	}
+	else if (functionRef == ((void*)openbor_set_animation_property))
+	{
+		return (void*)mapstrings_animation_property;
+	}
+
+	// Animation
+	else if (functionRef == ((void*)openbor_get_sub_entity_property))
+	{
+		return (void*)mapstrings_sub_entity_property;
+	}
+	else if (functionRef == ((void*)openbor_set_sub_entity_property))
+	{
+		return (void*)mapstrings_sub_entity_property;
+	}
+
+	// Entity (Legacy)
+	else if (functionRef == ((void *)openbor_getentityproperty))
     {
         return (void *)mapstrings_entityproperty;
     }
     else if (functionRef == ((void *)openbor_changeentityproperty))
     {
         return (void *)mapstrings_entityproperty;
-    }    
-    else if (functionRef == ((void *)openbor_get_entity_property))
-    {
-        return (void *)mapstrings_entity_property;
-    }
-    else if (functionRef == ((void *)openbor_set_entity_property))
-    {
-        return (void *)mapstrings_entity_property;
-    }
-    else if (functionRef == ((void *)openbor_getplayerproperty))
+    } 
+	
+	// Entity
+	else if (functionRef == ((void *)openbor_getplayerproperty))
     {
         return (void *)mapstrings_playerproperty;
     }
@@ -992,27 +1117,6 @@ void *Script_GetStringMapFunction(void *functionRef)
     {
         return (void *)mapstrings_axis_principal_property;
     }
-
-    // Binding
-    else if (functionRef == ((void *)openbor_get_bind_property))
-    {
-        return (void *)mapstrings_bind_property;
-    }
-    else if (functionRef == ((void *)openbor_set_bind_property))
-    {
-        return (void *)mapstrings_bind_property;
-    }
-
-	// Drawmethod
-	else if (functionRef == ((void *)openbor_get_drawmethod_property))
-	{
-		return (void *)mapstrings_drawmethod;
-	}
-	else if (functionRef == ((void *)openbor_set_drawmethod_property))
-	{
-		return (void *)mapstrings_drawmethod;
-	}
-	
     else if (functionRef == ((void *)openbor_setspawnentry))
     {
         return (void *)mapstrings_setspawnentry;
@@ -1096,6 +1200,10 @@ void Script_LoadSystemFunctions()
                      (void *)system_free, "free");
     List_InsertAfter(&theFunctionList,
                      (void *)system_typeof, "typeof");
+    List_InsertAfter(&theFunctionList,
+                    (void*)system_string_to_float, "string_to_float");
+    List_InsertAfter(&theFunctionList,
+                    (void*)system_string_to_int, "string_to_int");
     List_InsertAfter(&theFunctionList,
                      (void *)math_sin, "sin");
     List_InsertAfter(&theFunctionList,
@@ -1188,18 +1296,34 @@ void Script_LoadSystemFunctions()
 	List_InsertAfter(&theFunctionList,
 		(void *)openbor_copy_drawmethod, "copy_drawmethod");
 	List_InsertAfter(&theFunctionList,
-		(void *)openbor_free_drawmethod, "free_drawmethod");
-	List_InsertAfter(&theFunctionList,
 		(void *)openbor_get_drawmethod_property, "get_drawmethod_property");
 	List_InsertAfter(&theFunctionList,
 		(void *)openbor_set_drawmethod_property, "set_drawmethod_property");
 
     List_InsertAfter(&theFunctionList,
-                     (void *)openbor_getplayerproperty, "getplayerproperty");
+        (void*)openbor_allocate_palette, "allocate_palette");
     List_InsertAfter(&theFunctionList,
+        (void*)openbor_copy_palette, "copy_palette");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_palette_property, "get_palette_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_palette_property, "set_palette_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_load_palette, "load_palette");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_getplayerproperty, "getplayerproperty");
+    
+	// Animation properties.
+	List_InsertAfter(&theFunctionList,
                      (void *)openbor_get_animation_property, "get_animation_property");
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_set_animation_property, "set_animation_property");
+
+	// Sub entity properties.
+	List_InsertAfter(&theFunctionList,
+		(void*)openbor_get_sub_entity_property, "get_sub_entity_property");
+	List_InsertAfter(&theFunctionList,
+		(void*)openbor_set_sub_entity_property, "set_sub_entity_property");
 
     // Attack properties
     List_InsertAfter(&theFunctionList,
@@ -1227,6 +1351,12 @@ void Script_LoadSystemFunctions()
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_set_body_collision_property, "set_body_collision_property");
 
+    // Entity properties.
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_colorset_property, "get_colorset_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_colorset_property, "set_colorset_property");
+
     // Entity collision (ebox) properties.
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_get_entity_collision_collection, "get_entity_collision_collection");
@@ -1242,6 +1372,54 @@ void Script_LoadSystemFunctions()
                      (void *)openbor_get_entity_property, "get_entity_property");
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_set_entity_property, "set_entity_property");
+
+    /* Faction properties. */    
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_faction_property, "get_faction_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_faction_property, "set_faction_property");
+
+    /* Flash config properties. */
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_flash_property, "get_flash_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_flash_property, "set_flash_property");
+
+    /* Global config properties. */
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_global_config_property, "get_global_config_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_global_config_property, "set_global_config_property");
+
+    /* Icon properties */
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_icon_property, "get_icon_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_icon_property, "set_icon_property");
+
+    /* Model properties. */
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_model_property, "get_model_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_model_property, "set_model_property");
+
+    /* Music channel properties. */
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_music_channel_property, "get_music_channel_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_music_channel_property, "set_music_channel_property");
+
+    /* Spawn HUD properties. */
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_spawn_hud_property, "get_spawn_hud_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_spawn_hud_property, "set_spawn_hud_property");
+
+    /* Status Popup properties. */
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_status_dial_property, "get_status_dial_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_status_dial_property, "set_status_dial_property");
 
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_changeentityproperty, "changeentityproperty");
@@ -1329,15 +1507,6 @@ void Script_LoadSystemFunctions()
                      (void *)openbor_set_set_property, "set_set_property");
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_get_set_handle, "get_set_handle");
-
-    List_InsertAfter(&theFunctionList,
-                     (void *)openbor_set_item_property, "set_item_property");
-    List_InsertAfter(&theFunctionList,
-                     (void *)openbor_get_item_property, "get_item_property");
-    List_InsertAfter(&theFunctionList,
-                     (void *)openbor_get_spawnentry_property, "get_spawnentry_property");
-    List_InsertAfter(&theFunctionList,
-                     (void *)openbor_set_spawnentry_property, "set_spawnentry_property");
 
     // 2017-04-27, DC, Layers
     List_InsertAfter(&theFunctionList,
@@ -1437,6 +1606,8 @@ void Script_LoadSystemFunctions()
                      (void *)openbor_islast, "islast");
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_isfirst, "isfirst");
+    List_InsertAfter(&theFunctionList,
+                    (void*)openbor_isarray, "isarray");
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_allocscreen, "allocscreen");
     List_InsertAfter(&theFunctionList,

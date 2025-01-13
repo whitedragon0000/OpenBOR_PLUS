@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #include "sdlport.h"
@@ -88,15 +88,8 @@ int argKeepAspectRatio = 0;
 
 void borExit(int reset)
 {
-#ifdef GP2X
-	gp2x_end();
-	chdir("/usr/gp2x");
-	execl("/usr/gp2x/gp2xmenu", "/usr/gp2x/gp2xmenu", NULL);
-#elif SDL
 	//SDL_Delay(1000);
 	SDL_Quit(); // Call this instead of atexit(SDL_Quit); It's best practice!
-#endif
-
 #ifdef DMALLOC_MODE
 PRINT_DMALLOC_INFO;
 #endif

@@ -1,9 +1,9 @@
 /*
- * OpenBOR - http://www.LavaLit.com
+ * OpenBOR - https://www.chronocrash.com
  * -----------------------------------------------------------------------
  * Licensed under the BSD license, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2011 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 // Adapted from sdl/menu.c.  Uses s_screen images instead of SDL surfaces.
 
@@ -780,10 +780,10 @@ void drawMenu()
 
 	printText(Scaler, (isWide ? 26 : 5), (isWide ? 11 : 4), WHITE, 0, 0, "OpenBoR %s", VERSION);
 	printText(Scaler, (isWide ? 392 : 261),(isWide ? 11 : 4), WHITE, 0, 0, __DATE__);
-	printText(Scaler, (isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Start Game", control_getmappedkeyname(0, SDID_ATTACK));
-	printText(Scaler, (isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "%s: BGM Player", control_getmappedkeyname(0, SDID_ATTACK2));
-	printText(Scaler, (isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "%s: View Logs", control_getmappedkeyname(0, SDID_JUMP));
-	printText(Scaler, (isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Quit Game", control_getmappedkeyname(0, SDID_SPECIAL));
+	printText(Scaler, (isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Start Game", control_getkeyname(savedata.keys[0][SDID_ATTACK]));
+	printText(Scaler, (isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "%s: BGM Player", control_getkeyname(savedata.keys[0][SDID_ATTACK2]));
+	printText(Scaler, (isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "%s: View Logs", control_getkeyname(savedata.keys[0][SDID_JUMP]));
+	printText(Scaler, (isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Quit Game", control_getkeyname(savedata.keys[0][SDID_SPECIAL]));
    	printText(Scaler, (isWide ? 330 : 197),(isWide ? 170 : 155), BLACK, 0, 0, "www.ChronoCrash.com");
 	printText(Scaler, (isWide ? 322 : 190),(isWide ? 180 : 165), BLACK, 0, 0, "www.SenileTeam.com");
 

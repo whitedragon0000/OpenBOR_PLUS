@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2014 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 #include <unistd.h>
 #include "SDL.h"
@@ -550,6 +550,7 @@ static void initMenu(int type)
 
 	savedata.fullscreen = isFull;
 	video_stretch(savedata.stretch);
+
 	videomodes.hRes = isWide ? 480 :320;
 	videomodes.vRes = isWide ? 272 :240;
 	videomodes.pixel = pixelbytes[PIXEL_32];
@@ -668,10 +669,11 @@ static void drawMenu()
 	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "J: View Logs");
 	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "S: Quit Game");
 #else
-	printText((isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Start Game", control_getmappedkeyname(0, SDID_ATTACK));
-	printText((isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "%s: BGM Player", control_getmappedkeyname(0, SDID_ATTACK2));
-	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "%s: View Logs", control_getmappedkeyname(0, SDID_JUMP));
-	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Quit Game", control_getmappedkeyname(0, SDID_SPECIAL));
+	//Kratus (13-03-21) changed the function "control_getkeyname" (Windows) to a direct string, because it will always use the default keys and can't be changed
+	printText((isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "A: Start Game");
+	printText((isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "S: BGM Player");
+	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "D: View Logs");
+	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "F: Quit Game");
 #endif
 	//CRxTRDude - Fixed the placement of these texts and appropriately changed the site for Chrono Crash
 	printText((isWide ? 320 : 188),(isWide ? 175 : 158), BLACK, 0, 0, "www.chronocrash.com");
@@ -732,10 +734,11 @@ static void drawBGMPlayer()
 	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "J: %s", bgmCycle ? "Cycle On" : "Cycle Off");
 	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "S: Exit Player");
 #else
-	printText((isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "%s: %s", control_getmappedkeyname(0, SDID_ATTACK), bgmPlay ? "Stop" : "Play");
-	printText((isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "%s: %s", control_getmappedkeyname(0, SDID_ATTACK2), bgmLoop ? "Repeat On" : "Repeat Off");
-	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "%s: %s", control_getmappedkeyname(0, SDID_JUMP), bgmCycle ? "Cycle On" : "Cycle Off");
-	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "%s: Exit Player", control_getmappedkeyname(0, SDID_SPECIAL));
+	//Kratus (13-03-21) changed the function "control_getkeyname" (Windows) to a direct string, because it will always use the default keys and can't be changed
+	printText((isWide ? 23 : 4),(isWide ? 251 : 226), WHITE, 0, 0, "A: %s", bgmPlay ? "Stop" : "Play");
+	printText((isWide ? 150 : 84),(isWide ? 251 : 226), WHITE, 0, 0, "S: %s", bgmLoop ? "Repeat On" : "Repeat Off");
+	printText((isWide ? 270 : 164),(isWide ? 251 : 226), WHITE, 0, 0, "D: %s", bgmCycle ? "Cycle On" : "Cycle Off");
+	printText((isWide ? 390 : 244),(isWide ? 251 : 226), WHITE, 0, 0, "F: Exit Player");
 #endif
 	//CRxTRDude - Fixed the placement of these texts and appropriately changed the site for Chrono Crash
 	printText((isWide ? 320 : 188),(isWide ? 175 : 158), BLACK, 0, 0, "www.chronocrash.com");
@@ -821,11 +824,20 @@ static void drawLogs()
 	drawMenu();
 }
 
+/*
+	Kratus (01-2023) Added a option to skip the OpenBOR logo
+	Simply add an empty txt file named "logoff" inside the "Paks" folder
+	Reduced the logo delay a bit to load faster
+*/
 static void drawLogo()
 {
     int i;
-    int delay = 500;
+    int delay = 200;
+	FILE *logoff;
+    char *path = "paks/logoff.txt";
+    logoff = fopen(path, "rb");
 
+    if(logoff){savedata.logo = 1;}
     if(savedata.logo) return;
 
 	initMenu(0);

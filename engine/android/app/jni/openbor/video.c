@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2015 OpenBOR Team
+ * Copyright (c) OpenBOR Team
  *
  * Video.c - adjunct to the main build's video.c.
  * Made by UTunnels (utunnels@hotmail.com).
@@ -235,10 +235,12 @@ static int setup_touch_txt()
     dirExists(filename, 1);
     sprintf(filename, "%s/%s/touch.txt", savesDir, pakname);
     sprintf(touchfilename, "%s/touch.txt", savesDir);
+    
+    // Kratus (02-2023) Rearranged the touch path order, external first and then the internal pak/data folder
     // Read file
     if( buffer_pakfile(filename, &buf, &size) != 1 &&
-            buffer_pakfile("data/touch.txt", &buf, &size) != 1 &&
-            buffer_pakfile(touchfilename, &buf, &size) != 1)
+        buffer_pakfile(touchfilename, &buf, &size) != 1 &&
+        buffer_pakfile("data/touch.txt", &buf, &size) != 1 )
     {
         return 0;
     }
@@ -659,6 +661,14 @@ int video_display_yuv_frame(void)
 {
 	blit();
 	return 1;
+}
+
+int video_current_refresh_rate()
+{
+    SDL_DisplayMode display_mode;
+    if (SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &display_mode) != 0)
+        return 60;
+    return display_mode.refresh_rate;
 }
 
 void on_system_ui_visibility_change_event(int is_system_bars_visible)

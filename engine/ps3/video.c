@@ -349,4 +349,18 @@ int video_display_yuv_frame(void)
 	blit();
 	return 1;
 }
+
+int video_current_refresh_rate()
+{
+    SDL_DisplayMode display_mode;
+    if (SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &display_mode) != 0)
+        return 60;
+    return display_mode.refresh_rate;
+}
+
+void video_set_window_title(const char* title)
+{
+	//if(window) SDL_SetWindowTitle(window, title);
+	strncpy(windowTitle, title, sizeof(windowTitle)-1);
+}
 #endif

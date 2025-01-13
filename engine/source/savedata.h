@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------
  * All rights reserved, see LICENSE in OpenBOR root for details.
  *
- * Copyright (c) 2004 - 2015 OpenBOR Team
+ * Copyright (c)  OpenBOR Team
  */
 
 #ifndef SAVEDATA_H
@@ -11,6 +11,11 @@
 
 #define     MAX_PLAYERS         4
 #define     MAX_BTN_NUM         13
+
+/**
+ *  Only structures written to disk need to be packed.
+ */
+#pragma pack(1)
 
 typedef struct
 {
@@ -35,23 +40,21 @@ typedef struct
     int fullscreen; // Window or Full Screen Mode
     int stretch; // Stretch (1) or preserve aspect ratio (0) in fullscreen mode
     int screen[1][2];
-    int vsync; // Sync to monitor refresh (1) or don't (0)
+    int fpslimit; // Sync to monitor refresh (1), limit to 200/500 FPS (2, 3) or don't (0)
 #if SDL
     int usegl; // 1 if OpenGL is preferred over SDL software blitting
     float hwscale; // Scale factor for OpenGL
     int hwfilter; // Simple or bilinear scaling
 #endif
-#if PSP
-    int pspcpuspeed; // PSP CPU Speed
-    int overscan[4]; // Control TV Overscan
-    int usetv; // Initilize TV at bootup
-#endif
+
 #if ANDROID
     int is_touchpad_vibration_enabled;
     int touchpad_vibration_intensity;
     int is_touchpad_visible;
 #endif
 } s_savedata;
+
+#pragma pack()
 
 extern s_savedata     savedata;
 

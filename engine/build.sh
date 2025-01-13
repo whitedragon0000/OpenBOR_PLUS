@@ -1,12 +1,12 @@
+#!/bin/bash
 #
 # OpenBOR - http://www.ChronoCrash.com
 # -----------------------------------------------------------------------
 # All rights reserved, see LICENSE in OpenBOR root for details.
 #
-# Copyright (c) 2004 - 2018 OpenBOR Team
+# Copyright (c) OpenBOR Team
 #
 
-#!/bin/bash
 # Building script for all platforms
 # build.sh by SX (SumolX@gmail.com)
 
@@ -37,12 +37,7 @@ function distribute {
   echo ------------------------------------------------------
   echo "          Validating Platforms Built w/Bash"
   echo ------------------------------------------------------
-  echo
-
-  if ! test "releases/PSP/OpenBOR/EBOOT.PBP"; then
-    echo "PSP Platform Failed To Build!"
-    exit 1
-  fi
+  echo  
 
 if test -e "releases/WINDOWS/OpenBOR/OpenBOR.exe"; then
     cd ../tools/borpak/source/
@@ -59,10 +54,7 @@ if test -e "releases/WINDOWS/OpenBOR/OpenBOR.exe"; then
     echo "Wii Platform Failed To Build!"
     exit 1
   fi
-  if ! test -e "releases/OPENDINGUX/OpenBOR/OpenBOR.dge"; then
-    echo "OpenDingux Platform Failed To Build!"
-    exit 1
-  fi
+  
   if test -e "releases/LINUX/OpenBOR/OpenBOR"; then
     cd ../tools/borpak/source/
     . build.sh lin
@@ -71,26 +63,15 @@ if test -e "releases/WINDOWS/OpenBOR/OpenBOR.exe"; then
     cp ../scripts/paxplode ../../../engine/releases/LINUX/OpenBOR/
     cd ../../../engine
   else
-    if [ `echo $HOST_PLATFORM | grep -o "Linux"` ]; then
+    if [ $(echo $HOST_PLATFORM | grep -o "Linux") ]; then
       echo "Linux Platform Failed To Build!"
       exit 1
     fi
   fi
-  if test -e "releases/DARWIN/OpenBOR.app/Contents/MacOS/OpenBOR"; then
-    cd ../tools/borpak/source/
-    . build.sh mac
-    cp borpak ../../../engine/releases/DARWIN/OpenBOR.app/Contents/Resources/
-    cp ../scripts/packer ../../../engine/releases/DARWIN/OpenBOR.app/Contents/Resources/
-    cp ../scripts/paxplode ../../../engine/releases/DARWIN/OpenBOR.app/Contents/Resources/
-    cd ../../../engine
-  else
-    echo "Darwin Platform Failed To Build!"
-    exit 1
-  fi
-
+  
   echo "All Platforms Created Successfully"
   if ! test "$BUILDBATCH"; then
-    TRIMMED_URL=`svn info | grep "URL:" | sed s/URL:\ svn\+ssh//g`
+    TRIMMED_URL=$(svn info | grep "URL:" | sed s/URL:\ svn\+ssh//g)
     if test -n $TRIMMED_URL;  then
       TRIMMED_URL="svn"$TRIMMED_URL
     fi
@@ -98,53 +79,6 @@ if test -e "releases/WINDOWS/OpenBOR/OpenBOR.exe"; then
     7za a -t7z -mx9 -r -x!.svn "./releases/OpenBOR PLUS $VERSION.7z" ./releases/*
   fi
   echo
-}
-
-# PSP Environment && Compile
-function psp {
-  export PATH=$OLD_PATH
-  . ./environ.sh 1
-  if test $PSPDEV; then
-    make clean BUILD_PSP=1
-    make BUILD_PSP=1
-    if test -f "./EBOOT.PBP"; then
-      if test ! -e "./releases/PSP"; then
-        mkdir ./releases/PSP
-        mkdir ./releases/PSP/OpenBOR
-        mkdir ./releases/PSP/OpenBOR/Images
-        mkdir ./releases/PSP/OpenBOR/Logs
-        mkdir ./releases/PSP/OpenBOR/Paks
-        mkdir ./releases/PSP/OpenBOR/Saves
-        mkdir ./releases/PSP/OpenBOR/Modules
-      fi
-      mv EBOOT.PBP ./releases/PSP/OpenBOR/
-      mv OpenBOR.elf ./releases/PSP/OpenBOR/Modules/
-      cp ./psp/dvemgr/dvemgr.prx ./releases/PSP/OpenBOR/Modules/
-      cp ./psp/kernel/kernel.prx ./releases/PSP/OpenBOR/Modules/
-      cp ./psp/control/control.prx ./releases/PSP/OpenBOR/Modules/
-      cp ./psp/exception/exception.prx ./releases/PSP/OpenBOR/Modules/
-      cp ./resources/OpenBOR_Menu_480x272_Sony.png ./releases/PSP/OpenBOR/Images/Menu.png
-      cp ./resources/OpenBOR_Logo_480x272.png ./releases/PSP/OpenBOR/Images/Loading.png
-    fi
-    make clean BUILD_PSP=1
-  fi
-}
-
-# PS Vita Environment && Compile
-function vita {
-  export PATH=$OLD_PATH
-  . ./environ.sh 2
-  if test $VITASDK; then
-    make clean BUILD_VITA=1
-    make BUILD_VITA=1
-    if test -f "./OpenBOR.vpk"; then
-      if test ! -e "./releases/VITA"; then
-        mkdir ./releases/VITA
-      fi
-      mv OpenBOR.vpk ./releases/VITA/
-    fi
-    make clean BUILD_VITA=1
-  fi
 }
 
 # PS3 Environment && Compile
@@ -198,18 +132,18 @@ function linux {
 
 # Compile for Linux under various architectures
 function linux_x86 {
-  if [ `uname -s | grep -o "Linux"` ]; then
-    linux i.86-.*linux.* x86 LINUX || # try standard 32-bit GCC
-    [ `gcc -dumpmachine | grep -o x86_64-.*linux.*` ] && [ `gcc -print-multi-lib | grep -o '@m32'` ] && # check for x86_64 GCC with 32-bit multilib
-    linux x86_64-.*linux.* x86 LINUX  # try 64-bit compiler with multilib
+  if [ $(uname -s | grep -o "Linux") ]; then
+    linux i.86-.*linux.* x86 LINUX || { # try standard 32-bit GCC
+    [ $(gcc -dumpmachine | grep -o x86_64-.*linux.*) ] && [ $(gcc -print-multi-lib | grep -o '@m32') ] && # check for x86_64 GCC with 32-bit multilib
+    linux x86_64-.*linux.* x86 LINUX; }  # try 64-bit compiler with multilib
   fi
 }
 
 function linux_amd64 {
-  if [ `uname -s | grep -o "Linux"` ]; then
-    linux x86_64-.*linux.* amd64 LINUX_AMD64 || # try standard 64-bit GCC
-    [ `gcc -dumpmachine | grep -o i.86-.*linux.*` ] && [ `gcc -print-multi-lib | grep -o '@m64'` ] && # check for x86 GCC with 64-bit multilib
-    linux i.86-.*linux.* amd64 LINUX_AMD64 # try 32-bit compiler with multilib
+  if [ $(uname -s | grep -o "Linux") ]; then
+    linux x86_64-.*linux.* amd64 LINUX_AMD64 || { # try standard 64-bit GCC
+    [ $(gcc -dumpmachine | grep -o i.86-.*linux.*) ] && [ $(gcc -print-multi-lib | grep -o '@m64') ] && # check for x86 GCC with 64-bit multilib
+    linux i.86-.*linux.* amd64 LINUX_AMD64; } # try 32-bit compiler with multilib
   fi
 }
 
@@ -329,8 +263,6 @@ function build_all {
   if test -e "buildspec.sh"; then
     . ./buildspec.sh
   else
-    psp
-    vita
     linux_x86
     linux_amd64
     windows
@@ -339,7 +271,7 @@ function build_all {
 	android
 	ps3
   fi
-  distribute
+  #distribute -- 2023-01-04 DC Throws series of errors. Needs a closer look.
 }
 
 function print_help {
@@ -347,12 +279,9 @@ function print_help {
   echo "Run $0 with one of the below targets"
   echo "-------------------------------------------------------"
   echo "    0 = Distribute"
-  echo "    1 = PSP"
-  echo "    2 = PS Vita"
   echo "    4 = Linux (x86, amd64) Example: $0 4 amd64"
   echo "    5 = Windows"
   echo "    7 = Wii"
-  echo "   10 = Darwin"
   echo "   11 = PS3"
   echo "  all = build for all applicable targets"
   echo "-------------------------------------------------------"
@@ -364,16 +293,6 @@ case $1 in
   0)
     version
     distribute
-    ;;
-
-  1)
-    version
-    psp
-    ;;
-
-  2)
-    version
-    vita
     ;;
 
   4)
@@ -389,11 +308,6 @@ case $1 in
   7)
     version
     wii
-    ;;
-
-  10)
-    version
-    darwin
     ;;
 
   11)
