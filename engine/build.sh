@@ -85,16 +85,37 @@ if test -e "releases/WINDOWS/OpenBOR/OpenBOR.exe"; then
 function ps3 {
   export PATH=$OLD_PATH
   . ./environ.sh 11
+
   if test $PS3SDK; then
-    make clean BUILD_PS3=1
-    make BUILD_PS3=1
+
+    echo "=== PS3 MSYS MAKE TEST ==="
+    echo "PS3SDK=$PS3SDK"
+
+    ../tools/ps3-sdk/MinGW/msys/1.0/bin/bash.exe -c "
+      export PATH=../tools/ps3-sdk/MinGW/msys/1.0/bin:../tools/ps3-sdk/MinGW/bin:\$PATH;
+      cd .;
+      . ./environ.sh 11;
+      echo USING_MAKE;
+      which make;
+      make --version;
+      make clean BUILD_PS3=1 -j1;
+      make BUILD_PS3=1 DEPSOPT= ERROR_FILTER=
+    "
+
     if test -f "./OpenBOR.pkg"; then
       if test ! -e "./releases/PS3"; then
         mkdir ./releases/PS3
       fi
       mv OpenBOR.pkg ./releases/PS3/
     fi
-    make clean BUILD_PS3=1
+
+    ../tools/ps3-sdk/MinGW/msys/1.0/bin/bash.exe -c "
+      export PATH=../tools/ps3-sdk/MinGW/msys/1.0/bin:../tools/ps3-sdk/MinGW/bin:\$PATH;
+      cd .;
+      . ./environ.sh 11;
+      make clean BUILD_PS3=1
+    "
+
   fi
 }
 
