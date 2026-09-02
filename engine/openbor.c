@@ -44579,7 +44579,7 @@ entity *boomerang_spawn(entity *parent, s_projectile *projectile, char *name, in
     }
 
 	int nomove = e->modeldata.move_config_flags & (MOVE_CONFIG_NO_MOVE | MOVE_CONFIG_NO_FLIP) && e->modeldata.move_config_flags & MOVE_CONFIG_NO_FLIP;
-    if(!e->model->speed.x != 0 && !nomove)
+	if((!e->model->speed.x) != 0 && !nomove)
     {
         e->modeldata.speed.x = 2.0f;
     }
