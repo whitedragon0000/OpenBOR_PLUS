@@ -18181,6 +18181,16 @@ s_model *load_cached_model(char *name, char *owner, char unload)
         default:
             //Do nothing.
             break;
+        case TYPE_NONE:
+            // Backward compatibility. In the legacy engine, an
+            // uninitialized "hostile"/"candamage" value defaulted
+            // to -1 (all bits set), which acted as a wildcard for
+            // type none entities. The new faction system's
+            // "not initialized" sentinel (TYPE_UNDELCARED) is not
+            // a wildcard, so we restore the old permissive
+            // behavior explicitly here.
+            newchar->faction.type_hostile = TYPE_ANY;
+            break;
         case TYPE_ENEMY:
             newchar->faction.type_hostile = TYPE_PLAYER;
             if(newchar->subtype == SUBTYPE_ARROW || newchar->subtype == SUBTYPE_BOOMERANG)
@@ -18217,6 +18227,10 @@ s_model *load_cached_model(char *name, char *owner, char unload)
         {
         default:
             //Do nothing.
+            break;
+        case TYPE_NONE:
+            // Backward compatibility (see type_hostile above).
+            newchar->faction.type_damage_direct = TYPE_ANY;
             break;
         case TYPE_ENEMY:
             newchar->faction.type_damage_direct = TYPE_PLAYER | TYPE_SHOT;
@@ -18257,6 +18271,10 @@ s_model *load_cached_model(char *name, char *owner, char unload)
         {
         default:
             //Do nothing.
+            break;
+        case TYPE_NONE:
+            // Backward compatibility (see type_hostile above).
+            newchar->faction.type_damage_indirect = TYPE_ANY;
             break;
         case TYPE_ENEMY:
             newchar->faction.type_damage_indirect = TYPE_ENEMY | TYPE_OBSTACLE;
