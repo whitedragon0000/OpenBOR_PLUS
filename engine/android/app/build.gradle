@@ -1,13 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
-  compileSdkVersion 31
+  compileSdkVersion 35
     defaultConfig {
-      minSdkVersion 14
-        targetSdkVersion 31
+      minSdkVersion 21
+        targetSdkVersion 35
 
         //////////// MODFY FOR CUSTOM APK /////////////////
         applicationId "org.openbor.engine"
+        namespace "org.openbor.engine"
         versionCode 1
         versionName "1.0.0"
         resValue "string", "app_name", "Openbor"
@@ -15,18 +16,24 @@ android {
 
         externalNativeBuild {
           ndkBuild {
-            arguments "APP_PLATFORM=android-16"
-              // currently supports with pre-built libraries for following
-              // two target abis removed arm64 as unsupported for now
-              abiFilters 'armeabi-v7a', 'arm64-v8a'
+              abiFilters 'arm64-v8a'
           }
         }
     }
 
   signingConfigs {
+        debug {
+        // ... your debug keystore details here ...
+        // For example, if you have a debug.keystore in your project root
+        storeFile file('debug.keystore')
+        storePassword 'android' // Default password for debug keystore
+        keyAlias 'androiddebugkey' // Default alias
+        keyPassword 'android' // Default password for alias
+    }
+    
     release {
       // only try to find keystore.properties when it's release build
-      if (project.gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }) {
+      /*
         def keystorePropertiesFile = rootProject.file("keystore.properties")
         def keystoreProperties = new Properties()
         keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
@@ -35,20 +42,21 @@ android {
         keyPassword keystoreProperties['keyPassword']
         storeFile file(keystoreProperties['storeFile'])
         storePassword keystoreProperties['storePassword']
-      }
+        */
     } 
   }
 
   buildTypes {
   
   android.applicationVariants.all { variant ->
-	if(applicationId == "org.openbor.engine"){
     variant.outputs.all {
         outputFileName = "OpenBOR.apk";
-			}
 		}
 	}
-  
+     debug {
+        // Do NOT add 'signingConfig signingConfigs.release' here
+        // It should inherit the default debug signing or you define 'signingConfig signingConfigs.debug'
+    }
     release {
       minifyEnabled false
         proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -71,9 +79,18 @@ android {
   lintOptions {
     abortOnError false
   }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    ndkVersion '21.4.7075529'
+    buildToolsVersion '36.0.0'
 }
 
 dependencies {
-implementation fileTree(include: ['*.jar'], dir: 'libs')
-  implementation "com.android.support:support-v4:27.0.2"
+  implementation fileTree(include: ['*.jar'], dir: 'libs')
+  implementation 'androidx.appcompat:appcompat:1.0.2'
+  implementation(platform("org.jetbrains.kotlin:kotlin-bom:1.8.0"))
+  //needed to fix sdk 34+ crashing
+  implementation 'org.jetbrains:annotations:16.0.2'
 }

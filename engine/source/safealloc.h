@@ -14,7 +14,11 @@
 #include "utils.h" // for checkAlloc
 #undef strdup
 
+#ifndef _MSC_VER
 #define MALLOCLIKE __attribute__((__malloc__))
+#else
+#define MALLOCLIKE
+#endif
 
 static inline void *safeRealloc(void *ptr, size_t size, const char *func, const char *file, int line)
 {

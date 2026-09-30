@@ -22,12 +22,12 @@ static void putsprite_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx < xmax)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -72,12 +72,12 @@ static void putsprite_flip_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx > xmin)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -128,12 +128,12 @@ static void putsprite_remap_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx < xmax)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -183,12 +183,12 @@ static void putsprite_remap_flip_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx > xmin)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -240,12 +240,12 @@ static void putsprite_remapblend_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx < xmax)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -293,12 +293,12 @@ static void putsprite_remapblend_flip_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx > xmin)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -346,12 +346,12 @@ static void putsprite_blend_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx < xmax)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -399,12 +399,12 @@ static void putsprite_blend_flip_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx > xmin)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -637,23 +637,22 @@ static void _putsprite(int x, int y, s_sprite *sprite, s_screen *screen, s_drawm
 {
     if(!drawmethod || !(drawmethod->config & DRAWMETHOD_CONFIG_ENABLED))
     {
-        goto plainsprite;
+        switch (screen->pixelformat)
+        {
+        case PIXEL_8:
+            putsprite_8(x, y, 0, sprite, screen, NULL, NULL);
+            break;
+        case PIXEL_16:
+            putsprite_x8p16(x, y, 0, sprite, screen, (unsigned short*)sprite->palette, NULL);
+            break;
+        case PIXEL_32:
+            putsprite_x8p32(x, y, 0, sprite, screen, (unsigned*)sprite->palette, NULL);
+            break;
+        }
     }
-
-    putsprite_ex(x, y, sprite, screen, drawmethod);
-    return;
-plainsprite:
-    switch(screen->pixelformat)
+    else
     {
-    case PIXEL_8:
-        putsprite_8(x, y, 0, sprite, screen, NULL, NULL);
-        break;
-    case PIXEL_16:
-        putsprite_x8p16(x, y, 0, sprite, screen, (unsigned short *)sprite->palette, NULL);
-        break;
-    case PIXEL_32:
-        putsprite_x8p32(x, y, 0, sprite, screen, (unsigned *)sprite->palette, NULL);
-        break;
+        putsprite_ex(x, y, sprite, screen, drawmethod);
     }
 }
 

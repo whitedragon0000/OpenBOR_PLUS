@@ -70,7 +70,7 @@ void freebitmap(s_bitmap *bitmap)
 void getbitmap(int x, int y, int width, int height, s_bitmap *bitmap, s_screen *screen)
 {
 
-    int s, d;
+    int d;
     //int i;
     int j;
 
@@ -108,7 +108,7 @@ void getbitmap(int x, int y, int width, int height, s_bitmap *bitmap, s_screen *
     d = 0;
     for(j = 0; j < height; j++)
     {
-        s = x + (y + j) * screen->width;
+        int s = x + (y + j) * screen->width;
         memcpy(((char *)bitmap->data) + d, ((char *)screen->data) + s, width);
         d += width;
         /*
@@ -130,7 +130,7 @@ void putbitmap(int x, int y, s_bitmap *bitmap, s_screen *screen)
     int skiptop = 0;
     int width = bitmap->width;
     int height = bitmap->height;
-    int s, d;
+    int d;
     int i;
 
     // Clip width and height
@@ -163,7 +163,7 @@ void putbitmap(int x, int y, s_bitmap *bitmap, s_screen *screen)
 
     do
     {
-        s = skiptop * bitmap->width + skipleft;
+        int s = skiptop * bitmap->width + skipleft;
         ++skiptop;
         for(i = 0; i < width; i++)
         {
@@ -184,7 +184,6 @@ void putbitmap(int x, int y, s_bitmap *bitmap, s_screen *screen)
 void flipbitmap(s_bitmap *bitmap)
 {
     int x, xo, y;
-    unsigned char t;
     int xsize = bitmap->width;
     int ysize = bitmap->height;
 
@@ -192,7 +191,7 @@ void flipbitmap(s_bitmap *bitmap)
     {
         for(x = 0, xo = xsize - 1; x < xsize / 2; x++, xo--)
         {
-            t = bitmap->data[y * xsize + x];
+            unsigned char t = bitmap->data[y * xsize + x];
             bitmap->data[y * xsize + x] = bitmap->data[y * xsize + xo];
             bitmap->data[y * xsize + xo] = t;
         }
@@ -374,6 +373,3 @@ void clipbitmap(s_bitmap *bitmap, int *clip_left, int *clip_right, int *clip_top
         *clip_bottom = bottom_clipmove;
     }
 }
-
-
-

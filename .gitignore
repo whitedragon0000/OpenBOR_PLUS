@@ -4,6 +4,7 @@
 OpenBOR.elf
 meta.xml
 /engine/version.h
+/engine/version.txt
 /engine/resources/Info.plist
 engine/releases/
 /engine/ide/vs/.vs/
@@ -14,11 +15,7 @@ engine/resources/OpenBOR.res
 tools/bin/.wget-hsts
 tools/win-sdk/*
 !tools/win-sdk/win-sdk.7z
-tools/psp-sdk/*
-tools/devkitpro/*
-!tools/devkitpro/devkitPro.7z
-engine/android/app/src/main/assets/bor.pak
 /openbor_vs
-engine/ios/Build
 **/.DS_Store
 tools/borpak/source/borpak
+build/

@@ -40,10 +40,6 @@
 #undef __BSDI__
 #define __BSDI__    1
 #endif
-#if defined(_arch_dreamcast)
-#undef __DREAMCAST__
-#define __DREAMCAST__   1
-#endif
 #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__DragonFly__)
 #undef __FREEBSD__
 #define __FREEBSD__ 1

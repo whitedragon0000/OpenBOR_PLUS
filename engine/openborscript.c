@@ -21,7 +21,7 @@
 		 Be sure to call ScriptVariant_Clear if you want to use free to delete those variants.
 
 		 If you want to copy a ScriptVariant from another, use ScriptVariant_Copy instead of assignment,
-		 not because it is faster, but this method is neccessary for string types.
+		 not because it is faster, but this method is necessary for string types.
 
 		 If you want to change types of an ScriptVariant, use ScriptVariant_ChangeType, don't change vt directly.
 
@@ -34,6 +34,8 @@
 #include "ImportCache.h"
 #include "models.h"
 #include "scriptcommon.h"
+#include <limits.h>
+#include <stdint.h>
 
 Varlist global_var_list;
 Script *pcurrentscript = NULL; //used by local script functions
@@ -112,7 +114,6 @@ extern s_barstatus lbarstatus;
 extern s_barstatus loadingbarstatus;
 extern s_barstatus mpbarstatus;
 extern s_barstatus olbarstatus;
-extern musicchannelstruct musicchannel;
 
 static void clear_named_var_list(List *list, int level)
 {
@@ -260,72 +261,124 @@ int Varlist_AddByIndex(Varlist *array, int index, ScriptVariant *var)
     return 1;
 }
 
-// By White Dragon
-int Varlist_DeleteByIndex(Varlist *array, int index)
-{
-    if(index < 0 || index >= array->vars->lVal)
-    {
-        return 0;
-    }
-    else
-    {
-        int i = 0;
-        int size = array->vars->lVal;
-        ScriptVariant *elem;
+/*
+ * Caskey, Damon V.
+ * 2026-07-29 - Reworked original implementation
+ * by White Dragon.
+ *
+ * Removes the ScriptVariant at a zero-based numeric
+ * index and shifts all subsequent values left.
+ *
+ * The first ScriptVariant in the allocation stores
+ * the logical array length. Indexed values begin at
+ * the following element.
+ *
+ * Returns true when an entry is removed or false when 
+ * the supplied index is outside the array bounds.
+ */
+bool Varlist_DeleteByIndex(Varlist *array, int index) {
+    assert(array != NULL);
+    assert(array->vars != NULL);
 
-        for ( i = index; i < size-1; i++ )
-        {
-            ScriptVariant_Copy(array->vars+1+i, array->vars+1+i+1); // first value of array is his size!
-        }
-        --array->vars->lVal;
-
-        // set last element to NULL
-        elem = array->vars+1+size-1;
-        ScriptVariant_ChangeType(elem, VT_EMPTY);
-        elem->ptrVal = NULL;
-
-        //realloc mem
-        array->vars = realloc((array->vars), sizeof(*(array->vars))*(array->vars->lVal+1));
-
-        //printf("aaa: %s\n", (char*)StrCache_Get(elem->strVal) );
+    /*
+     * Reject indexes outside the logical value range.
+     */
+    if(index < 0 || index >= array->vars->lVal) {
+        return false;
     }
 
-    return 1;
+    const int size = array->vars->lVal;
+
+    /*
+     * Shift subsequent values left over the removed
+     * entry. ScriptVariant_Copy() is required instead
+     * of assignment or memmove because string variants
+     * maintain reference counts.
+     */
+    for(int i = index; i < size - 1; i++) {
+        ScriptVariant_Copy(
+            array->vars + 1 + i,
+            array->vars + 1 + i + 1);
+    }
+
+    /*
+     * Clear the final value, which became redundant
+     * after the shift. This releases any string
+     * reference still owned by that element.
+     */
+    ScriptVariant_Clear(array->vars + size);
+
+    /*
+     * Update the logical length stored in the allocation's
+     * leading ScriptVariant.
+     */
+    array->vars->lVal = size - 1;
+
+    /*
+     * Attempt to release the unused final allocation slot.
+     * Shrinking failure is harmless because the logical
+     * deletion is already complete and the original
+     * allocation remains valid.
+     */
+    const size_t allocation_count = (size_t)array->vars->lVal + 1U;
+
+    ScriptVariant *resized_vars = realloc(array->vars, sizeof(*array->vars) * allocation_count);
+
+    if(resized_vars) {
+        array->vars = resized_vars;
+    }
+
+    return true;
 }
 
-// By White Dragon
-int Varlist_DeleteByName(Varlist *array, char *theName)
-{
-    if(!theName || !theName[0])
-    {
-        return 0;
+/*
+ * Caskey, Damon V.
+ * 2026-07-29 - Reworked original implementation
+ * by White Dragon.
+ *
+ * Removes a named ScriptVariant entry from a Varlist.
+ * Returns true when an entry is removed or false when 
+ * the supplied name is empty or not present.
+ *
+ * The List owns the node and its copied name, while
+ * the Varlist owns the ScriptVariant stored as its
+ * value. Each allocation is released by its owner.
+ */
+bool Varlist_DeleteByName(Varlist *array, char *theName) {
+    /*
+     * Empty names are not valid named Varlist keys.
+     */
+    if(!theName || !theName[0]) {
+        return false;
     }
-    if(List_FindByName(array->list, theName))
-    {
-        Node* node;
-        Node* prev_node;
-        Node* next_node;
 
-        node = array->list->current;
-        prev_node = node->prev;
-        next_node = node->next;
+    /*
+     * List_FindByName() selects the matching node as
+     * the List's current node for removal.
+     */
+    if(!List_FindByName(array->list, theName)) {
+        return false;
+    }
 
-        if ( prev_node ) prev_node->next = next_node;
-        if ( next_node ) next_node->prev = prev_node;
+    ScriptVariant *value = (ScriptVariant *)List_Retrieve(array->list);
 
-        if ( array->list->last == node ) array->list->last = prev_node;
-        if ( array->list->first == node ) array->list->first = next_node;
-        if ( array->list->first == array->list->last && array->list->first == node ) {
-            array->list->last = NULL;
-            array->list->first = NULL;
-        }
+    assert(value != NULL);
 
-        --array->list->size;
+    /*
+     * Remove the node through the List API so its links,
+     * size, copied name, and string-hash entry remain
+     * synchronized. List_Remove() does not free the value.
+     */
+    List_Remove(array->list);
 
-        free(node);
-    } else return 0;
+    /*
+     * Release resources owned by the stored ScriptVariant,
+     * then release the ScriptVariant allocation itself.
+     */
+    ScriptVariant_Clear(value);
+    free(value);
 
-    return 1;
+    return true;
 }
 
 //this function should be called before all script methods, for once
@@ -370,6 +423,9 @@ void _freeheapnode(void *ptr)
 void Script_Global_Clear()
 {
     int i, size;
+#ifdef WEBM
+    movie_playback_shutdown();
+#endif
     List_Clear(&theFunctionList);
     // dump all un-freed variants
     size = List_GetSize(&scriptheap);
@@ -574,32 +630,90 @@ int Script_AppendText(Script *pscript, char *text, char *path)
     return success;
 }
 
-/* Replace string constants with enum constants at compile time to speed up
-   script execution. */
-int Script_MapStringConstants(Instruction *pInstruction)
-{
+/*
+* Caskey, Damon V.
+* 2026-07-29 - Reworked original implementation
+*
+* Replaces eligible string arguments with mapped
+* constants during script compilation.
+*
+* Parameter references are dynamically sized. This
+* function validates the cached call representation
+* without imposing an arbitrary parameter-count limit.
+*
+* Returns true when no mapping is needed or all applicable
+* mappings succeed. Returns false when the instruction is
+* invalid, its parameter metadata is inconsistent, or
+* a mapping operation fails.
+*/
+bool Script_MapStringConstants(Instruction *pInstruction) {
     ScriptVariant **params;
     int paramCount;
     int (*pMapstrings)(ScriptVariant **, int);
 
-    if(pInstruction->functionRef)
-    {
-        params = (ScriptVariant **)pInstruction->theRefList->solidlist;
-        paramCount = (int)pInstruction->theRef->lVal;
-        assert(paramCount <= 32);
-        // Get the pointer to the correct mapstrings function, if one exists.
-        pMapstrings = Script_GetStringMapFunction(pInstruction->functionRef);
-        if(pMapstrings)
-        {
-            // Call the mapstrings function.
-            if(!pMapstrings(params, paramCount))
-            {
-                return 0;
-            }
-        }
+    /*
+    * A missing instruction cannot contain valid call
+    * metadata.
+    */
+    if(!pInstruction) {
+        return false;
     }
 
-    return 1;
+    /*
+    * Script and imported calls do not use native
+    * string-constant mapping.
+    */
+    if(!pInstruction->functionRef) {
+        return true;
+    }
+
+    /*
+    * Native calls require a nonnegative cached parameter
+    * count and an allocated parameter-reference list.
+    */
+    if(!pInstruction->theRef
+       || pInstruction->theRef->vt != VT_INTEGER
+       || pInstruction->theRef->lVal < 0
+       || !pInstruction->theRefList) {
+        return false;
+    }
+
+    /*
+    * The parser generates parameter counts as int values
+    * stored in legacy integer variants.
+    */
+    paramCount =  (int)pInstruction->theRef->lVal;
+
+    /*
+    * The cached count must agree with the logical size
+    * retained by the solidified reference list.
+    */
+    if(List_GetSize(pInstruction->theRefList) != paramCount) {
+        return false;
+    }
+
+    /*
+    * Empty calls legitimately have no solid pointer
+    * table. Nonempty calls require one.
+    */
+    if(paramCount > 0 
+        && !pInstruction->theRefList->solidlist) {
+        return false;
+    }
+
+    params = (ScriptVariant **)pInstruction->theRefList->solidlist;
+
+    /*
+    * Only native functions with a registered mapper
+    * require compile-time string translation.
+    */
+    pMapstrings = Script_GetStringMapFunction(pInstruction->functionRef);
+
+    if(pMapstrings && !pMapstrings(params, paramCount)) {
+        return false;
+    }
+
+    return true;
 }
 
 //should be called only once after parsing text
@@ -622,10 +736,10 @@ int Script_Compile(Script *pscript)
     return result;
 }
 
-int Script_IsInitialized(Script *pscript)
-{
+bool Script_IsInitialized(Script *pscript) {
+    
     //if(pscript && pscript->initialized) pcurrentscript = pscript; //used by local script functions
-    return pscript->initialized;
+    return pscript->initialized ? true : false;
 }
 
 //execute the script
@@ -666,8 +780,6 @@ int Script_Execute(Script *pscript)
     }
     return result;
 }
-
-static s_attack attack = {.flash.object_type = OBJECT_TYPE_FLASH };
 
 //////////////////////////////////////////////////////////
 ////////////   system functions
@@ -1071,7 +1183,6 @@ static const char *svlist[] =
     "mirror_z",
     "models_cached",
     "models_loaded",
-    "music_channel",
     "musicvol",
     "neon_panel_z",
     "noaircancel",
@@ -1098,6 +1209,7 @@ static const char *svlist[] =
     "player2",
     "player3",
     "player4",
+    "player_collection",
     "player_max_z",
     "player_min_z",
     "porting",
@@ -1232,8 +1344,9 @@ changesystemvariant_error:
 //drawstring(x, y, font, string, z);
 HRESULT openbor_drawstring(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
+    ScriptVariantStringView string_view;
+    char conversion_buffer[SCRIPT_VARIANT_CONVERSION_BUFFER_LENGTH];
     int i;
-    char buf[MAX_BUFFER_LEN];
     LONG value[4];
     *pretvar = NULL;
 
@@ -1260,8 +1373,24 @@ HRESULT openbor_drawstring(ScriptVariant **varlist , ScriptVariant **pretvar, in
     {
         value[3] = 0;
     }
-    ScriptVariant_ToString(varlist[3], buf);
-    font_printf((int)value[0], (int)value[1], (int)value[2], (int)value[3], "%s", buf);
+    if(FAILED(ScriptVariant_GetStringView(
+        varlist[3],
+        conversion_buffer,
+        sizeof(conversion_buffer),
+        &string_view
+    )))
+    {
+        goto drawstring_error;
+    }
+
+    font_print_length(
+        (int)value[0],
+        (int)value[1],
+        (int)value[2],
+        (int)value[3],
+        string_view.string,
+        string_view.length
+    );
     return S_OK;
 
 drawstring_error:
@@ -1273,9 +1402,10 @@ drawstring_error:
 //drawstringtoscreen(screen, x, y, font, string);
 HRESULT openbor_drawstringtoscreen(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
+    ScriptVariantStringView string_view;
+    char conversion_buffer[SCRIPT_VARIANT_CONVERSION_BUFFER_LENGTH];
     int i;
     s_screen *scr;
-    char buf[MAX_BUFFER_LEN];
     LONG value[3];
     *pretvar = NULL;
 
@@ -1302,8 +1432,24 @@ HRESULT openbor_drawstringtoscreen(ScriptVariant **varlist , ScriptVariant **pre
         }
     }
 
-    ScriptVariant_ToString(varlist[4], buf);
-    screen_printf(scr, (int)value[0], (int)value[1], (int)value[2], "%s", buf);
+    if(FAILED(ScriptVariant_GetStringView(
+        varlist[4],
+        conversion_buffer,
+        sizeof(conversion_buffer),
+        &string_view
+    )))
+    {
+        goto drawstring_error;
+    }
+
+    screen_print_length(
+        scr,
+        (int)value[0],
+        (int)value[1],
+        (int)value[2],
+        string_view.string,
+        string_view.length
+    );
     return S_OK;
 
 drawstring_error:
@@ -1315,7 +1461,8 @@ drawstring_error:
 //log(string);
 HRESULT openbor_log(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
-    char buf[MAX_BUFFER_LEN];
+    ScriptVariantStringView string_view;
+    char conversion_buffer[SCRIPT_VARIANT_CONVERSION_BUFFER_LENGTH];
     *pretvar = NULL;
 
     if(paramCount != 1)
@@ -1323,8 +1470,17 @@ HRESULT openbor_log(ScriptVariant **varlist , ScriptVariant **pretvar, int param
         goto drawstring_error;
     }
 
-    ScriptVariant_ToString(varlist[0], buf);
-    printf("%s", buf);
+    if(FAILED(ScriptVariant_GetStringView(
+        varlist[0],
+        conversion_buffer,
+        sizeof(conversion_buffer),
+        &string_view
+    )))
+    {
+        goto drawstring_error;
+    }
+
+    writeToLogFileLength(string_view.string, string_view.length);
     return S_OK;
 
 drawstring_error:
@@ -3403,7 +3559,8 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
             (*pretvar)->lVal = (LONG)(ent->death_state & DEATH_STATE_DEAD);
             break;
         case _ep_aiflag_jumpid:
-            (*pretvar)->lVal = (LONG)ent->jump.animation_id;
+            ScriptVariant_ChangeType(*pretvar, VT_UINTEGER64);
+            (*pretvar)->ullVal = ent->jump.animation_id;
             break;
         case _ep_aiflag_jumping:
             (*pretvar)->lVal = (LONG)ent->jumping;
@@ -3427,7 +3584,7 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
             (*pretvar)->lVal = (LONG)ent->charging;
             break;
         case _ep_aiflag_blocking:
-            (*pretvar)->lVal = (LONG)ent->blocking;
+            (*pretvar)->lVal = (LONG)((ent->blocking & BLOCK_STATE_ACTIVE) != 0);
             break;
         case _ep_aiflag_ducking:
             (*pretvar)->lVal = (LONG)ent->ducking;
@@ -3556,20 +3713,20 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
     case _ep_animnum:
     case _ep_animationid:
     {
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)ent->animnum;
+        ScriptVariant_ChangeType(*pretvar, VT_UINTEGER64);
+        (*pretvar)->ullVal = ent->animnum;
         break;
     }
     case _ep_prevanimationid:
     {
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)ent->animnum_previous;
+        ScriptVariant_ChangeType(*pretvar, VT_UINTEGER64);
+        (*pretvar)->ullVal = ent->animnum_previous;
         break;
     }
     case _ep_animpos:
     {
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)ent->animpos;
+        ScriptVariant_ChangeType(*pretvar, VT_UINTEGER64);
+        (*pretvar)->ullVal = ent->animpos;
         break;
     }
     case _ep_animvalid:
@@ -4168,8 +4325,8 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
     }
     case _ep_guardpoints:
     {
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)ent->guardpoints;
+        ScriptVariant_ChangeType(*pretvar, VT_INTEGER64);
+        (*pretvar)->llVal = ent->guardpoints;
         break;
     }
     case _ep_hasplatforms:
@@ -4193,7 +4350,7 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
     case _ep_hitbyid:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (uintptr_t)ent->attack_id_incoming;
+        (*pretvar)->lVal = (uintptr_t)ent->attack_id_incoming[0];
         break;
     }
     case _ep_hitheadplatform:
@@ -5005,7 +5162,7 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
         case _ep_running_movez:
         {
             ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-            (*pretvar)->lVal = (LONG)ent->modeldata.runupdown;
+            (*pretvar)->lVal = (LONG)(ent->modeldata.run_config_flags & RUN_CONFIG_Z_DOWN_ENABLED);
             break;
         }
         }
@@ -5043,8 +5200,8 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
     }
     case _ep_seal:
     {
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)ent->seal;
+        ScriptVariant_ChangeType(*pretvar, VT_INTEGER64);
+        (*pretvar)->llVal = ent->seal;
         break;
     }
     case _ep_sealtime:
@@ -5130,7 +5287,7 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
 
         /*
         Request from animation or frame that doesn't exist = shutdown.
-        Let's be more user friendly then that; return empty so modder can evaluate
+        Let's be more user friendly than that; return empty so modder can evaluate
         and take action accordingly.*/
         if(!validanim(ent, arg->lVal) || !(ent->modeldata.animation[arg->lVal]->numframes >= arg1->lVal))
         {
@@ -5464,6 +5621,8 @@ HRESULT openbor_changeentityproperty(ScriptVariant **varlist , ScriptVariant **p
     s_model *tempmodel ;
     char *tempstr = NULL;
     LONG ltemp, ltemp2;
+    int64_t lltemp;
+    uint64_t ulltemp;
     DOUBLE dbltemp;
     int propind;
     int i = 0;
@@ -5621,7 +5780,7 @@ HRESULT openbor_changeentityproperty(ScriptVariant **varlist , ScriptVariant **p
                 ent->charging = (LONG)ltemp;
                 break;
             case _ep_aiflag_blocking:
-                ent->blocking = (LONG)ltemp;
+                ent->blocking = (e_block_state_flags)ltemp;
                 break;
             case _ep_aiflag_ducking:
                 ent->ducking = (LONG)ltemp;
@@ -5716,9 +5875,9 @@ HRESULT openbor_changeentityproperty(ScriptVariant **varlist , ScriptVariant **p
     }
     case _ep_animpos:
     {
-        if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[2], &ltemp)))
+        if(SUCCEEDED(ScriptVariant_Unsigned64Value(varlist[2], &ulltemp)))
         {
-            ent->animpos = (LONG)ltemp;
+            ent->animpos = ulltemp;
         }
         break;
     }
@@ -5828,7 +5987,7 @@ HRESULT openbor_changeentityproperty(ScriptVariant **varlist , ScriptVariant **p
     }
     case _ep_candamage:
     {
-        ent->faction.type_damage_direct = TYPE_UNDELCARED;
+        ent->faction.type_damage_direct = TYPE_UNDECLARED;
 
         for(i = 2; i < paramCount; i++)
         {
@@ -6247,9 +6406,9 @@ HRESULT openbor_changeentityproperty(ScriptVariant **varlist , ScriptVariant **p
     }
     case _ep_guardpoints:
     {
-        if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[2], &ltemp)))
+        if(SUCCEEDED(ScriptVariant_Integer64Value(varlist[2], &lltemp)))
         {
-            ent->guardpoints = (LONG)ltemp;
+            ent->guardpoints = lltemp;
         }
         break;
     }
@@ -6321,7 +6480,7 @@ HRESULT openbor_changeentityproperty(ScriptVariant **varlist , ScriptVariant **p
     }
     case _ep_hostile:
     {
-        ent->faction.type_hostile = TYPE_UNDELCARED;
+        ent->faction.type_hostile = TYPE_UNDECLARED;
         for(i = 2; i < paramCount; i++)
         {
             if(varlist[i]->vt == VT_INTEGER) // known entity type
@@ -6915,7 +7074,7 @@ HRESULT openbor_changeentityproperty(ScriptVariant **varlist , ScriptVariant **p
     }
     case _ep_projectilehit:
     {
-        ent->faction.type_damage_indirect = TYPE_UNDELCARED;
+        ent->faction.type_damage_indirect = TYPE_UNDECLARED;
 
         for(i = 2; i < paramCount; i++)
         {
@@ -6960,9 +7119,9 @@ HRESULT openbor_changeentityproperty(ScriptVariant **varlist , ScriptVariant **p
         {
             ent->modeldata.runjumpdist = (DOUBLE)dbltemp;
         }
-        if(paramCount >= 6 && SUCCEEDED(ScriptVariant_DecimalValue(varlist[5], &dbltemp)))
+        if(paramCount >= 6 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[5], &ltemp)))
         {            
-            if ((int)dbltemp)
+            if ((int)ltemp)
             {
                 ent->modeldata.run_config_flags |= RUN_CONFIG_LAND;
             }
@@ -6971,12 +7130,10 @@ HRESULT openbor_changeentityproperty(ScriptVariant **varlist , ScriptVariant **p
                 ent->modeldata.run_config_flags &= ~RUN_CONFIG_LAND;
             }
         }
-        if(paramCount >= 7 && SUCCEEDED(ScriptVariant_DecimalValue(varlist[6], &dbltemp)))
+        if(paramCount >= 7 && SUCCEEDED(ScriptVariant_IntegerValue(varlist[6], &ltemp)))
         {
-            ent->modeldata.runupdown = (int)dbltemp;
-
             /* For backward compatability. */
-            if (ent->modeldata.runupdown)
+            if (ltemp)
             {
                 ent->modeldata.run_config_flags |= (RUN_CONFIG_Z_DOWN_ENABLED | RUN_CONFIG_Z_UP_ENABLED);
             }
@@ -7030,9 +7187,9 @@ HRESULT openbor_changeentityproperty(ScriptVariant **varlist , ScriptVariant **p
     }
     case _ep_seal:
     {
-        if(SUCCEEDED(ScriptVariant_IntegerValue(varlist[2], &ltemp)))
+        if(SUCCEEDED(ScriptVariant_Integer64Value(varlist[2], &lltemp)))
         {
-            ent->seal = (LONG)ltemp;
+            ent->seal = lltemp;
         }
         break;
     }
@@ -7915,37 +8072,21 @@ HRESULT openbor_getplayerproperty(ScriptVariant **varlist , ScriptVariant **pret
     }
     case _pp_combokey:
     {
-        ScriptVariant *frm = NULL;
-        frm = varlist[2];
-        if(frm->vt != VT_INTEGER)
-        {
-            printf("Need a combostep value number for this property.\n");
-            *pretvar = NULL;
-            return E_FAIL;
-        }
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)player[index].combokey[frm->lVal];
-        break;
+        printf("Combokey is deprecated.\n");
+        *pretvar = NULL;
+        return E_FAIL;
     }
     case _pp_combostep:
     {
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)player[index].combostep;
-        break;
+        printf("Combostep is deprecated.\n");
+        *pretvar = NULL;
+        return E_FAIL;
     }
     case _pp_inputtime:
     {
-        ScriptVariant *frm = NULL;
-        frm = varlist[2];
-        if(frm->vt != VT_INTEGER)
-        {
-            printf("Need a combostep value number for this property.\n");
-            *pretvar = NULL;
-            return E_FAIL;
-        }
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)player[index].inputtime[frm->lVal];
-        break;
+        printf("Inputtime is deprecated.\n");
+        *pretvar = NULL;
+        return E_FAIL;
     }
     case _pp_hmapl:
     {
@@ -8032,12 +8173,13 @@ HRESULT openbor_getplayerproperty(ScriptVariant **varlist , ScriptVariant **pret
 //changeplayerproperty(index, propname, value[, value2, value3,...]);
 HRESULT openbor_changeplayerproperty(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
+    ScriptVariantStringView string_view;
+    char conversion_buffer[SCRIPT_VARIANT_CONVERSION_BUFFER_LENGTH];
     LONG ltemp, ltemp2;
     int index;
     entity *ent = NULL;
     int prop = -1;
     char *tempstr = NULL;
-    static char buffer[64];
     ScriptVariant *arg = NULL;
 
     *pretvar = NULL;
@@ -8310,54 +8452,25 @@ HRESULT openbor_changeplayerproperty(ScriptVariant **varlist , ScriptVariant **p
     }
     case _pp_combokey:
     {
-        if(SUCCEEDED(ScriptVariant_IntegerValue(arg,&ltemp)))
-        {
-            ScriptVariant *value = NULL;
-            value = varlist[3];
-            if(value->vt != VT_INTEGER)
-            {
-                printf("Need a value and combostep value for this property.\n");
-                *pretvar = NULL;
-                return E_FAIL;
-            }
-            player[index].combokey[ltemp] = (int)value->lVal;
-        }
-        else
-        {
-            goto cpperror;
-        }
+        
+        printf("Combokey is deprecated.\n");
+        goto cpperror;
+       
         break;
     }
     case _pp_combostep:
     {
-        if(SUCCEEDED(ScriptVariant_IntegerValue(arg,&ltemp)))
-        {
-            player[index].combostep = (LONG)ltemp;
-        }
-        else
-        {
-            goto cpperror;
-        }
+        printf("Combostep is deprecated.\n");
+        goto cpperror;
+
         break;
     }
     case _pp_inputtime:
     {
-        if(SUCCEEDED(ScriptVariant_IntegerValue(arg,&ltemp)))
-        {
-            ScriptVariant *value = NULL;
-            value = varlist[3];
-            if(value->vt != VT_INTEGER)
-            {
-                printf("Need a value and combostep value number for this property.\n");
-                *pretvar = NULL;
-                return E_FAIL;
-            }
-            player[index].inputtime[ltemp] = (int)value->lVal;
-        }
-        else
-        {
-            goto cpperror;
-        }
+        
+        printf("Inputtime is deprecated.\n");
+        goto cpperror;
+        
         break;
     }
     default:
@@ -8367,8 +8480,23 @@ HRESULT openbor_changeplayerproperty(ScriptVariant **varlist , ScriptVariant **p
 
     return S_OK;
 cpperror:
-    ScriptVariant_ToString(arg, buffer);
-    printf("Function changeplayerproperty receives an invalid value: %s.\n", buffer);
+    if(SUCCEEDED(ScriptVariant_GetStringView(
+        arg,
+        conversion_buffer,
+        sizeof(conversion_buffer),
+        &string_view
+    )))
+    {
+        printf(
+            "Function changeplayerproperty receives an invalid value: %.*s.\n",
+            (int)string_view.length,
+            string_view.string
+        );
+    }
+    else
+    {
+        printf("Function changeplayerproperty receives an invalid or oversized value.\n");
+    }
     return E_FAIL;
 }
 
@@ -8550,7 +8678,7 @@ int getsyspropertybyindex(ScriptVariant *var, int index)
             return 0;
         }
         ScriptVariant_ChangeType(var, VT_INTEGER);
-        var->lVal = GAME_SPEED;
+        var->lVal = global_config.game_speed;
         break;
 
     case SYSTEM_PROPERTY_GAME_TIME:
@@ -8990,12 +9118,6 @@ int getsyspropertybyindex(ScriptVariant *var, int index)
         var->lVal = models_loaded;
         break;
 
-    case SYSTEM_PROPERTY_MUSIC_CHANNEL:
-
-        ScriptVariant_ChangeType(var, VT_PTR);
-        var->ptrVal = &musicchannel;
-        break;
-
     case SYSTEM_PROPERTY_MUSICVOL:
 
         ScriptVariant_ChangeType(var, VT_INTEGER);
@@ -9160,6 +9282,12 @@ int getsyspropertybyindex(ScriptVariant *var, int index)
         var->ptrVal = player + 3;
         break;
 
+    case SYSTEM_PROPERTY_PLAYER_COLLECTION:
+
+        ScriptVariant_ChangeType(var, VT_PTR);
+        var->ptrVal = &player;
+        break;
+
     case SYSTEM_PROPERTY_PORTING:
     {
         e_porting porting;
@@ -9168,26 +9296,10 @@ int getsyspropertybyindex(ScriptVariant *var, int index)
                 porting = PORTING_ANDROID;
         #elif DARWIN
                 porting = PORTING_DARWIN;
-        #elif DC
-                porting = PORTING_DREAMCAST;
-        #elif GPX2
-                porting = PORTING_GPX2;
         #elif LINUX
                 porting = PORTING_LINUX;
-        #elif OPENDINGUX
-                porting = PORTING_OPENDINGUX;
-        #elif PSP
-                porting = PORTING_PSP;
-        #elif WII
-                porting = PORTING_WII;
         #elif WIN
                 porting = PORTING_WINDOWS;
-        #elif WIZ
-                porting = PORTING_WIZ;
-        #elif XBOX
-                porting = PORTING_XBOX;
-        #elif VITA
-                porting = PORTING_VITA;
         #else
                 porting = PORTING_UNKNOWN;
         #endif
@@ -10409,8 +10521,57 @@ HRESULT openbor_generatebasemap(ScriptVariant **varlist , ScriptVariant **pretva
     return S_OK;
 }
 
-HRESULT openbor_openfilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
+/*
+* Caskey, Damon V.
+* 2026-07-24
+*
+* Build a writable external file path for filestream
+* save, load, and delete operations.
+*
+* When pathname is NULL, use the current module's
+* directory under Saves. Otherwise, use pathname
+* relative to the engine working directory.
+*/
+static bool filestream_get_external_path(char* const path, const size_t path_capacity, const char* const filename, const char* const pathname) {
+    
+    char module_name[MAX_BUFFER_LEN] = { "" };
+    size_t path_length;
+    int write_length;
+
+    if (!path || !path_capacity || !filename) {
+        return false;
+    }
+
+    if (pathname) {
+        write_length = snprintf(path, path_capacity, "./%s%s", pathname, filename);
+
+        return write_length >= 0
+            && (size_t)write_length < path_capacity;
+    }
+
+    getBasePath(path, "Saves", 0);
+    getPakName(module_name, -1);
+
+    path_length = strlen(path);
+
+    if (path_length >= path_capacity) {
+        return false;
+    }
+
+    write_length = snprintf(
+        path + path_length,
+        path_capacity - path_length,
+        "%s/%s",
+        module_name,
+        filename
+    );
+
+    return write_length >= 0
+        && (size_t)write_length < path_capacity - path_length;
+}
+
+HRESULT openbor_openfilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
+
     char *filename = NULL;
     ScriptVariant *arg = NULL;
     LONG location = 0;
@@ -10418,13 +10579,11 @@ HRESULT openbor_openfilestream(ScriptVariant **varlist , ScriptVariant **pretvar
 
     FILE *handle = NULL;
     char path[MAX_BUFFER_LEN] = {""};
-    char tmpname[MAX_BUFFER_LEN] = {""};
     long size;
 
     ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
 
-    if(paramCount < 1)
-    {
+    if(paramCount < 1) {
         *pretvar = NULL;
         return E_FAIL;
     }
@@ -10432,8 +10591,7 @@ HRESULT openbor_openfilestream(ScriptVariant **varlist , ScriptVariant **pretvar
     ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
 
     arg = varlist[0];
-    if(arg->vt != VT_STR)
-    {
+    if(arg->vt != VT_STR) {
         printf("Filename for openfilestream must be a string.\n");
         *pretvar = NULL;
         return E_FAIL;
@@ -10441,42 +10599,35 @@ HRESULT openbor_openfilestream(ScriptVariant **varlist , ScriptVariant **pretvar
 
     filename = (char *)StrCache_Get(arg->strVal);
 
-    if(paramCount > 1)
-    {
+    if(paramCount > 1) {
         arg = varlist[1];
-        if(FAILED(ScriptVariant_IntegerValue(arg, &location)))
-        {
+        if(FAILED(ScriptVariant_IntegerValue(arg, &location))) {
             *pretvar = NULL;
             return E_FAIL;
         }
     }
 
-    for(fsindex = 0; fsindex < numfilestreams; fsindex++)
-    {
-        if(filestreams[fsindex].buf == NULL)
-        {
+    for(fsindex = 0; fsindex < numfilestreams; fsindex++) {
+        if(filestreams[fsindex].buf == NULL) {
             break;
         }
     }
 
-    if(fsindex == numfilestreams)
-    {
+    if(fsindex == numfilestreams) {
         __realloc(filestreams, numfilestreams); //warning, don't ++ here, its a macro
         numfilestreams++;
     }
 
     // Load file from saves directory if specified
-    if(location)
-    {
-        getBasePath(path, "Saves", 0);
-        getPakName(tmpname, -1);
-        strcat(path, tmpname);
-        strcat(path, "/");
-        strcat(path, filename);
+    if(location) {
+        if (!filestream_get_external_path(path, sizeof(path), filename, NULL)) {
+            (*pretvar)->lVal = -1;
+            return S_OK;
+        }
+
         //printf("open path: %s", path);
 
-        if(!(fileExists(path)))
-        {
+        if(!(fileExists(path))) {
             /*
             2011_03_27, DC: Let's be a little more friendly about missing files; this will let a function evaluate if file exists and decide what to do.
 
@@ -10488,28 +10639,31 @@ HRESULT openbor_openfilestream(ScriptVariant **varlist , ScriptVariant **pretvar
         }
 
         handle = fopen(path, "rb");
-        if(handle == NULL)
-        {
+
+        if(handle == NULL) {
             (*pretvar)->lVal = -1;
             return S_OK;
         }
+
         //printf("\nfile opened\n");
         fseek(handle, 0, SEEK_END);
         size = ftell(handle);
         //printf("\n file size %d fsindex %d\n", size, fsindex);
         rewind(handle);
         filestreams[fsindex].buf = malloc(sizeof(*filestreams[fsindex].buf) * (size + 1));
-        if(filestreams[fsindex].buf == NULL)
-        {
+        
+        if(filestreams[fsindex].buf == NULL) {
+            fclose(handle);
             (*pretvar)->lVal = -1;
             return S_OK;
         }
+
         fread(filestreams[fsindex].buf, 1, size, handle);
+        fclose(handle);
         filestreams[fsindex].buf[size] = 0;
         filestreams[fsindex].size = size;
-    }
-    else if(buffer_pakfile(filename, &filestreams[fsindex].buf, &filestreams[fsindex].size) != 1)
-    {
+    
+    } else if(buffer_pakfile(filename, &filestreams[fsindex].buf, &filestreams[fsindex].size) != 1) {
         //printf("Invalid filename used in openfilestream.\n");
         (*pretvar)->lVal = -1;
         return S_OK;
@@ -10521,23 +10675,20 @@ HRESULT openbor_openfilestream(ScriptVariant **varlist , ScriptVariant **pretvar
     return S_OK;
 }
 
-HRESULT openbor_getfilestreamline(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
-    int length;
+HRESULT openbor_getfilestreamline(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
+    size_t length;
     char *buf;
     char *dst;
     ScriptVariant *arg = NULL;
     LONG filestreamindex;
 
-    if(paramCount < 1)
-    {
+    if(paramCount < 1) {
         *pretvar = NULL;
         return E_FAIL;
     }
 
     arg = varlist[0];
-    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex)))
-    {
+    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex))) {
         return S_OK;
     }
 
@@ -10545,12 +10696,20 @@ HRESULT openbor_getfilestreamline(ScriptVariant **varlist , ScriptVariant **pret
 
     length = 0;
     buf = filestreams[filestreamindex].buf + filestreams[filestreamindex].pos;
-    while(buf[length] && buf[length] != '\n' && buf[length] != '\r')
-    {
+    while(buf[length] && buf[length] != '\n' && buf[length] != '\r') {
         ++length;
     }
 
-    (*pretvar)->strVal = StrCache_Pop(length);
+    if(length > MAX_SCRIPT_STRING_LENGTH) {
+        ScriptVariant_Clear(*pretvar);
+        printf(
+            "File stream line exceeds the maximum script string length of %u characters.\n",
+            MAX_SCRIPT_STRING_LENGTH
+        );
+        return E_FAIL;
+    }
+
+    (*pretvar)->strVal = StrCache_Pop((int)length);
     dst = StrCache_Get((*pretvar)->strVal);
     memcpy(dst, buf, length);
     dst[length] = '\0';
@@ -10558,21 +10717,31 @@ HRESULT openbor_getfilestreamline(ScriptVariant **varlist , ScriptVariant **pret
     return S_OK;
 }
 
-HRESULT openbor_getfilestreamargument(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read one requested file-stream argument sequentially and
+  copy only its decoded value into exact-sized script storage.
+  Opening and closing quote delimiters are discarded. Numeric
+  conversions reuse the same temporary script string.
+*/
+HRESULT openbor_getfilestreamargument(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
+    e_command_argument_read_result argument_result = COMMAND_ARGUMENT_READ_END;
+    s_command_argument_view argument_view = {0};
+    char *converted_text;
     ScriptVariant *arg = NULL;
     LONG filestreamindex, argument;
+    size_t argument_length = 0;
     char *argtype = NULL;
 
-    if(paramCount < 3)
-    {
+    if(paramCount < 3) {
         *pretvar = NULL;
         return E_FAIL;
     }
 
     arg = varlist[0];
-    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex)))
-    {
+    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex))) {
         return S_OK;
     }
 
@@ -10583,89 +10752,126 @@ HRESULT openbor_getfilestreamargument(ScriptVariant **varlist , ScriptVariant **
     }
     ScriptVariant_Clear(*pretvar);
 
-    if(varlist[2]->vt != VT_STR)
-    {
-        printf("You must give a string value specifying what kind of value you want the argument converted to.\n");
+    if(varlist[2]->vt != VT_STR) {
+        printf("You must provide a string value specifying what variable type the argument is converted to.\n Available types are: string, int, float, byte.\n");
         return E_FAIL;
     }
+
     argtype = (char *)StrCache_Get(varlist[2]->strVal);
 
-    if(stricmp(argtype, "string") == 0)
-    {
-        ScriptVariant_ChangeType(*pretvar, VT_STR);
-        (*pretvar)->strVal = StrCache_CreateNewFrom(findarg(filestreams[filestreamindex].buf + filestreams[filestreamindex].pos, argument));
-    }
-    else if(stricmp(argtype, "int") == 0)
-    {
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)atoi(findarg(filestreams[filestreamindex].buf + filestreams[filestreamindex].pos, argument));
-    }
-    else if(stricmp(argtype, "float") == 0)
-    {
-        ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
-        (*pretvar)->dblVal = (DOUBLE)atof(findarg(filestreams[filestreamindex].buf + filestreams[filestreamindex].pos, argument));
-    }
-    else if(stricmp(argtype, "byte") == 0) // By White Dragon
-    {
+    if(stricmp(argtype, "byte") == 0) {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
         (*pretvar)->lVal = (LONG)(readByte(filestreams[filestreamindex].buf + filestreams[filestreamindex].pos));
+
+        return S_OK;
     }
-    else
-    {
+
+    if(stricmp(argtype, "string") != 0
+        && stricmp(argtype, "int") != 0
+        && stricmp(argtype, "float") != 0) {
         printf("Invalid type for argument converted to (getfilestreamargument).\n");
         return E_FAIL;
+    }
+
+    if(argument >= 0) {
+        argument_result = command_argument_read(
+            filestreams[filestreamindex].buf
+                + filestreams[filestreamindex].pos,
+            (size_t)argument,
+            &argument_view
+        );
+
+        if(argument_result == COMMAND_ARGUMENT_READ_INVALID) {
+            printf("File stream argument contains an unterminated quote.\n");
+            return E_FAIL;
+        }
+
+        argument_length = argument_view.length;
+    }
+
+    if(argument_length > MAX_SCRIPT_STRING_LENGTH) {
+        printf(
+            "File stream argument exceeds the maximum script string length of %u characters.\n",
+            MAX_SCRIPT_STRING_LENGTH
+        );
+        return E_FAIL;
+    }
+
+    ScriptVariant_ChangeType(*pretvar, VT_STR);
+    (*pretvar)->strVal = StrCache_Pop((int)argument_length);
+    converted_text = StrCache_Get((*pretvar)->strVal);
+
+    if(argument_result == COMMAND_ARGUMENT_READ_SUCCESS) {
+        if(!command_argument_copy(
+                &argument_view,
+                converted_text,
+                argument_length + 1
+            )) {
+            ScriptVariant_Clear(*pretvar);
+            return E_FAIL;
+        }
+    } else {
+        converted_text[0] = '\0';
+    }
+
+    if(stricmp(argtype, "int") == 0) {
+        const LONG converted_integer = (LONG)atoi(converted_text);
+
+        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
+        (*pretvar)->lVal = converted_integer;
+    } else if(stricmp(argtype, "float") == 0) {
+        const DOUBLE converted_decimal = (DOUBLE)atof(converted_text);
+
+        ScriptVariant_ChangeType(*pretvar, VT_DECIMAL);
+        (*pretvar)->dblVal = converted_decimal;
     }
 
     return S_OK;
 }
 
-HRESULT openbor_filestreamnextline(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
+HRESULT openbor_filestreamnextline(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
     ScriptVariant *arg = NULL;
     char *buf;
     size_t pos;
     LONG filestreamindex;
 
-    if(paramCount < 1)
-    {
+    if(paramCount < 1) {
         *pretvar = NULL;
         return E_FAIL;
     }
 
     arg = varlist[0];
-    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex)))
-    {
+    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex))) {
         return S_OK;
     }
+
     pos = filestreams[filestreamindex].pos;
     buf = filestreams[filestreamindex].buf;
-    while(buf[pos] && buf[pos] != '\n' && buf[pos] != '\r')
-    {
+
+    while(buf[pos] && buf[pos] != '\n' && buf[pos] != '\r') {
         ++pos;
     }
-    while(buf[pos] == '\n' || buf[pos] == '\r')
-    {
+    
+    while(buf[pos] == '\n' || buf[pos] == '\r') {
         ++pos;
     }
+
     filestreams[filestreamindex].pos = pos;
 
     return S_OK;
 }
 
-HRESULT openbor_getfilestreamposition(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
+HRESULT openbor_getfilestreamposition(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
     ScriptVariant *arg = NULL;
     LONG filestreamindex;
 
-    if(paramCount < 1)
-    {
+    if(paramCount < 1) {
         *pretvar = NULL;
         return E_FAIL;
     }
 
     arg = varlist[0];
-    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex)))
-    {
+    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex))) {
         return S_OK;
     }
 
@@ -10674,27 +10880,23 @@ HRESULT openbor_getfilestreamposition(ScriptVariant **varlist , ScriptVariant **
     return S_OK;
 }
 
-HRESULT openbor_setfilestreamposition(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
+HRESULT openbor_setfilestreamposition(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
     ScriptVariant *arg = NULL;
     LONG filestreamindex, position;
 
 
-    if(paramCount < 2)
-    {
+    if(paramCount < 2) {
         *pretvar = NULL;
         return E_FAIL;
     }
 
     arg = varlist[0];
-    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex)))
-    {
+    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex))) {
         return S_OK;
     }
 
     arg = varlist[1];
-    if(FAILED(ScriptVariant_IntegerValue(arg, &position)))
-    {
+    if(FAILED(ScriptVariant_IntegerValue(arg, &position))) {
         return S_OK;
     }
 
@@ -10702,32 +10904,28 @@ HRESULT openbor_setfilestreamposition(ScriptVariant **varlist , ScriptVariant **
     return S_OK;
 }
 
-HRESULT openbor_filestreamappend(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
+HRESULT openbor_filestreamappend(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
+    ScriptVariantStringView append_view;
+    char conversion_buffer[SCRIPT_VARIANT_CONVERSION_BUFFER_LENGTH];
     LONG filestreamindex;
     ScriptVariant *arg = NULL;
     LONG appendtype = -1;
-    size_t len1, len2;
+    size_t len1, len2, output_length;
     char *temp;
-    static char append[2048];
 
     *pretvar = NULL;
-    if(paramCount < 2)
-    {
+    if(paramCount < 2) {
         goto append_error;
     }
 
     arg = varlist[0];
-    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex)))
-    {
+    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex))) {
         goto append_error;
     }
 
-    if(paramCount >= 3)
-    {
+    if(paramCount >= 3) {
         arg = varlist[2];
-        if(FAILED(ScriptVariant_IntegerValue(arg, &appendtype)))
-        {
+        if(FAILED(ScriptVariant_IntegerValue(arg, &appendtype))) {
             goto append_error;
         }
     }
@@ -10737,17 +10935,16 @@ HRESULT openbor_filestreamappend(ScriptVariant **varlist , ScriptVariant **pretv
     /*
      * By White Dragon to write a byte
      */
-    if ( paramCount >= 4 )
-    {
+    if ( paramCount >= 4 ) {
         char* argtype = NULL;
         unsigned char byte = (unsigned char)0x00;
         if ( varlist[3]->vt != VT_STR ) goto append_error;
 
         argtype = (char *)StrCache_Get(varlist[3]->strVal);
 
-        if( stricmp(argtype, "byte") != 0 ) goto append_error;
-        else
-        {
+        if( stricmp(argtype, "byte") != 0 ) {
+             goto append_error;
+        } else {
             int inc = -1; // if buf > 0 (prev bytes) you need to begin from size-1 (index)
 
             len1 = 1+1; // +1 is the NULL to close the buffer
@@ -10766,34 +10963,62 @@ HRESULT openbor_filestreamappend(ScriptVariant **varlist , ScriptVariant **pretv
 
             filestreams[filestreamindex].size = len1 + len2;
         }
-    } else
-    {
-        ScriptVariant_ToString(arg, append);
 
-        len1 = strlen(append);
+    } else {
+
+        if(FAILED(ScriptVariant_GetStringView(
+            arg,
+            conversion_buffer,
+            sizeof(conversion_buffer),
+            &append_view
+        ))) {
+            goto append_error;
+        }
+
+        len1 = append_view.length;
         len2 = filestreams[filestreamindex].size;
 
-        filestreams[filestreamindex].buf = realloc(filestreams[filestreamindex].buf, sizeof(*temp) * (len1 + len2 + 4));
+        if(len2 > SIZE_MAX - 4 || len1 > SIZE_MAX - len2 - 4) {
+            goto append_error;
+        }
 
-        if(appendtype == 0)
-        {
-            append[len1] = ' ';
-            append[++len1] = '\0';
-            strcpy(filestreams[filestreamindex].buf + len2, "\r\n");
-            len2 += 2;
-            strcpy(filestreams[filestreamindex].buf + len2, append);
+        output_length = len2 + len1;
+
+        if(appendtype == 0) {
+            output_length += 3;
+        } else if(appendtype == 1) {
+            output_length += 1;
         }
-        else if(appendtype == 1)
-        {
-            append[len1] = ' ';
-            append[++len1] = '\0';
-            strcpy(filestreams[filestreamindex].buf + len2, append);
+
+        temp = realloc(
+            filestreams[filestreamindex].buf,
+            sizeof(*temp) * (output_length + 1)
+        );
+
+        if(!temp) {
+            goto append_error;
         }
-        else
-        {
-            strcpy(filestreams[filestreamindex].buf + len2, append);
+
+        filestreams[filestreamindex].buf = temp;
+        temp += len2;
+
+        if(appendtype == 0) {
+            *temp++ = '\r';
+            *temp++ = '\n';
+            memcpy(temp, append_view.string, len1);
+            temp += len1;
+            *temp++ = ' ';
+        } else if(appendtype == 1) {
+            memcpy(temp, append_view.string, len1);
+            temp += len1;
+            *temp++ = ' ';
+        } else {
+            memcpy(temp, append_view.string, len1);
+            temp += len1;
         }
-        filestreams[filestreamindex].size = len1 + len2;
+
+        *temp = '\0';
+        filestreams[filestreamindex].size = output_length;
     }
 
     return S_OK;
@@ -10803,21 +11028,17 @@ append_error:
 
 }
 
-HRESULT openbor_createfilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
+HRESULT openbor_createfilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
     int fsindex;
     ScriptVariant_Clear(*pretvar);
 
-    for(fsindex = 0; fsindex < numfilestreams; fsindex++)
-    {
-        if(filestreams[fsindex].buf == NULL)
-        {
+    for(fsindex = 0; fsindex < numfilestreams; fsindex++) {
+        if(filestreams[fsindex].buf == NULL) {
             break;
         }
     }
 
-    if(fsindex == numfilestreams)
-    {
+    if(fsindex == numfilestreams) {
         __realloc(filestreams, numfilestreams); //warning, don't ++ here, its a macro
         numfilestreams++;
     }
@@ -10833,79 +11054,69 @@ HRESULT openbor_createfilestream(ScriptVariant **varlist , ScriptVariant **pretv
     return S_OK;
 }
 
-HRESULT openbor_savefilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
+HRESULT openbor_savefilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
     int i;
     LONG filestreamindex;
     ScriptVariant *arg = NULL;
-    char *bytearg = NULL, *patharg = NULL;
+    const char *bytearg = NULL;
+    const char *filename = NULL;
+    const char *patharg = NULL;
     FILE *handle = NULL;
     char path[MAX_BUFFER_LEN] = {""};
-    char tmpname[MAX_BUFFER_LEN] = {""};
 
     *pretvar = NULL;
 
-    if(paramCount < 1)
-    {
+    if(paramCount < 2) {
         return E_FAIL;
     }
 
     arg = varlist[0];
-    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex)))
-    {
-        printf("You must give a valid filestrema handle for savefilestream!\n");
+    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex))) {
+        printf("You must give a valid filestream handle for savefilestream!\n");
         return E_FAIL;
     }
 
     arg = varlist[1];
-    if(arg->vt != VT_STR)
-    {
+    if(arg->vt != VT_STR) {
         printf("Filename for savefilestream must be a string.\n");
         return E_FAIL;
     }
 
-    if (paramCount > 2)
-    {
-        patharg = (char *)StrCache_Get(varlist[2]->strVal);
-        if( varlist[2]->vt != VT_STR )
-        {
+    filename = StrCache_Get(arg->strVal);
+
+    if (paramCount > 2) {
+        if (varlist[2]->vt != VT_STR) {
             printf("The pathname parameter must be a string.\n");
             return E_FAIL;
         }
+
+        patharg = StrCache_Get(varlist[2]->strVal);
     }
 
-    if (paramCount > 3) // By White Dragon
-    {
-        bytearg = (char *)StrCache_Get(varlist[3]->strVal);
-        if( stricmp(bytearg, "byte") != 0 )
-        {
+    if (paramCount > 3) {
+        if (varlist[3]->vt != VT_STR) {
+            printf("The save type parameter must be a string.\n");
+            return E_FAIL;
+        }
+
+        bytearg = StrCache_Get(varlist[3]->strVal);
+
+        if( stricmp(bytearg, "byte") != 0 ) {
             printf("%s parameter does not exist.\n",bytearg);
             return E_FAIL;
         }
     }
 
-    // Get the saves directory
-    if ( paramCount <= 2 || patharg == NULL )
-    {
-        getBasePath(path, "Saves", 0);
-        getPakName(tmpname, -1);
-        strcat(path, tmpname);
-        // Add user's filename to path and write the filestream to it
-        strcat(path, "/");
-    } else // By White Dragon
-    {
-        strcat(path, "./");
-        strcat(path, patharg);
+    if (!filestream_get_external_path(path, sizeof(path), filename, patharg)) {
+        printf("The savefilestream path is too long.\n Path sizes may be up to %d characters.\n", MAX_BUFFER_LEN-1);
+        return E_FAIL;
     }
+
     //printf("path:%s\n",path);
 
-    strcat(path, (char *)StrCache_Get(arg->strVal));
+    for(i = strlen(path) - 1; i >= 0; i--) {
 
-    for(i = strlen(path) - 1; i >= 0; i--)
-    {
-
-        if(path[i] == '/' || path[i] == '\\')
-        {
+        if(path[i] == '/' || path[i] == '\\') {
             path[i] = 0;
             // Make folder if it doesn't exist
             dirExists(path, 1);
@@ -10916,43 +11127,92 @@ HRESULT openbor_savefilestream(ScriptVariant **varlist , ScriptVariant **pretvar
 
     //printf("save path: %s", path);
     handle = fopen(path, "wb");
-    if(handle == NULL)
-    {
+    if(handle == NULL) {
         return E_FAIL;
     }
     fwrite(filestreams[filestreamindex].buf, 1, strlen(filestreams[filestreamindex].buf), handle);
 
     // add blank line so it can be read successfully
-    if ( paramCount <= 3 || (paramCount > 3 && stricmp(bytearg, "byte") != 0 ) ) fwrite("\r\n", 1, 2, handle);
+    if (paramCount <= 3 
+        || (paramCount > 3 && stricmp(bytearg, "byte") != 0 )) {
+        fwrite("\r\n", 1, 2, handle);
+    }
     fclose(handle);
 
     return S_OK;
 }
 
-HRESULT openbor_closefilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
+/*
+* Caskey, Damon V.
+* 2026-07-24
+*
+* deletefilestream(filename[, pathname])
+*
+* Delete a writable external file. When pathname 
+* is omitted, use the current module's directory 
+* under Saves. Return 1 when deletion succeeds, 0 
+* on failure.
+*/
+HRESULT openbor_deletefilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
+    const char* filename = NULL;
+    const char* pathname = NULL;
+    char path[MAX_BUFFER_LEN] = { "" };
+
+    if(paramCount < 1) {
+        *pretvar = NULL;
+        return E_FAIL;
+    }
+
+    if(varlist[0]->vt != VT_STR) {
+        printf("Filename for deletefilestream must be a string.\n");
+        *pretvar = NULL;
+        return E_FAIL;
+    }
+
+    filename = StrCache_Get(varlist[0]->strVal);
+
+    if(paramCount > 1) {
+        if(varlist[1]->vt != VT_STR) {
+            printf("The pathname parameter must be a string.\n");
+            *pretvar = NULL;
+            return E_FAIL;
+        }
+
+        pathname = StrCache_Get(varlist[1]->strVal);
+    }
+
+    if(!filestream_get_external_path(path, sizeof(path), filename, pathname)) {
+        printf("The deletefilestream path is too long.\n Path sizes may be up to %d characters.\n", MAX_BUFFER_LEN-1);
+        *pretvar = NULL;
+        return E_FAIL;
+    }
+
+    ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
+    (*pretvar)->lVal = remove(path) == 0;
+
+    return S_OK;
+}
+
+HRESULT openbor_closefilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
     LONG filestreamindex;
     ScriptVariant *arg = NULL;
 
     *pretvar = NULL;
 
-    if(paramCount < 1)
-    {
+    if(paramCount < 1) {
         return E_FAIL;
     }
 
     arg = varlist[0];
-    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex)))
-    {
+    if(FAILED(ScriptVariant_IntegerValue(arg, &filestreamindex))) {
         return E_FAIL;
     }
 
-
-    if(filestreams[filestreamindex].buf)
-    {
+    if(filestreams[filestreamindex].buf) {
         free(filestreams[filestreamindex].buf);
         filestreams[filestreamindex].buf = NULL;
     }
+
     return S_OK;
 }
 //damageentity(entity, other, force, drop, type)
@@ -10960,12 +11220,11 @@ HRESULT openbor_damageentity(ScriptVariant **varlist , ScriptVariant **pretvar, 
 {    
     entity* ent = NULL;
     entity* other = NULL;
-    entity* temp = NULL;
     LONG force = 0;
     LONG drop = 0;
     LONG type = 0;
     s_attack atk = emptyattack;
-    s_defense* defense_object = NULL;
+    const s_defense* defense_object = NULL;
 
     if(paramCount < 1)
     {
@@ -11041,13 +11300,9 @@ HRESULT openbor_damageentity(ScriptVariant **varlist , ScriptVariant **pretvar, 
     }
     else
     {
-        temp = self;
-        self = ent;
+        defense_object = defense_find_current_object(ent, NULL, atk.attack_type);
 
-        defense_object = defense_find_current_object(self, NULL, atk.attack_type);        
-
-        (*pretvar)->lVal = (LONG)self->takedamage(other, &atk, 0, defense_object);
-        self = temp;
+        (*pretvar)->lVal = (LONG)ent->takedamage(ent, other, &atk, 0, defense_object);
     }
     return S_OK;
 
@@ -11061,12 +11316,14 @@ HRESULT openbor_getcomputeddamage(ScriptVariant **varlist , ScriptVariant **pret
 {
     entity *defender = NULL;
     entity *attacker = NULL;
-    LONG force, drop, type;
+    LONG force;
+    LONG drop;
+    LONG type;
+    LONG block;
     s_attack atk = emptyattack;
-    s_defense* defense_object = NULL;
+    const s_defense* defense_object = NULL;
 
-    if(paramCount < 3)
-    {
+    if(paramCount < 3) {
         printf("Function requires at least 3 parameters.\n");
         goto gcd_error;
     }
@@ -11077,46 +11334,47 @@ HRESULT openbor_getcomputeddamage(ScriptVariant **varlist , ScriptVariant **pret
     force = (LONG)0;
     drop = (LONG)0;
     type = (LONG)ATK_NORMAL;
+    block = (LONG)0;
 
     defender = (entity *)(varlist[0])->ptrVal; //retrieve the entity
-    if(!defender)
-    {
+    if(!defender) {
         printf("Invalid entity parameter.\n");
         goto gcd_error;
     }
 
-    if(varlist[1]->ptrVal)
-    {
+    if(varlist[1]->ptrVal) {
         attacker = (entity *)(varlist[1])->ptrVal;
     }
 
-    if(FAILED(ScriptVariant_IntegerValue((varlist[2]), &force)))
-    {
+    if(FAILED(ScriptVariant_IntegerValue((varlist[2]), &force))) {
         printf("Wrong force value.\n");
         goto gcd_error;
     }
 
-    if(paramCount >= 4)
-    {
-        if(FAILED(ScriptVariant_IntegerValue((varlist[3]), &drop)))
-        {
+    if(paramCount >= 4) {
+        if(FAILED(ScriptVariant_IntegerValue((varlist[3]), &drop))) {
             printf("Wrong drop value.\n");
             goto gcd_error;
         }
     }
-    if(paramCount >= 5)
-    {
-        if(FAILED(ScriptVariant_IntegerValue((varlist[4]), &type)))
-        {
+
+    if(paramCount >= 5) {
+        if(FAILED(ScriptVariant_IntegerValue((varlist[4]), &type))) {
             printf("Wrong type value.\n");
+            goto gcd_error;
+        }
+    }
+
+    if(paramCount >= 6) {
+        if(FAILED(ScriptVariant_IntegerValue((varlist[5]), &block))) {
+            printf("Wrong block value.\n");
             goto gcd_error;
         }
     }
 
     atk.attack_force = force;
     atk.attack_drop = drop;
-    if(drop)
-    {
+    if(drop) {
         atk.dropv.y = (float)DEFAULT_ATK_DROPV_Y;
         atk.dropv.x = (float)DEFAULT_ATK_DROPV_X;
         atk.dropv.z = (float)DEFAULT_ATK_DROPV_Z;
@@ -11133,9 +11391,10 @@ HRESULT openbor_getcomputeddamage(ScriptVariant **varlist , ScriptVariant **pret
     * model level defense, and ignoring any body box 
     * defense properties. 
     */
-    defense_object = defense_find_current_object(defender, NULL, attack.attack_type);
+    defense_object = defense_find_current_object(defender, NULL, atk.attack_type);
 
-    (*pretvar)->lVal = (LONG)calculate_force_damage(defender, attacker, &atk, defense_object);
+    bool is_blocked = (block != 0) ? true : false;
+    (*pretvar)->lVal = (LONG)calculate_force_damage(defender, attacker, &atk, defense_object, is_blocked);
 
     return S_OK;
 
@@ -11299,7 +11558,6 @@ HRESULT openbor_checkrange(ScriptVariant **varlist , ScriptVariant **pretvar, in
 {
     entity *ent = NULL, *target = NULL;
     LONG ani = 0;
-    extern int max_animations;
 
     if(paramCount < 2)
     {
@@ -12523,69 +12781,187 @@ HRESULT openbor_sampleid(ScriptVariant **varlist , ScriptVariant **pretvar, int 
     return E_FAIL;
 }
 
-//playsample(id, priority, lvolume, rvolume, speed, loop)
-HRESULT openbor_playsample(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
-    int i, result;
-    LONG value[6] = { -1, 0, savedata.effectvol, savedata.effectvol, 100, 0};
+/*
+* Caskey, Damon V.
+* 2026-08-01
+*
+* Script sound playback with independent initial
+* and automatic-loop PCM frame offsets.
+*/
+HRESULT openbor_playsample(ScriptVariant **varlist, ScriptVariant **pretvar, int paramCount) {
+    int i;
+    int result;
+    LONG value[6] = {
+        -1,
+        0,
+        savedata.effectvol,
+        savedata.effectvol,
+        100,
+        0
+    };
 
-    for(i = 0; i < 6 && i < paramCount; i++)
-    {
-        if(FAILED(ScriptVariant_IntegerValue(varlist[i], value + i)))
-        {
+    /*
+    * For readability.
+    */
+    struct {
+        int id;
+        unsigned int priority;
+        int lvolume;
+        int rvolume;
+        unsigned int speed;
+        bool loop;
+        bool start_offset_supplied;
+        uint64_t start_offset;
+        uint64_t loop_offset;
+    } sample_params = {
+        .start_offset = 0,
+        .loop_offset = 0
+    };
+
+    if(paramCount > 8) {
+        goto playsample_error;
+    }
+
+    /*
+    * Read in the first 6 parameters, if they 
+    * exist. If any of them are fail, then we 
+    * will exit with an error.
+    */
+    for(i = 0; i < 6 && i < paramCount; i++) {
+        if(FAILED(ScriptVariant_IntegerValue(varlist[i], value + i))) {
             goto playsample_error;
         }
     }
+
+    sample_params.id       = (int)value[0];
+    sample_params.priority = (unsigned int)value[1];
+    sample_params.lvolume  = (int)value[2];
+    sample_params.rvolume  = (int)value[3];
+    sample_params.speed    = (unsigned int)value[4];
+    sample_params.loop     = value[5] != 0;
+
+    sample_params.start_offset_supplied = paramCount > 6;
+    if(sample_params.start_offset_supplied &&
+       FAILED(ScriptVariant_Unsigned64Value(varlist[6], &sample_params.start_offset))) {
+        goto playsample_error;
+    }
+
+    if(paramCount > 7 &&
+       FAILED(ScriptVariant_Unsigned64Value(varlist[7], &sample_params.loop_offset))) {
+        goto playsample_error;
+    }
+
     ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-    if((int)value[5])
-    {
-        result = sound_loop_sample((int)value[0], (unsigned int)value[1], (int)value[2], (int)value[3], (unsigned int)value[4]);
+
+    if(sample_params.loop) {
+        if(sample_params.start_offset_supplied) {
+            result = sound_loop_sample_offset(
+                sample_params.id,
+                sample_params.priority,
+                sample_params.lvolume,
+                sample_params.rvolume,
+                sample_params.speed,
+                sample_params.start_offset,
+                sample_params.loop_offset
+            );
+        } else {
+            result = sound_loop_sample(
+                sample_params.id,
+                sample_params.priority,
+                sample_params.lvolume,
+                sample_params.rvolume,
+                sample_params.speed
+            );
+        }
+    } else {
+        if(sample_params.start_offset_supplied) {
+            result = sound_play_sample_offset(
+                sample_params.id,
+                sample_params.priority,
+                sample_params.lvolume,
+                sample_params.rvolume,
+                sample_params.speed,
+                sample_params.start_offset
+            );
+        } else {
+            result = sound_play_sample(
+                sample_params.id,
+                sample_params.priority,
+                sample_params.lvolume,
+                sample_params.rvolume,
+                sample_params.speed
+            );
+        }
     }
-    else
-    {
-        result = sound_play_sample((int)value[0], (unsigned int)value[1], (int)value[2], (int)value[3], (unsigned int)value[4]);
-    }
+
+    /*
+    * The channel number is returned to the 
+    * script. If the sample could not be played, 
+    * then -1 is returned.
+    */
     (*pretvar)->lVal = (LONG)result;
+
     return S_OK;
 
 playsample_error:
     *pretvar = NULL;
-    printf("Function requires 6 integer values: playsample(int id, unsigned int priority, int lvolume, int rvolume, unsigned int speed, int loop)\n");
+
+    printf(
+        "Function requires integer values: "
+        "playsample(int id, unsigned int priority, int lvolume, "
+        "int rvolume, unsigned int speed, int loop, "
+        "optional unsigned 64-bit start_offset, "
+        "optional unsigned 64-bit loop_offset)\n"
+    );
+
     return E_FAIL;
 }
 
-// int loadsample(filename, log)
-HRESULT openbor_loadsample(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
-    int arg = 0;
+/*
+* Caskey, Damon V.
+* 2026-08-01
+*
+* Load resident sample data or metadata for streamed
+* playback according to the optional stream flag.
+*/
+HRESULT openbor_loadsample(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount) {
+    int log_errors = 0;
+    int stream = 0;
 
-    if(paramCount < 1)
-    {
+    if(paramCount < 1 || paramCount > 3) {
         goto loadsample_error;
     }
-    if(varlist[0]->vt != VT_STR)
-    {
+    if(varlist[0]->vt != VT_STR) {
         goto loadsample_error;
     }
 
-    if(paramCount > 1)
-    {
-        if(varlist[1]->vt == VT_INTEGER)
-        {
-            arg = varlist[1]->lVal;
+    if(paramCount > 1) {
+        if(varlist[1]->vt == VT_INTEGER) {
+            log_errors = varlist[1]->lVal;
+        } else {
+            goto loadsample_error;
         }
-        else
-        {
+    }
+
+    if(paramCount > 2) {
+        if(varlist[2]->vt == VT_INTEGER) {
+            stream = varlist[2]->lVal;
+        } else {
             goto loadsample_error;
         }
     }
 
     ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-    (*pretvar)->lVal = (LONG)sound_load_sample(StrCache_Get(varlist[0]->strVal), packfile, arg);
+    (*pretvar)->lVal = (LONG)sound_load_sample(
+        StrCache_Get(varlist[0]->strVal),
+        packfile,
+        log_errors,
+        stream != 0
+    );
     return S_OK;
 
 loadsample_error:
-    printf("Function requires 1 string value and optional log value: loadsample(string {filename} integer {log})\n");
+    printf("Function requires a string value and optional integer values: loadsample(string {filename}, integer {log}, integer {stream})\n");
     *pretvar = NULL;
     return E_FAIL;
 }
@@ -12831,7 +13207,11 @@ HRESULT openbor_gettextobjproperty(ScriptVariant **varlist , ScriptVariant **pre
     case _top_text:
     {
         ScriptVariant_ChangeType(*pretvar, VT_STR);
-        (*pretvar)->strVal = StrCache_CreateNewFrom(level->textobjs[ind].text);
+        (*pretvar)->strVal = StrCache_CreateNewFrom(
+            level->textobjs[ind].text
+                ? level->textobjs[ind].text
+                : ""
+        );
         break;
     }
     case _top_time:
@@ -12872,11 +13252,55 @@ gettextobjproperty_error:
     return E_FAIL;
 }
 
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Replace a text object's owned string with exact-size storage.
+  Conversion uses the common script string policy and the old
+  value remains intact if conversion or allocation fails.
+*/
+static HRESULT openbor_textobj_set_text(
+    s_textobj *textobj,
+    const ScriptVariant *value
+)
+{
+    ScriptVariantStringView string_view;
+    char conversion_buffer[SCRIPT_VARIANT_CONVERSION_BUFFER_LENGTH];
+    char *text;
+
+    if(!textobj || FAILED(ScriptVariant_GetStringView(
+        value,
+        conversion_buffer,
+        sizeof(conversion_buffer),
+        &string_view
+    )))
+    {
+        return E_FAIL;
+    }
+
+    text = malloc(string_view.length + 1);
+
+    if(!text)
+    {
+        return E_FAIL;
+    }
+
+    memcpy(text, string_view.string, string_view.length);
+    text[string_view.length] = '\0';
+
+    free(textobj->text);
+    textobj->text = text;
+
+    return S_OK;
+}
+
 HRESULT openbor_changetextobjproperty(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
+    ScriptVariantStringView string_view;
+    char conversion_buffer[SCRIPT_VARIANT_CONVERSION_BUFFER_LENGTH];
     LONG ind;
     int propind;
-    static char buf[MAX_STR_VAR_LEN];
     LONG ltemp;
     const char *ctotext = "changetextobjproperty(int index, \"property\", value)";
 
@@ -12931,9 +13355,13 @@ HRESULT openbor_changetextobjproperty(ScriptVariant **varlist , ScriptVariant **
     }
     case _top_text:
     {
-        ScriptVariant_ToString(varlist[2], buf);
-        level->textobjs[ind].text = malloc(MAX_STR_VAR_LEN);
-        strncpy(level->textobjs[ind].text, buf, MAX_STR_VAR_LEN);
+        if(FAILED(openbor_textobj_set_text(
+            &level->textobjs[ind],
+            varlist[2]
+        )))
+        {
+            goto changetextobjproperty_error;
+        }
         break;
     }
     case _top_time:
@@ -12994,8 +13422,23 @@ HRESULT openbor_changetextobjproperty(ScriptVariant **varlist , ScriptVariant **
     return S_OK;
 
 changetextobjproperty_error:
-    ScriptVariant_ToString(varlist[2], buf);
-    printf("Invalid textobj value: %s\n", buf);
+    if(SUCCEEDED(ScriptVariant_GetStringView(
+        varlist[2],
+        conversion_buffer,
+        sizeof(conversion_buffer),
+        &string_view
+    )))
+    {
+        printf(
+            "Invalid textobj value: %.*s\n",
+            (int)string_view.length,
+            string_view.string
+        );
+    }
+    else
+    {
+        printf("Invalid or oversized textobj value.\n");
+    }
     return E_FAIL;
 }
 
@@ -13004,7 +13447,6 @@ HRESULT openbor_settextobj(ScriptVariant **varlist , ScriptVariant **pretvar, in
 {
     LONG ind;
     LONG X, Y, Z, F, T = 0;
-    static char buf[MAX_STR_VAR_LEN];
     const char *stotext = "settextobj(int index, int x, int y, int font, int z, char text, int time {optional})";
 
     *pretvar = NULL;
@@ -13049,8 +13491,15 @@ HRESULT openbor_settextobj(ScriptVariant **varlist , ScriptVariant **pretvar, in
     {
         goto settextobj_error;
     }
-    ScriptVariant_ToString(varlist[5], buf);
     if(paramCount >= 7 && FAILED(ScriptVariant_IntegerValue(varlist[6], &T)))
+    {
+        goto settextobj_error;
+    }
+
+    if(FAILED(openbor_textobj_set_text(
+        &level->textobjs[ind],
+        varlist[5]
+    )))
     {
         goto settextobj_error;
     }
@@ -13060,12 +13509,6 @@ HRESULT openbor_settextobj(ScriptVariant **varlist , ScriptVariant **pretvar, in
     level->textobjs[ind].position.y = (int)Y;
     level->textobjs[ind].position.z = (int)Z;
     level->textobjs[ind].font = (int)F;
-
-    if(!level->textobjs[ind].text)
-    {
-        level->textobjs[ind].text = (char *)malloc(MAX_STR_VAR_LEN);
-    }
-    strncpy(level->textobjs[ind].text, buf, MAX_STR_VAR_LEN);
 
     return S_OK;
 
@@ -13189,6 +13632,7 @@ int mapstrings_layerproperty(ScriptVariant **varlist, int paramCount)
         "generic",
         "neon",
         "panel",
+        "screen",
         "water",
     };
 
@@ -13690,7 +14134,13 @@ HRESULT openbor_shutdown(ScriptVariant **varlist , ScriptVariant **pretvar, int 
         goto shutdown_error;
     }
 
-    borShutdown((LONG)ltemp,  paramCount > 1 ? StrCache_Get(varlist[1]->strVal) : (DEFAULT_SHUTDOWN_MESSAGE));
+    borShutdown(
+        (LONG)ltemp,
+        "%s",
+        paramCount > 1
+            ? StrCache_Get(varlist[1]->strVal)
+            : DEFAULT_SHUTDOWN_MESSAGE
+    );
 
     return S_OK;
 shutdown_error:
@@ -13702,7 +14152,6 @@ shutdown_error:
 HRESULT openbor_jumptobranch(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
     LONG ltemp;
-    extern char branch_name[MAX_NAME_LEN + 1];
     *pretvar = NULL;
     if(paramCount < 1)
     {
@@ -13856,7 +14305,7 @@ HRESULT openbor_bindentity(ScriptVariant **varlist , ScriptVariant **pretvar, in
         * For legacy compatability, we add anim value
         * to config instead of direct assignment.
         */
-        ent->binding.config += (e_bind_config)anim;        
+        ent->binding.config |= (bind_config_t)anim;        
     }
 
     if(paramCount < 8)
@@ -15003,7 +15452,7 @@ HRESULT openbor_setdrawmethod(ScriptVariant **varlist , ScriptVariant **pretvar,
     return S_OK;
 
 setdrawmethod_error:
-    printf("Function need a valid entity handle and at least 1 interger parameter, setdrawmethod(entity, int flag, int scalex, int scaley, int flipx, int flipy, int shiftx, int alpha, int remap, int fillcolor, int rotate, int fliprotate, int transparencybg, void* colourmap, centerx, centery)\n");
+    printf("Function need a valid entity handle and at least 1 integer parameter, setdrawmethod(entity, int flag, int scalex, int scaley, int flipx, int flipy, int shiftx, int alpha, int remap, int fillcolor, int rotate, int fliprotate, int transparencybg, void* colourmap, centerx, centery)\n");
     return E_FAIL;
 }
 
@@ -15048,14 +15497,15 @@ HRESULT openbor_updateframe(ScriptVariant **varlist , ScriptVariant **pretvar, i
     return S_OK;
 
 updateframe_error:
-    printf("Function need a valid entity handle and at an interger parameter: updateframe(entity, int frame)\n");
+    printf("Function need a valid entity handle and at an integer parameter: updateframe(entity, int frame)\n");
     return E_FAIL;
 }
 
 //executeanimation(entity, int anim, int resetable);
 HRESULT openbor_executeanimation(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
-    LONG anim, resetable = 0;
+    animation_id_t anim = ANI_NONE;
+    LONG resetable = 0;
     entity *e;
 
     *pretvar = NULL;
@@ -15092,14 +15542,14 @@ HRESULT openbor_executeanimation(ScriptVariant **varlist , ScriptVariant **pretv
     e->edge = EDGE_NONE;
     e->ducking = DUCK_NONE;
     e->inbackpain = 0;
-    e->blocking = 0;
+    e->blocking = BLOCK_STATE_NONE;
 
     if(paramCount == 1)
     {
         return S_OK;
     }
 
-    if(paramCount > 1 && FAILED(ScriptVariant_IntegerValue(varlist[1], &anim)))
+    if(paramCount > 1 && FAILED(ScriptVariant_Unsigned64Value(varlist[1], &anim)))
     {
         goto executeanimation_error;
     }
@@ -15107,7 +15557,7 @@ HRESULT openbor_executeanimation(ScriptVariant **varlist , ScriptVariant **pretv
     {
         goto executeanimation_error;
     }
-    ent_set_anim(e, (int)anim, (int)resetable);
+    ent_set_anim(e, anim, (int)resetable);
 
     return S_OK;
 
@@ -15119,7 +15569,8 @@ executeanimation_error:
 //performattack(entity, int anim, int resetable);
 HRESULT openbor_performattack(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
-    LONG anim, resetable = 0;
+    animation_id_t anim = ANI_NONE;
+    LONG resetable = 0;
     entity *e;
 
     *pretvar = NULL;
@@ -15155,14 +15606,14 @@ HRESULT openbor_performattack(ScriptVariant **varlist , ScriptVariant **pretvar,
     e->rising = RISING_NONE;
     e->edge = EDGE_NONE;
     e->inbackpain = 0;
-    e->blocking = 0;
+    e->blocking = BLOCK_STATE_NONE;
 
     if(paramCount == 1)
     {
         return S_OK;
     }
 
-    if(paramCount > 1 && FAILED(ScriptVariant_IntegerValue(varlist[1], &anim)))
+    if(paramCount > 1 && FAILED(ScriptVariant_Unsigned64Value(varlist[1], &anim)))
     {
         goto performattack_error;
     }
@@ -15170,7 +15621,7 @@ HRESULT openbor_performattack(ScriptVariant **varlist , ScriptVariant **pretvar,
     {
         goto performattack_error;
     }
-    ent_set_anim(e, (int)anim, (int)resetable);
+    ent_set_anim(e, anim, (int)resetable);
 
     return S_OK;
 
@@ -15182,7 +15633,8 @@ performattack_error:
 //setidle(entity, int anim, int resetable, int stalladd);
 HRESULT openbor_setidle(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
-    LONG anim = 0, resetable = 0, stalladd = 0;
+    animation_id_t anim = ANI_NONE;
+    LONG resetable = 0, stalladd = 0;
     entity *e;
     extern unsigned int _time;
 
@@ -15220,7 +15672,7 @@ HRESULT openbor_setidle(ScriptVariant **varlist , ScriptVariant **pretvar, int p
     e->edge = EDGE_NONE;
     e->ducking = DUCK_NONE;
     e->inbackpain = 0;
-    e->blocking = 0;
+    e->blocking = BLOCK_STATE_NONE;
     e->nograb = e->nograb_default; //e->nograb = 0;
     e->destx = e->position.x;
     e->destz = e->position.z;
@@ -15230,7 +15682,7 @@ HRESULT openbor_setidle(ScriptVariant **varlist , ScriptVariant **pretvar, int p
         return S_OK;
     }
 
-    if(paramCount > 1 && FAILED(ScriptVariant_IntegerValue(varlist[1], &anim)))
+    if(paramCount > 1 && FAILED(ScriptVariant_Unsigned64Value(varlist[1], &anim)))
     {
         goto setidle_error;
     }
@@ -15242,7 +15694,7 @@ HRESULT openbor_setidle(ScriptVariant **varlist , ScriptVariant **pretvar, int p
     {
         goto setidle_error;
     }
-    ent_set_anim(e, (int)anim, (int)resetable);
+    ent_set_anim(e, anim, (int)resetable);
 
     if(stalladd > 0)
     {
@@ -15333,7 +15785,6 @@ loadmodel_error:
 //unload_model("name");
 HRESULT openbor_unload_model(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
-    LONG unload = 0;
     s_model *model;
     if(paramCount < 1)
     {
@@ -15344,7 +15795,7 @@ HRESULT openbor_unload_model(ScriptVariant **varlist , ScriptVariant **pretvar, 
         goto unload_model_error;
     }
 
-    model = load_cached_model(StrCache_Get(varlist[0]->strVal), "openbor_loadmodel", (char)unload);
+    model = findmodel(StrCache_Get(varlist[0]->strVal));
 
     if(paramCount >= 1 && model)
     {
@@ -15423,7 +15874,7 @@ HRESULT openbor_hallfame(ScriptVariant **varlist , ScriptVariant **pretvar, int 
 HRESULT openbor_playwebm(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
     LONG temp = 0; //noskip
-    extern int playwebm(char * filename, int noskip); // avoid implicit declaration
+    extern int playwebm(const char *filename, int noskip); // avoid implicit declaration
 
     if(paramCount < 1)
     {
@@ -16160,7 +16611,7 @@ HRESULT openbor_getgfxproperty(ScriptVariant **varlist , ScriptVariant **pretvar
         {
         case bitmap_magic: //As long as the two structures are identical...
         case screen_magic:
-            if(x < 0 || x >= screen->width || y < 0 || y >= screen->height)
+            if((unsigned)x >= (unsigned)screen->width || (unsigned)y >= (unsigned)screen->height) // includes checks for <0
             {
                 v = 0;
             }
@@ -16184,7 +16635,7 @@ HRESULT openbor_getgfxproperty(ScriptVariant **varlist , ScriptVariant **pretvar
             }
             break;
         case sprite_magic:
-            if(x < 0 || x >= sprite->width || y < 0 || y >= sprite->height)
+            if((unsigned)x >= (unsigned)sprite->width || (unsigned)y >= (unsigned)sprite->height) // includes checks for <0
             {
                 v = 0;
             }
@@ -16583,4 +17034,3 @@ gsi_error:
     *pretvar = NULL;
     return E_FAIL;
 }
-

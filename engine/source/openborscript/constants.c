@@ -13,6 +13,7 @@
 // Mapping constants for use in script.
 
 #include "scriptcommon.h"
+#include "datetime.h"
 
 // ===== openborconstant =====
 #define IICMPCONST(x) \
@@ -29,13 +30,15 @@ else if(stricmp(#x, constname)==0) {\
 #define ICMPSCONSTA(x, y) \
 else if(strnicmp(constname, #x, sizeof(#x)-1)==0 && constname[sizeof(#x)-1] >= '1' && constname[sizeof(#x)-1]<='9') \
 { \
-	v.lVal = (LONG)(y[atoi(constname+(sizeof(#x)-1))-1]);\
+	ScriptVariant_ChangeType(&v, VT_UINTEGER64);\
+	v.ullVal = (uint64_t)(y[atoi(constname+(sizeof(#x)-1))-1]);\
 }
 
 #define ICMPSCONSTB(x, y) \
 else if(strnicmp(constname, #x, sizeof(#x)-1)==0 && constname[sizeof(#x)-1] >= '1' && constname[sizeof(#x)-1]<='9') \
 { \
-	v.lVal = (LONG)(y[atoi(constname+(sizeof(#x)-1))+STA_ATKS-1]);\
+	ScriptVariant_ChangeType(&v, VT_UINTEGER64);\
+	v.ullVal = (uint64_t)(y[atoi(constname+(sizeof(#x)-1))+STA_ATKS-1]);\
 }
 
 #define ICMPSCONSTC(x) \
@@ -44,7 +47,13 @@ else if(strnicmp(constname, #x, sizeof(#x)-1)==0 && constname[sizeof(#x)-1] >= '
 	v.lVal = (LONG)(atoi(constname+(sizeof(#x)-1))+STA_ATKS-1);\
 }
 
-int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
+#define ICMPCONSTU64(x) \
+else if(stricmp(#x, constname) == 0) {\
+    ScriptVariant_ChangeType(&v, VT_UINTEGER64);\
+    v.ullVal = (uint64_t)(x);\
+}
+
+bool mapstrings_transconst(ScriptVariant **varlist, int paramCount)
 {
     char *constname = NULL;
     int found = TRUE;
@@ -505,6 +514,26 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(BIND_PROPERTY_TARGET)
         ICMPCONST(BIND_PROPERTY_END)
 
+        /* Command input-event properties. */
+        ICMPCONST(COMMAND_INPUT_EVENT_PROPERTY_HELD)
+        ICMPCONST(COMMAND_INPUT_EVENT_PROPERTY_HOLD)
+        ICMPCONST(COMMAND_INPUT_EVENT_PROPERTY_PRESS)
+        ICMPCONST(COMMAND_INPUT_EVENT_PROPERTY_PRESS_CHORD)
+        ICMPCONST(COMMAND_INPUT_EVENT_PROPERTY_RELEASE)
+        ICMPCONST(COMMAND_INPUT_EVENT_PROPERTY_TICKS)
+        ICMPCONST(COMMAND_INPUT_EVENT_PROPERTY_TIME)
+        ICMPCONST(COMMAND_INPUT_EVENT_PROPERTY_END)
+
+        /* Configurable command input-step properties. */
+        ICMPCONST(COMMAND_INPUT_STEP_PROPERTY_CHORD_TIME)
+        ICMPCONST(COMMAND_INPUT_STEP_PROPERTY_HOLD)
+        ICMPCONST(COMMAND_INPUT_STEP_PROPERTY_HOLD_TIME)
+        ICMPCONST(COMMAND_INPUT_STEP_PROPERTY_HOLD_TIME_MAXIMUM)
+        ICMPCONST(COMMAND_INPUT_STEP_PROPERTY_HOLD_TRIGGER)
+        ICMPCONST(COMMAND_INPUT_STEP_PROPERTY_PRESS)
+        ICMPCONST(COMMAND_INPUT_STEP_PROPERTY_RELEASE)
+        ICMPCONST(COMMAND_INPUT_STEP_PROPERTY_END)
+
         /* Body Collision(bbox) properties. */
         ICMPCONST(BODY_COLLISION_PROP_COORDINATES)
         ICMPCONST(BODY_COLLISION_PROP_DEFENSE)
@@ -532,6 +561,16 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(BLOCK_CONFIG_HOLD_IMPACT)
         ICMPCONST(BLOCK_CONFIG_HOLD_INFINITE)
         ICMPCONST(BLOCK_CONFIG_NONE)
+
+        /* Blocking state flags. */
+        ICMPCONST(BLOCK_STATE_ACTIVE)
+        ICMPCONST(BLOCK_STATE_IGNORE_ATTACK_ELIGIBILITY)
+        ICMPCONST(BLOCK_STATE_IGNORE_BLOCKPAIN)
+        ICMPCONST(BLOCK_STATE_IGNORE_CHANCE)
+        ICMPCONST(BLOCK_STATE_IGNORE_DIRECTION)
+        ICMPCONST(BLOCK_STATE_IGNORE_GUARD_POINTS)
+        ICMPCONST(BLOCK_STATE_NATIVE)
+        ICMPCONST(BLOCK_STATE_NONE)
 
         // Boss no slow flags.
         ICMPCONST(BOSS_SLOW_OFF)
@@ -613,7 +652,7 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(COMPATIBLEVERSION)
 
         //
-        ICMPCONST(COUNTER_SPEED)
+        ICMPCONST(COUNTER_SPEED_DEFAULT)
 
         //
         ICMPCONST(CONTACT_DIST_H)
@@ -645,7 +684,18 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
 
         //
         ICMPCONST(CV_HIGH_SCORE)
-        ICMPCONST(CV_SAVED_GAME)        
+        ICMPCONST(CV_SAVED_GAME)      
+        
+        /* Time standards. */
+        ICMPCONST(DATETIME_STANDARD_LOCAL)
+        ICMPCONST(DATETIME_STANDARD_UTC)
+        ICMPCONST(DATETIME_WEEKDAY_SUNDAY)
+        ICMPCONST(DATETIME_WEEKDAY_MONDAY)
+        ICMPCONST(DATETIME_WEEKDAY_TUESDAY)
+        ICMPCONST(DATETIME_WEEKDAY_WEDNESDAY)
+        ICMPCONST(DATETIME_WEEKDAY_THURSDAY)
+        ICMPCONST(DATETIME_WEEKDAY_FRIDAY)
+        ICMPCONST(DATETIME_WEEKDAY_SATURDAY)
 
         /* Damage control flags. */
         ICMPCONST(DAMAGE_FROM_ENEMY_OFF)
@@ -653,7 +703,7 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(DAMAGE_FROM_PLAYER_OFF)
         ICMPCONST(DAMAGE_FROM_PLAYER_ON)
 
-        /* Recursive damage mode flags. */
+        /* Recursive effect mode flags. */
         ICMPCONST(DAMAGE_RECURSIVE_MODE_HP)
         ICMPCONST(DAMAGE_RECURSIVE_MODE_MP)
         ICMPCONST(DAMAGE_RECURSIVE_MODE_NON_LETHAL)
@@ -687,6 +737,9 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
 
         /* Defense constants */
         ICMPCONST(DEFENSE_BLOCKRATIO_COMPATABILITY_DEFAULT)
+
+        /* Animation frame delay. */
+        ICMPCONSTU64(DELAY_INFINITE)
 
         /* Direction adjustment. */
         ICMPCONST(DIRECTION_ADJUST_AWAY)
@@ -876,7 +929,7 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(ENTITY_PROPERTY_POSITION_Y)
         ICMPCONST(ENTITY_PROPERTY_POSITION_Z)
         ICMPCONST(ENTITY_PROPERTY_PROJECTILE_PRIME)
-        ICMPCONST(ENTITY_PROPERTY_RECURSIVE_DAMAGE)
+        ICMPCONST(ENTITY_PROPERTY_RECURSIVE_EFFECT_COLLECTION)
         ICMPCONST(ENTITY_PROPERTY_RELEASE_TIME)
         ICMPCONST(ENTITY_PROPERTY_RISE_ATTACK_DELAY)
         ICMPCONST(ENTITY_PROPERTY_RISE_ATTACK_TIME)
@@ -900,6 +953,7 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(ENTITY_PROPERTY_TOSS_TIME)
         ICMPCONST(ENTITY_PROPERTY_TURN_STATE)
         ICMPCONST(ENTITY_PROPERTY_TURN_TIME)
+        ICMPCONST(ENTITY_PROPERTY_UNIQUE_ID)
         ICMPCONST(ENTITY_PROPERTY_UPDATE_MARK)
         ICMPCONST(ENTITY_PROPERTY_VELOCITY_X)
         ICMPCONST(ENTITY_PROPERTY_VELOCITY_Y)
@@ -910,6 +964,9 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(ENTITY_PROPERTY_WEAPON_ITEM)
         ICMPCONST(ENTITY_PROPERTY_WEAPON_STATE)
         ICMPCONST(ENTITY_PROPERTY_END)
+
+        ICMPCONSTU64(ENTITY_UNIQUE_ID_NONE)
+        ICMPCONSTU64(ENTITY_UNIQUE_ID_ALL)
 
         /* Exchange Flags. Indicate taking or delivering and attack. */
         ICMPCONST(EXCHANGE_CONFERRER)
@@ -923,42 +980,70 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(EXPLODE_PREPARE_TOUCH)        
 
         /* Faction setup. */
-        ICMPCONST(FACTION_GROUP_NONE)
-        ICMPCONST(FACTION_GROUP_NEUTRAL)
-        ICMPCONST(FACTION_GROUP_NO_COPY)
-        ICMPCONST(FACTION_GROUP_PLAYER_VERSES)
-        ICMPCONST(FACTION_GROUP_TYPE_EXCLUSIVE)
-        ICMPCONST(FACTION_GROUP_TYPE_INCLUSIVE)
-        ICMPCONST(FACTION_GROUP_ALL)
-        ICMPCONST(FACTION_GROUP_ALL_NORMAL)
-        ICMPCONST(FACTION_GROUP_DEFAULT)
-        ICMPCONST(FACTION_GROUP_NO_CHECK)
-        ICMPCONST(FACTION_GROUP_A)
-        ICMPCONST(FACTION_GROUP_B)
-        ICMPCONST(FACTION_GROUP_C)
-        ICMPCONST(FACTION_GROUP_D)
-        ICMPCONST(FACTION_GROUP_E)
-        ICMPCONST(FACTION_GROUP_F)
-        ICMPCONST(FACTION_GROUP_G)
-        ICMPCONST(FACTION_GROUP_H)
-        ICMPCONST(FACTION_GROUP_I)
-        ICMPCONST(FACTION_GROUP_J)
-        ICMPCONST(FACTION_GROUP_K)
-        ICMPCONST(FACTION_GROUP_L)
-        ICMPCONST(FACTION_GROUP_M)
-        ICMPCONST(FACTION_GROUP_N)
-        ICMPCONST(FACTION_GROUP_O)
-        ICMPCONST(FACTION_GROUP_P)
-        ICMPCONST(FACTION_GROUP_Q)
-        ICMPCONST(FACTION_GROUP_R)
-        ICMPCONST(FACTION_GROUP_S)
-        ICMPCONST(FACTION_GROUP_T)
-        ICMPCONST(FACTION_GROUP_U)
-        ICMPCONST(FACTION_GROUP_V)
-        ICMPCONST(FACTION_GROUP_W)
-        ICMPCONST(FACTION_GROUP_X)
-        ICMPCONST(FACTION_GROUP_Y)
-        ICMPCONST(FACTION_GROUP_Z)
+        ICMPCONSTU64(FACTION_GROUP_NONE)
+        ICMPCONSTU64(FACTION_GROUP_NEUTRAL)
+        ICMPCONSTU64(FACTION_GROUP_NO_COPY)
+        ICMPCONSTU64(FACTION_GROUP_PLAYER_VERSES)
+        ICMPCONSTU64(FACTION_GROUP_TYPE_EXCLUSIVE)
+        ICMPCONSTU64(FACTION_GROUP_TYPE_INCLUSIVE)
+        ICMPCONSTU64(FACTION_GROUP_ALL)
+        ICMPCONSTU64(FACTION_GROUP_ALL_NORMAL) // All Normal.
+        ICMPCONSTU64(FACTION_GROUP_ALL_NORMAL_0) // All normal a - z.
+        ICMPCONSTU64(FACTION_GROUP_ALL_NORMAL_1) // All normal a1 - z1.
+        ICMPCONSTU64(FACTION_GROUP_DEFAULT)
+        ICMPCONSTU64(FACTION_GROUP_NO_CHECK)
+        ICMPCONSTU64(FACTION_GROUP_A)
+        ICMPCONSTU64(FACTION_GROUP_B)
+        ICMPCONSTU64(FACTION_GROUP_C)
+        ICMPCONSTU64(FACTION_GROUP_D)
+        ICMPCONSTU64(FACTION_GROUP_E)
+        ICMPCONSTU64(FACTION_GROUP_F)
+        ICMPCONSTU64(FACTION_GROUP_G)
+        ICMPCONSTU64(FACTION_GROUP_H)
+        ICMPCONSTU64(FACTION_GROUP_I)
+        ICMPCONSTU64(FACTION_GROUP_J)
+        ICMPCONSTU64(FACTION_GROUP_K)
+        ICMPCONSTU64(FACTION_GROUP_L)
+        ICMPCONSTU64(FACTION_GROUP_M)
+        ICMPCONSTU64(FACTION_GROUP_N)
+        ICMPCONSTU64(FACTION_GROUP_O)
+        ICMPCONSTU64(FACTION_GROUP_P)
+        ICMPCONSTU64(FACTION_GROUP_Q)
+        ICMPCONSTU64(FACTION_GROUP_R)
+        ICMPCONSTU64(FACTION_GROUP_S)
+        ICMPCONSTU64(FACTION_GROUP_T)
+        ICMPCONSTU64(FACTION_GROUP_U)
+        ICMPCONSTU64(FACTION_GROUP_V)
+        ICMPCONSTU64(FACTION_GROUP_W)
+        ICMPCONSTU64(FACTION_GROUP_X)
+        ICMPCONSTU64(FACTION_GROUP_Y)
+        ICMPCONSTU64(FACTION_GROUP_Z)
+        ICMPCONSTU64(FACTION_GROUP_A1)
+        ICMPCONSTU64(FACTION_GROUP_B1)
+        ICMPCONSTU64(FACTION_GROUP_C1)
+        ICMPCONSTU64(FACTION_GROUP_D1)
+        ICMPCONSTU64(FACTION_GROUP_E1)
+        ICMPCONSTU64(FACTION_GROUP_F1)
+        ICMPCONSTU64(FACTION_GROUP_G1)
+        ICMPCONSTU64(FACTION_GROUP_H1)
+        ICMPCONSTU64(FACTION_GROUP_I1)
+        ICMPCONSTU64(FACTION_GROUP_J1)
+        ICMPCONSTU64(FACTION_GROUP_K1)
+        ICMPCONSTU64(FACTION_GROUP_L1)
+        ICMPCONSTU64(FACTION_GROUP_M1)
+        ICMPCONSTU64(FACTION_GROUP_N1)
+        ICMPCONSTU64(FACTION_GROUP_O1)
+        ICMPCONSTU64(FACTION_GROUP_P1)
+        ICMPCONSTU64(FACTION_GROUP_Q1)
+        ICMPCONSTU64(FACTION_GROUP_R1)
+        ICMPCONSTU64(FACTION_GROUP_S1)
+        ICMPCONSTU64(FACTION_GROUP_T1)
+        ICMPCONSTU64(FACTION_GROUP_U1)
+        ICMPCONSTU64(FACTION_GROUP_V1)
+        ICMPCONSTU64(FACTION_GROUP_W1)
+        ICMPCONSTU64(FACTION_GROUP_X1)
+        ICMPCONSTU64(FACTION_GROUP_Y1)
+        ICMPCONSTU64(FACTION_GROUP_Z1)
 
         /* Faction property script access. */
         ICMPCONST(FACTION_PROPERTY_GROUP_DAMAGE_DIRECT)
@@ -969,6 +1054,122 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(FACTION_PROPERTY_TYPE_DAMAGE_INDIRECT)
         ICMPCONST(FACTION_PROPERTY_TYPE_HOSTILE)
         ICMPCONST(FACTION_PROPERTY_END)
+
+        /* Independent sound groups. */
+        ICMPCONSTU64(SOUND_GROUP_NONE)
+        ICMPCONSTU64(SOUND_GROUP_ALL)
+        ICMPCONSTU64(SOUND_GROUP_ALL_0)
+        ICMPCONSTU64(SOUND_GROUP_ALL_1)
+        ICMPCONSTU64(SOUND_GROUP_DEFAULT)
+        ICMPCONSTU64(SOUND_GROUP_A)
+        ICMPCONSTU64(SOUND_GROUP_B)
+        ICMPCONSTU64(SOUND_GROUP_C)
+        ICMPCONSTU64(SOUND_GROUP_D)
+        ICMPCONSTU64(SOUND_GROUP_E)
+        ICMPCONSTU64(SOUND_GROUP_F)
+        ICMPCONSTU64(SOUND_GROUP_G)
+        ICMPCONSTU64(SOUND_GROUP_H)
+        ICMPCONSTU64(SOUND_GROUP_I)
+        ICMPCONSTU64(SOUND_GROUP_J)
+        ICMPCONSTU64(SOUND_GROUP_K)
+        ICMPCONSTU64(SOUND_GROUP_L)
+        ICMPCONSTU64(SOUND_GROUP_M)
+        ICMPCONSTU64(SOUND_GROUP_N)
+        ICMPCONSTU64(SOUND_GROUP_O)
+        ICMPCONSTU64(SOUND_GROUP_P)
+        ICMPCONSTU64(SOUND_GROUP_Q)
+        ICMPCONSTU64(SOUND_GROUP_R)
+        ICMPCONSTU64(SOUND_GROUP_S)
+        ICMPCONSTU64(SOUND_GROUP_T)
+        ICMPCONSTU64(SOUND_GROUP_U)
+        ICMPCONSTU64(SOUND_GROUP_V)
+        ICMPCONSTU64(SOUND_GROUP_W)
+        ICMPCONSTU64(SOUND_GROUP_X)
+        ICMPCONSTU64(SOUND_GROUP_Y)
+        ICMPCONSTU64(SOUND_GROUP_Z)
+        ICMPCONSTU64(SOUND_GROUP_A1)
+        ICMPCONSTU64(SOUND_GROUP_B1)
+        ICMPCONSTU64(SOUND_GROUP_C1)
+        ICMPCONSTU64(SOUND_GROUP_D1)
+        ICMPCONSTU64(SOUND_GROUP_E1)
+        ICMPCONSTU64(SOUND_GROUP_F1)
+        ICMPCONSTU64(SOUND_GROUP_G1)
+        ICMPCONSTU64(SOUND_GROUP_H1)
+        ICMPCONSTU64(SOUND_GROUP_I1)
+        ICMPCONSTU64(SOUND_GROUP_J1)
+        ICMPCONSTU64(SOUND_GROUP_K1)
+        ICMPCONSTU64(SOUND_GROUP_L1)
+        ICMPCONSTU64(SOUND_GROUP_M1)
+        ICMPCONSTU64(SOUND_GROUP_N1)
+        ICMPCONSTU64(SOUND_GROUP_O1)
+        ICMPCONSTU64(SOUND_GROUP_P1)
+        ICMPCONSTU64(SOUND_GROUP_Q1)
+        ICMPCONSTU64(SOUND_GROUP_R1)
+        ICMPCONSTU64(SOUND_GROUP_S1)
+        ICMPCONSTU64(SOUND_GROUP_T1)
+        ICMPCONSTU64(SOUND_GROUP_U1)
+        ICMPCONSTU64(SOUND_GROUP_V1)
+        ICMPCONSTU64(SOUND_GROUP_W1)
+        ICMPCONSTU64(SOUND_GROUP_X1)
+        ICMPCONSTU64(SOUND_GROUP_Y1)
+        ICMPCONSTU64(SOUND_GROUP_Z1)
+
+        /* Sound channel bank and state masks. */
+        ICMPCONST(SOUND_CHANNEL_BANK_MASK_ALLOCATED)
+        ICMPCONST(SOUND_CHANNEL_BANK_MASK_ACTIVE)
+        ICMPCONST(SOUND_CHANNEL_BANK_MASK_AVAILABLE)
+        ICMPCONST(SOUND_CHANNEL_BANK_MASK_STREAMING)
+        ICMPCONST(SOUND_CHANNEL_BANK_MASK_END)
+        ICMPCONST(SOUND_CHANNEL_MASK_ACTIVE)
+        ICMPCONST(SOUND_CHANNEL_MASK_PAUSED)
+        ICMPCONST(SOUND_CHANNEL_MASK_RESERVED)
+        ICMPCONST(SOUND_CHANNEL_MASK_STREAMING)
+        ICMPCONST(SOUND_CHANNEL_MASK_END)
+
+        /* Sound object property access. */
+        ICMPCONST(SOUND_PROPERTY_ACTIVE)
+        ICMPCONST(SOUND_PROPERTY_CHANNEL)
+        ICMPCONST(SOUND_PROPERTY_CHANNELS)
+        ICMPCONST(SOUND_PROPERTY_LOOP_OFFSET)
+        ICMPCONST(SOUND_PROPERTY_PAUSED)
+        ICMPCONST(SOUND_PROPERTY_PERIOD)
+        ICMPCONST(SOUND_PROPERTY_PLAY_ID)
+        ICMPCONST(SOUND_PROPERTY_PRIORITY)
+        ICMPCONST(SOUND_PROPERTY_SAMPLE)
+        ICMPCONST(SOUND_PROPERTY_SAMPLE_POSITION)
+        ICMPCONST(SOUND_PROPERTY_VOLUME_DIVISOR)
+        ICMPCONST(SOUND_PROPERTY_VOLUME_LEFT)
+        ICMPCONST(SOUND_PROPERTY_VOLUME_RIGHT)
+        ICMPCONST(SOUND_PROPERTY_GROUP)
+        ICMPCONST(SOUND_PROPERTY_OWNER_ID)
+        ICMPCONST(SOUND_PROPERTY_END)
+
+        /* Movie playback object property access. */
+        ICMPCONST(MOVIE_PROPERTY_ACTIVE)
+        ICMPCONST(MOVIE_PROPERTY_BLACK_FILTER)
+        ICMPCONST(MOVIE_PROPERTY_CHANNEL)
+        ICMPCONST(MOVIE_PROPERTY_DURATION)
+        ICMPCONST(MOVIE_PROPERTY_HEIGHT)
+        ICMPCONST(MOVIE_PROPERTY_INTERRUPT)
+        ICMPCONST(MOVIE_PROPERTY_OFFSET_X)
+        ICMPCONST(MOVIE_PROPERTY_OFFSET_Y)
+        ICMPCONST(MOVIE_PROPERTY_PAUSED)
+        ICMPCONST(MOVIE_PROPERTY_POSITION)
+        ICMPCONST(MOVIE_PROPERTY_REPEAT)
+        ICMPCONST(MOVIE_PROPERTY_SOUND_CHANNEL)
+        ICMPCONST(MOVIE_PROPERTY_SOURCE)
+        ICMPCONST(MOVIE_PROPERTY_SPEED)
+        ICMPCONST(MOVIE_PROPERTY_WIDTH)
+        ICMPCONST(MOVIE_PROPERTY_END)
+#ifdef WEBM
+        ICMPCONST(MOVIE_CHANNEL_COUNT)
+        ICMPCONST(MOVIE_CHANNEL_AUTO)
+        ICMPCONSTU64(MOVIE_SIZE_NATIVE)
+        ICMPCONST(MOVIE_LOADING_STREAM)
+        ICMPCONST(MOVIE_LOADING_CACHE)
+        ICMPCONST(MOVIE_LOADING_AUTO)
+        ICMPCONST(MOVIE_LOADING_END)
+#endif
 
         /* Key flags. */
         ICMPCONST(FLAG_ANYBUTTON)
@@ -1023,7 +1224,7 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
 
         //
         ICMPCONST(GRAB_DIST)
-        ICMPCONST(GRAB_STALL)
+        ICMPCONST(GRAB_STALL_DEFAULT)
 
         /* Icon property */
         ICMPCONST(ICON_PROPERTY_DEFAULT)
@@ -1098,7 +1299,7 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(KILL_ENTITY_TRIGGER_OBSTACLE_FALL_NO_DEATH_ANIMATION)
         ICMPCONST(KILL_ENTITY_TRIGGER_OBSTACLE_FLY_OUT_OF_BOUNDS)
         ICMPCONST(KILL_ENTITY_TRIGGER_OUT_OF_BOUNDS)
-        ICMPCONST(KILL_ENTITY_TRIGGER_RECURSIVE_DAMAGE)
+        ICMPCONST(KILL_ENTITY_TRIGGER_RECURSIVE_EFFECT)
         ICMPCONST(KILL_ENTITY_TRIGGER_PARENT_KILL_ALL)
         ICMPCONST(KILL_ENTITY_TRIGGER_PARENT_KILL_SUMMON)
         ICMPCONST(KILL_ENTITY_TRIGGER_PIT)
@@ -1182,7 +1383,9 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(LEVEL_PROPERTY_SCRIPT_LEVEL_END)
         ICMPCONST(LEVEL_PROPERTY_SCRIPT_LEVEL_START)
         ICMPCONST(LEVEL_PROPERTY_SCRIPT_KEY)
+        ICMPCONST(LEVEL_PROPERTY_SCRIPT_UPDATE_LOGIC)
         ICMPCONST(LEVEL_PROPERTY_SCRIPT_UPDATE)
+        ICMPCONST(LEVEL_PROPERTY_SCRIPT_UPDATED_LOGIC)
         ICMPCONST(LEVEL_PROPERTY_SCRIPT_UPDATED)
         ICMPCONST(LEVEL_PROPERTY_SCROLL_DIRECTION)
         ICMPCONST(LEVEL_PROPERTY_SCROLL_VELOCITY)
@@ -1217,6 +1420,7 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(MAX_INT)
         ICMPCONST(MAX_NAME_LEN)
         ICMPCONST(MAX_PLAYERS)
+        ICMPCONST(MAX_SCRIPT_STRING_LENGTH)
         ICMPCONST(MAX_SPECIALS)
         ICMPCONST(MIN_INT)        
 
@@ -1270,6 +1474,7 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(MODEL_PROPERTY_PATH)
         ICMPCONST(MODEL_PROPERTY_PRIORITY)
         ICMPCONST(MODEL_PROPERTY_QUAKE_CONFIG)
+        ICMPCONST(MODEL_PROPERTY_REMOVE_CONFIG)
         ICMPCONST(MODEL_PROPERTY_RISE_INVINCIBLE)
         ICMPCONST(MODEL_PROPERTY_RUN_CONFIG_FLAGS)
         ICMPCONST(MODEL_PROPERTY_RUN_JUMP_HEIGHT)
@@ -1306,19 +1511,6 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(MOVE_CONFIG_SUBJECT_TO_PLATFORM)
         ICMPCONST(MOVE_CONFIG_SUBJECT_TO_SCREEN)
         ICMPCONST(MOVE_CONFIG_SUBJECT_TO_WALL)
-
-        /* Music channel property access. */
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_ACTIVE)
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_BUFFER_LIST)
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_CHANNELS)
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_PAUSED)
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_PERIOUD)
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_PLAY_BUFFER)
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_PLAY_TO)
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_SAMPLE_POSITION)
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_VOLUME_LEFT)
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_VOLUME_RIGHT)
-        ICMPCONST(MUSIC_CHANNEL_PROPERTY_END)
 
         //
         ICMPCONST(P2_STATS_DIST)
@@ -1357,16 +1549,9 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         /* Ports */
         ICMPCONST(PORTING_ANDROID)
         ICMPCONST(PORTING_DARWIN)
-        ICMPCONST(PORTING_DREAMCAST)
-        ICMPCONST(PORTING_GPX2)
         ICMPCONST(PORTING_LINUX)
-        ICMPCONST(PORTING_OPENDINGUX)
-        ICMPCONST(PORTING_PSP)
         ICMPCONST(PORTING_UNKNOWN)
-        ICMPCONST(PORTING_WII)
         ICMPCONST(PORTING_WINDOWS)
-        ICMPCONST(PORTING_WIZ)
-        ICMPCONST(PORTING_XBOX)
 
         /* Projectile spawn settings. */
         ICMPCONST(PROJECTILE_PRIME_BASE_FLOOR)
@@ -1395,7 +1580,11 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(QUAKE_CONFIG_DISABLE_SCREEN)
         ICMPCONST(QUAKE_CONFIG_DISABLE_SELF)
         ICMPCONST(QUAKE_CONFIG_NONE)        
-					   
+		
+        /* Remove triggers. */
+        ICMPCONST(REMOVE_CONFIG_HIT)
+	    ICMPCONST(REMOVE_CONFIG_NONE)
+
         /* Rising state. */
         ICMPCONST(RISING_NONE)
         ICMPCONST(RISING_RISE)
@@ -1464,7 +1653,6 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(SHADOW_CONFIG_NONE)
 
         /* Sound file types. */
-        ICMPCONST(SOUND_FILE_TYPE_ADPCM)
         ICMPCONST(SOUND_FILE_TYPE_NONE)
         ICMPCONST(SOUND_FILE_TYPE_VORBIS)
 
@@ -1598,8 +1786,14 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
         ICMPCONST(VT_DECIMAL)
         ICMPCONST(VT_EMPTY)
         ICMPCONST(VT_INTEGER)
+        ICMPCONST(VT_INTEGER64)
         ICMPCONST(VT_PTR)
         ICMPCONST(VT_STR)
+        ICMPCONST(VT_UINTEGER64)
+
+        /* COmpound variable type query*/
+        ICMPCONST(VT_INTANY)
+        ICMPCONST(VT_NUMERIC)
 
 		/* Drawmethod water modes. */
 		ICMPCONST(WATER_MODE_SHEAR)
@@ -1653,28 +1847,38 @@ int mapstrings_transconst(ScriptVariant **varlist, int paramCount)
 
 //openborconstant(constname);
 //translate a constant by string, used to retrieve a constant or macro of openbor
-HRESULT openbor_transconst(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
-{
-    static char buf[128];
-    if(paramCount < 1)
-    {
-        goto transconst_error;
+HRESULT openbor_transconst(ScriptVariant **varlist, ScriptVariant **pretvar, int paramCount) {
+    ScriptVariantStringView string_view;
+    char conversion_buffer[SCRIPT_VARIANT_CONVERSION_BUFFER_LENGTH];
+
+    if (paramCount < 1) {
+        *pretvar = NULL;
+        return E_FAIL;
     }
 
-    //if(varlist[0]->vt == VT_INTEGER) printf("debug: mapstring for openborconstant works!\n");
+    const bool constant_found = mapstrings_transconst(varlist, paramCount);
 
-    mapstrings_transconst(varlist, paramCount);
-
-    if(varlist[0]->vt == VT_INTEGER) // return value already determined by mapstrings
-    {
-        ScriptVariant_Copy((*pretvar), varlist[0]);
+    // Return value already determined by mapstrings.
+    if (constant_found && (varlist[0]->vt & VT_INTANY)) {
+        ScriptVariant_Copy(*pretvar, varlist[0]);
         return S_OK;
     }
 
-transconst_error:
-    ScriptVariant_ToString(varlist[0], buf);
-    printf("Can't translate constant %s\n", buf);
+    if(SUCCEEDED(ScriptVariant_GetStringView(
+        varlist[0],
+        conversion_buffer,
+        sizeof(conversion_buffer),
+        &string_view
+    ))) {
+        printf(
+            "Can't translate constant %.*s\n",
+            (int)string_view.length,
+            string_view.string
+        );
+    } else {
+        printf("Can't translate invalid or oversized constant.\n");
+    }
+
     *pretvar = NULL;
     return E_FAIL;
 }
-

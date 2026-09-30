@@ -25,12 +25,7 @@ typedef s32 LONG;
 typedef char CHAR;
 typedef float FLOAT;
 typedef double DOUBLE;
-
-#ifdef WII
-#include <gcbool.h>
-#else
 typedef int BOOL;
-#endif
 
 #ifdef VOID
 #undef VOID

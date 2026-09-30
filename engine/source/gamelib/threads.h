@@ -9,14 +9,7 @@
 #ifndef THREADS_H
 #define THREADS_H
 
-#if WII
-#include <ogcsys.h>
-#include <ogc/cond.h>
-struct bor_thread;
-typedef struct bor_thread bor_thread;
-typedef mutex_t bor_mutex;
-typedef cond_t bor_cond;
-#elif SDL
+#if SDL
 #include "SDL.h"
 #include "SDL_thread.h"
 typedef SDL_Thread bor_thread;

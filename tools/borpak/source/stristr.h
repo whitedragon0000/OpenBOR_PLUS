@@ -8,7 +8,7 @@
 
 	This program is distributed in the hope that it will be useful,
 	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	MERCHANTIBILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
@@ -18,10 +18,21 @@
 	http://www.gnu.org/licenses/gpl.txt
 */
 
-#ifndef STRISTRI_H
-#define STRISTRI_H
+#ifndef STRISTR_H
+#define STRISTR_H
 
-char* stristr(char* haystack, char* needle);
-
+#if defined(__cplusplus) && __cplusplus
+extern "C" {
 #endif
 
+/*
+*  Searches haystack for needle without matching letter case.
+*  Returns a pointer to the first match, or NULL if no match is found.
+*/
+char *stristr(const char *haystack, const char *needle);
+
+#if defined(__cplusplus) && __cplusplus
+}
+#endif
+
+#endif /* STRISTR_H */

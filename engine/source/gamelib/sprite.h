@@ -55,6 +55,6 @@ unsigned blend_hardlight(unsigned color1, unsigned color2);
 unsigned blend_dodge(unsigned color1, unsigned color2);
 unsigned blend_half(unsigned color1, unsigned color2);
 */
-unsigned blend_channel32(register unsigned color1, register unsigned color2, register unsigned a);
+unsigned blend_channel32(unsigned color1, unsigned color2, unsigned a);
 unsigned short blend_channel16(unsigned short color1, unsigned short color2, register unsigned a);
 #endif

@@ -17,10 +17,15 @@
 #include "models.h"
 #include "translation.h"
 #include "soundmix.h"
+#include "source/bitmask.h" // Inline bitmask utility functions.
+#include <inttypes.h>
+#include <stdbool.h>
+#include <ctype.h>
+#include <limits.h>
 
 #define NaN 0xAAAAAAAA
 
-const char *E_OUT_OF_MEMORY = "Error: Could not allocate sufficient memory.\n";
+char E_OUT_OF_MEMORY[] = "Error: Could not allocate sufficient memory.\n";
 static int DEFAULT_OFFSCREEN_KILL = 3000;
 
 
@@ -28,8 +33,14 @@ s_sprite_list *sprite_list;
 s_sprite_map *sprite_map;
 
 s_savelevel *savelevel;
+static char **savelevel_allowselect_args;
+static size_t savelevel_count;
 s_savescore savescore;
 s_savedata savedata;
+
+static void clear_saved_allowselect_arguments(void);
+static const char* get_saved_allowselect_arguments(size_t index);
+static void set_saved_allowselect_arguments(size_t index, const char* source);
 
 /////////////////////////////////////////////////////////////////////////////
 //  Global Variables                                                        //
@@ -67,7 +78,13 @@ List *modelstxtcmdlist = NULL;
 List *levelcmdlist = NULL;
 List *levelordercmdlist = NULL;
 
-int atkchoices[MAX_ANIS]; //tempory values for ai functions, should be well enough LOL
+/*
+* Temporary attack choices assembled by AI routines.
+* Capacity follows the configured animation table instead
+* of assuming the compile-time MAX_ANIS default is enough.
+*/
+static int* ai_attack_choices = NULL;
+static size_t ai_attack_choice_capacity = 0;
 
 //see types.h
 const s_drawmethod plainmethod =
@@ -143,8 +160,8 @@ const s_defense default_defense =
     .block_damage_adjust    = 0,
     .block_damage_max       = MAX_INT,
     .block_damage_min       = MIN_INT,
-    .blockpower             = 0.f,
-    .blockthreshold         = 0.f,
+    .blockpower             = 0,
+    .blockthreshold         = 0,
     .blockratio             = DEFENSE_BLOCKRATIO_COMPATABILITY_DEFAULT,
     .blocktype              = BLOCK_TYPE_GLOBAL,
     .death_config_flags     = DEATH_CONFIG_MACRO_DEFAULT,
@@ -153,7 +170,7 @@ const s_defense default_defense =
     .damage_min             = MIN_INT,
     .factor                 = 1.f,
     .knockdown              = 1.f,
-    .pain                   = 0.f
+    .pain                   = 0
 };
 
 const s_offense default_offense =
@@ -171,12 +188,6 @@ const s_hitbox empty_collision_coords = {   .x      = 0,
                                             .z_background     = 0,
                                             .z_foreground     = 0};
 
-const s_collision_body empty_collision_body = { .coords = NULL,
-                                            .index = 0,
-                                            .body = NULL,
-                                            .meta_data = NULL,
-                                            .meta_tag = 0 };
-
 const s_body empty_body = { .defense = NULL,
                             .flash = {
                                 .object_type = OBJECT_TYPE_FLASH,
@@ -189,22 +200,12 @@ const s_body empty_body = { .defense = NULL,
                                 
 };
 
-const s_collision_entity empty_entity_collision =   {   .coords     = NULL,
-                                                        .index      = 0,
-                                                        .meta_data  = NULL,
-                                                        .meta_tag   = 0};
-
-// Recursive damage (dot).
-const s_damage_recursive empty_recursive = { .force = 0,
-                                                .index = 0,
-                                                .mode = 0,
-                                                .rate = 0,
-                                                .tick = 0,
-                                                .time = 0,
-                                                .owner = NULL,
-                                                .next = NULL,
-                                                .meta_data = NULL,
-                                                .meta_tag = 0};
+/*
+* 2026-06-28 - In progress.
+*/
+const s_space empty_space = {
+    .push = { .x = 0.0f, .y = 0.0f, .z = 0.0f }
+};
 
 // unknockdown attack
 const s_attack emptyattack =
@@ -290,7 +291,7 @@ char                *custModels = NULL;
 char                rush_names[2][MAX_NAME_LEN];
 char				skipselect[MAX_PLAYERS][MAX_NAME_LEN];
 char                branch_name[MAX_NAME_LEN + 1];  // Used for branches
-char                allowselect_args[MAX_ALLOWSELECT_LEN]; // stored allowselect players
+char                *allowselect_args = NULL; // stored allowselect players
 int					useSave = 0;
 int					useSet = -1;
 unsigned char       pal[MAX_PAL_SIZE] = {""};
@@ -326,7 +327,7 @@ float				scrollmaxx;
 
 s_lasthit           lasthit;  //Last collision variables. 2013-12-15, moved to struct.
 
-int					combodelay = GAME_SPEED / 2;		// avoid annoying 112112... infinite combo
+uint64_t			combodelay = GAME_SPEED_DEFAULT / 2;		// avoid annoying 112112... infinite combo
 
 //Use for gfx_shadow
 s_axis_plane_vertical_int light = {   .x = 128,
@@ -386,155 +387,173 @@ int                 max_attacks         = MAX_ATTACKS;
 int                 max_animations      = MAX_ANIS;
 
 // -------dynamic animation indexes-------
-e_animations	*animdowns           = NULL;
-e_animations    *animups             = NULL;
-e_animations    *animbackwalks       = NULL;
-e_animations	*animwalks           = NULL;
-e_animations    *animidles           = NULL;
-e_animations    *animpains           = NULL;
-e_animations    *animbackpains       = NULL;
-e_animations    *animdies            = NULL;
-e_animations    *animbackdies        = NULL;
-e_animations    *animfalls           = NULL;
-e_animations    *animbackfalls       = NULL;
-e_animations    *animrises           = NULL;
-e_animations    *animbackrises       = NULL;
-e_animations    *animriseattacks     = NULL;
-e_animations    *animbackriseattacks = NULL;
-e_animations    *animblkpains        = NULL;
-e_animations    *animbackblkpains    = NULL;
-e_animations    *animattacks         = NULL;
-e_animations    *animfollows         = NULL;
-e_animations    *animspecials        = NULL;
+animation_id_t  *animdowns           = NULL;
+animation_id_t  *animups             = NULL;
+animation_id_t  *animbackwalks       = NULL;
+animation_id_t  *animwalks           = NULL;
+animation_id_t  *animidles           = NULL;
+animation_id_t  *animpains           = NULL;
+animation_id_t  *animbackpains       = NULL;
+animation_id_t  *animdies            = NULL;
+animation_id_t  *animbackdies        = NULL;
+animation_id_t  *animfalls           = NULL;
+animation_id_t  *animbackfalls       = NULL;
+animation_id_t  *animrises           = NULL;
+animation_id_t  *animbackrises       = NULL;
+animation_id_t  *animriseattacks     = NULL;
+animation_id_t  *animbackriseattacks = NULL;
+animation_id_t  *animblkpains        = NULL;
+animation_id_t  *animbackblkpains    = NULL;
+animation_id_t  *animattacks         = NULL;
+animation_id_t  *animfollows         = NULL;
+animation_id_t  *animspecials        = NULL;
 
 // system default values
-int                 downs[MAX_DOWNS]        = {ANI_DOWN};
-int                 ups[MAX_UPS]            = {ANI_UP};
-int                 backwalks[MAX_BACKWALKS] = {ANI_BACKWALK};
-int                 walks[MAX_WALKS]        = {ANI_WALK};
-int                 idles[MAX_IDLES]        = {ANI_IDLE};
+animation_id_t      downs[MAX_DOWNS]         = {ANI_DOWN};
+animation_id_t      ups[MAX_UPS]             = {ANI_UP};
+animation_id_t      backwalks[MAX_BACKWALKS] = {ANI_BACKWALK};
+animation_id_t      walks[MAX_WALKS]         = {ANI_WALK};
+animation_id_t      idles[MAX_IDLES]         = {ANI_IDLE};
 
-int                 falls[MAX_ATKS] =
+animation_id_t      falls[MAX_ATKS] =
 {
-    ANI_FALL,  ANI_FALL2, ANI_FALL3,  ANI_FALL4,
-    ANI_FALL,  ANI_BURN,  ANI_FALL,   ANI_SHOCK,
-    ANI_FALL,  ANI_FALL5, ANI_FALL6,  ANI_FALL7,
-    ANI_FALL8, ANI_FALL9, ANI_FALL10, ANI_FALL,
-    ANI_FALL,  ANI_FALL,  ANI_FALL,   ANI_FALLLOSE,
-    ANI_FALL
+    ANI_FALL,       // ATK_NORMAL
+    ANI_FALL2,      // ATK_NORMAL2
+    ANI_FALL3,      // ATK_NORMAL3
+    ANI_FALL4,      // ATK_NORMAL4
+    ANI_FALL,       // ATK_BLAST
+    ANI_BURN,       // ATK_BURN
+    ANI_FALL,       // ATK_FREEZE 
+    ANI_SHOCK,      // ATK_SHOCK
+    ANI_FALL,       // ATK_STEAL 
+    ANI_FALL5,      // ATK_NORMAL5
+    ANI_FALL6,      // ATK_NORMAL6
+    ANI_FALL7,      // ATK_NORMAL7
+    ANI_FALL8,      // ATK_NORMAL8
+    ANI_FALL9,      // ATK_NORMAL9
+    ANI_FALL10,     // ATK_NORMAL10
+    ANI_FALL,       // ATK_BOSS DEATH
+    ANI_FALL,       // ATK_ITEM
+    ANI_FALL,       // ATK_LAND
+    ANI_FALL,       // ATK_LIFESPAN
+    ANI_FALLLOSE,   // ATK_LOSE
+    ANI_FALL,       // ATK_PIT
+    ANI_FALL,       // ATK_SUB_ENTITY_PARENT_KILL
+    ANI_FALL,       // ATK_SUB_ENTITY_UNSUMMON
+    ANI_FALL        // ATK_TIMEOVER
 };
 
-int                 backfalls[MAX_ATKS] =
+animation_id_t      backfalls[MAX_ATKS] =
 {
     ANI_BACKFALL,  ANI_BACKFALL2, ANI_BACKFALL3,  ANI_BACKFALL4,
     ANI_BACKFALL,  ANI_BACKBURN,  ANI_BACKFALL,   ANI_BACKSHOCK,
     ANI_BACKFALL,  ANI_BACKFALL5, ANI_BACKFALL6,  ANI_BACKFALL7,
     ANI_BACKFALL8, ANI_BACKFALL9, ANI_BACKFALL10, ANI_BACKFALL,
     ANI_BACKFALL,  ANI_BACKFALL,  ANI_BACKFALL,   ANI_FALLLOSE,
-    ANI_BACKFALL
+    ANI_BACKFALL,  ANI_BACKFALL,  ANI_BACKFALL,   ANI_BACKFALL
 };
 
-int                 rises[MAX_ATKS] =
+animation_id_t      rises[MAX_ATKS] =
 {
     ANI_RISE,  ANI_RISE2, ANI_RISE3,  ANI_RISE4,
     ANI_RISE,  ANI_RISEB,  ANI_RISE,  ANI_RISES,
     ANI_RISE,  ANI_RISE5, ANI_RISE6,  ANI_RISE7,
     ANI_RISE8, ANI_RISE9, ANI_RISE10, ANI_RISE,
     ANI_RISE,  ANI_RISE,  ANI_RISE,   ANI_RISE,
-    ANI_RISE
+    ANI_RISE,  ANI_RISE,  ANI_RISE,   ANI_RISE
 };
 
-int                 backrises[MAX_ATKS] =
+animation_id_t      backrises[MAX_ATKS] =
 {
     ANI_BACKRISE,  ANI_BACKRISE2, ANI_BACKRISE3,  ANI_BACKRISE4,
     ANI_BACKRISE,  ANI_BACKRISEB, ANI_BACKRISE,   ANI_BACKRISES,
     ANI_BACKRISE,  ANI_BACKRISE5, ANI_BACKRISE6,  ANI_BACKRISE7,
     ANI_BACKRISE8, ANI_BACKRISE9, ANI_BACKRISE10, ANI_BACKRISE,
     ANI_BACKRISE,  ANI_BACKRISE,  ANI_BACKRISE,   ANI_BACKRISE,
-    ANI_BACKRISE
+    ANI_BACKRISE,  ANI_BACKRISE,  ANI_BACKRISE,   ANI_BACKRISE
 };
 
-int                 riseattacks[MAX_ATKS] =
+animation_id_t      riseattacks[MAX_ATKS] =
 {
     ANI_RISEATTACK,  ANI_RISEATTACK2, ANI_RISEATTACK3,  ANI_RISEATTACK4,
     ANI_RISEATTACK,  ANI_RISEATTACKB, ANI_RISEATTACK,   ANI_RISEATTACKS,
     ANI_RISEATTACK,  ANI_RISEATTACK5, ANI_RISEATTACK6,  ANI_RISEATTACK7,
     ANI_RISEATTACK8, ANI_RISEATTACK9, ANI_RISEATTACK10, ANI_RISEATTACK,
     ANI_RISEATTACK,  ANI_RISEATTACK,  ANI_RISEATTACK,   ANI_RISEATTACK,
-    ANI_RISEATTACK
+    ANI_RISEATTACK,  ANI_RISEATTACK,  ANI_RISEATTACK,   ANI_RISEATTACK
 };
 
-int                 backriseattacks[MAX_ATKS] =
+animation_id_t      backriseattacks[MAX_ATKS] =
 {
     ANI_BACKRISEATTACK,  ANI_BACKRISEATTACK2, ANI_BACKRISEATTACK3,  ANI_BACKRISEATTACK4,
     ANI_BACKRISEATTACK,  ANI_BACKRISEATTACKB, ANI_BACKRISEATTACK,   ANI_BACKRISEATTACKS,
     ANI_BACKRISEATTACK,  ANI_BACKRISEATTACK5, ANI_BACKRISEATTACK6,  ANI_BACKRISEATTACK7,
     ANI_BACKRISEATTACK8, ANI_BACKRISEATTACK9, ANI_BACKRISEATTACK10, ANI_BACKRISEATTACK,
     ANI_BACKRISEATTACK,  ANI_BACKRISEATTACK,  ANI_BACKRISEATTACK,   ANI_BACKRISEATTACK,
-    ANI_BACKRISEATTACK
+    ANI_BACKRISEATTACK,  ANI_BACKRISEATTACK,  ANI_BACKRISEATTACK,   ANI_BACKRISEATTACK
 };
 
-int                 pains[MAX_ATKS] =
+animation_id_t      pains[MAX_ATKS] =
 {
     ANI_PAIN,  ANI_PAIN2,    ANI_PAIN3,  ANI_PAIN4,
     ANI_PAIN,  ANI_BURNPAIN, ANI_PAIN,   ANI_SHOCKPAIN,
     ANI_PAIN,  ANI_PAIN5,    ANI_PAIN6,  ANI_PAIN7,
     ANI_PAIN8, ANI_PAIN9,    ANI_PAIN10, ANI_PAIN,
     ANI_PAIN,  ANI_PAIN,     ANI_PAIN,   ANI_PAIN,
-    ANI_PAIN
+    ANI_PAIN,  ANI_PAIN,     ANI_PAIN,   ANI_PAIN
 };
 
-int                 backpains[MAX_ATKS] =
+animation_id_t      backpains[MAX_ATKS] =
 {
     ANI_BACKPAIN,  ANI_BACKPAIN2,    ANI_BACKPAIN3,  ANI_BACKPAIN4,
     ANI_BACKPAIN,  ANI_BACKBURNPAIN, ANI_BACKPAIN,   ANI_BACKSHOCKPAIN,
     ANI_BACKPAIN,  ANI_BACKPAIN5,    ANI_BACKPAIN6,  ANI_BACKPAIN7,
     ANI_BACKPAIN8, ANI_BACKPAIN9,    ANI_BACKPAIN10, ANI_BACKPAIN,
     ANI_BACKPAIN,  ANI_BACKPAIN,     ANI_BACKPAIN,   ANI_BACKPAIN,
-    ANI_BACKPAIN
+    ANI_BACKPAIN,  ANI_BACKPAIN,     ANI_BACKPAIN,   ANI_BACKPAIN
 };
 
-int                 deaths[MAX_ATKS] =
+animation_id_t      deaths[MAX_ATKS] =
 {
     ANI_DIE,   ANI_DIE2,     ANI_DIE3,  ANI_DIE4,
     ANI_DIE,   ANI_BURNDIE,  ANI_DIE,   ANI_SHOCKDIE,
     ANI_DIE,   ANI_DIE5,     ANI_DIE6,  ANI_DIE7,
     ANI_DIE8,  ANI_DIE9,     ANI_DIE10, ANI_DIE,
     ANI_DIE,   ANI_DIE,      ANI_DIE,   ANI_LOSE,
-    ANI_DIE
+    ANI_DIE,   ANI_DIE,      ANI_DIE,   ANI_DIE
 };
 
-int                 backdeaths[MAX_ATKS] =
+animation_id_t      backdeaths[MAX_ATKS] =
 {
     ANI_BACKDIE,   ANI_BACKDIE2,     ANI_BACKDIE3,  ANI_BACKDIE4,
     ANI_BACKDIE,   ANI_BACKBURNDIE,  ANI_BACKDIE,   ANI_BACKSHOCKDIE,
     ANI_BACKDIE,   ANI_BACKDIE5,     ANI_BACKDIE6,  ANI_BACKDIE7,
     ANI_BACKDIE8,  ANI_BACKDIE9,     ANI_BACKDIE10, ANI_BACKDIE,
     ANI_BACKDIE,   ANI_BACKDIE,      ANI_BACKDIE,   ANI_LOSE,
-    ANI_BACKDIE
+    ANI_BACKDIE,   ANI_BACKDIE,      ANI_BACKDIE,   ANI_BACKDIE
 };
 
-int                 blkpains[MAX_ATKS] =
+animation_id_t      blkpains[MAX_ATKS] =
 {
     ANI_BLOCKPAIN,  ANI_BLOCKPAIN2, ANI_BLOCKPAIN3,  ANI_BLOCKPAIN4,
     ANI_BLOCKPAIN,  ANI_BLOCKPAINB, ANI_BLOCKPAIN,   ANI_BLOCKPAINS,
     ANI_BLOCKPAIN,  ANI_BLOCKPAIN5, ANI_BLOCKPAIN6,  ANI_BLOCKPAIN7,
     ANI_BLOCKPAIN8, ANI_BLOCKPAIN9, ANI_BLOCKPAIN10, ANI_BLOCKPAIN,
     ANI_BLOCKPAIN,  ANI_BLOCKPAIN,  ANI_BLOCKPAIN,   ANI_BLOCKPAIN,
-    ANI_BLOCKPAIN
+    ANI_BLOCKPAIN,  ANI_BLOCKPAIN,  ANI_BLOCKPAIN,   ANI_BLOCKPAIN
 };
 
-int                 backblkpains[MAX_ATKS] =
+animation_id_t      backblkpains[MAX_ATKS] =
 {
     ANI_BACKBLOCKPAIN,  ANI_BACKBLOCKPAIN2, ANI_BACKBLOCKPAIN3,  ANI_BACKBLOCKPAIN4,
     ANI_BACKBLOCKPAIN,  ANI_BACKBLOCKPAINB, ANI_BACKBLOCKPAIN,   ANI_BACKBLOCKPAINS,
     ANI_BACKBLOCKPAIN,  ANI_BACKBLOCKPAIN5, ANI_BACKBLOCKPAIN6,  ANI_BACKBLOCKPAIN7,
     ANI_BACKBLOCKPAIN8, ANI_BACKBLOCKPAIN9, ANI_BACKBLOCKPAIN10, ANI_BACKBLOCKPAIN,
     ANI_BACKBLOCKPAIN,  ANI_BACKBLOCKPAIN,  ANI_BACKBLOCKPAIN,   ANI_BACKBLOCKPAIN,
-    ANI_BACKBLOCKPAIN
+    ANI_BACKBLOCKPAIN,  ANI_BACKBLOCKPAIN,  ANI_BACKBLOCKPAIN,   ANI_BACKBLOCKPAIN
 };
 
-int                 normal_attacks[MAX_ATTACKS] =
+animation_id_t      normal_attacks[MAX_ATTACKS] =
 {
     ANI_ATTACK1, ANI_ATTACK2, ANI_ATTACK3, ANI_ATTACK4
 };
@@ -548,14 +567,14 @@ int                 grab_attacks[GRAB_ACTION_SELECT_MAX][2] =
 	[GRAB_ACTION_SELECT_UP] = {ANI_GRABUP, ANI_GRABUP2}
 };
 
-int                 freespecials[MAX_SPECIALS] =
+animation_id_t      freespecials[MAX_SPECIALS] =
 {
     ANI_FREESPECIAL,   ANI_FREESPECIAL2,  ANI_FREESPECIAL3,
     ANI_FREESPECIAL4,  ANI_FREESPECIAL5,  ANI_FREESPECIAL6,
     ANI_FREESPECIAL7,  ANI_FREESPECIAL8
 };
 
-int                 follows[MAX_FOLLOWS] =
+animation_id_t      follows[MAX_FOLLOWS] =
 {
     ANI_FOLLOW1, ANI_FOLLOW2, ANI_FOLLOW3, ANI_FOLLOW4
 };
@@ -570,9 +589,9 @@ s_debug_xy_msg      debug_xy_msg;
 int                 cameratype          = 0;
 int					defaultmaxplayers	= 2;
 
-u32                 go_time             = 0;
-u32                 _time               = 0;
-u32                 newtime             = 0;
+uint64_t            go_time             = 0;
+uint64_t            _time               = 0;
+uint64_t            newtime             = 0;
 s_slow_motion       slowmotion          = { .toggle     = SLOW_MOTION_OFF,
                                             .counter    = 0,
                                             .duration   = 2};
@@ -599,7 +618,7 @@ int					groupmax            = 0;
 e_screen_status     screen_status       = IN_SCREEN_NONE;       // Caskey, Damon V. (2022-04-21) - Current screen status. Replaces the previous 16+ "inscreen" flag variables.
 char				*currentScene		= NULL;
 int                 tospeedup           = 0;          			// If set will speed the level back up after a boss hits the ground
-int                 reached[MAX_PLAYERS]          = {0, 0, 0, 0};			// Used with TYPE_ENDLEVEL to determine which players have reached the point //4player
+bool                reached[MAX_PLAYERS]          = {false, false, false, false};			// Used with TYPE_ENDLEVEL to determine which players have reached the point //4player
 int                 noslowfx			= 0;           			// Flag to determine if sound speed when hitting opponent slows or not
 int                 equalairpause 		= 0;         			// If set to 1, there will be no extra pausetime for players who hit multiple enemies in midair
 int                 hiscorebg			= 0;					// If set to 1, will look for a background image to display at the highscore screen
@@ -666,7 +685,12 @@ s_global_config global_config =
         .layer_adjust = 1,
         .layer_source = 255,
         .z_source = 0},
-    .showgo = 0    
+    .delay_unit = DELAY_UNIT_CENTISECOND,
+    .showgo = 0,
+    .game_speed = GAME_SPEED_DEFAULT,
+    .counter_speed = COUNTER_SPEED_DEFAULT,
+    .grab_stall = GRAB_STALL_DEFAULT,
+    .command_time = COMMAND_TIME_DEFAULT
 };
 
 s_barstatus loadingbarstatus =
@@ -751,19 +775,19 @@ int					viewportw			= 0;
 int					viewporth			= 0;
 
 
-int                 timeleft			= 0;
+uint64_t            timeleft			= 0;                    // Time left in active level in game logic counts.
 int                 oldtime             = 0;                    // One second back from time left.
 int                 holez				= 0;					// Used for setting spawn points
 int                 allow_secret_chars	= 0;
-unsigned int        lifescore			= 50000;				// Number of points needed to earn a 1-up
-unsigned int        credscore			= 0;					// Number of points needed to earn a credit
+uint64_t        lifescore			= 50000;				// Number of points needed to earn a 1-up
+uint64_t        credscore			= 0;					// Number of points needed to earn a credit
 int                 nochipdeath			= 0;					// Prevents entities from dying due to chip damage (damage while blocking)
 int                 noaircancel			= 0;					// Now, you can make jumping attacks uncancellable!
 int                 nomaxrushreset[5]	= {0, 0, 0, 0, 0};
 int			        mpbartext[4]		= { -1, 0, 0, 0};			// Array for adjusting MP status text (font, Xpos, Ypos, Display type).
 int			        lbartext[4]			= { -1, 0, 0, 0};			// Array for adjusting HP status text (font, Xpos, Ypos, Display type).
 int                 pmp[4][2]			= {{0, 0}, {0, 0}, {0, 0}, {0, 0}}; // Used for customizable player mpbar
-int                 spdirection[4]		= {1, 0, 1, 0};			// Used for Select Player Direction for select player screen
+int                 spdirection[4]		= {DIRECTION_RIGHT, DIRECTION_LEFT, DIRECTION_RIGHT, DIRECTION_LEFT}; // Used for Select Player Direction for select player screen
 int                 bonus				= 0;					// Used for unlocking Bonus difficulties
 int                 versusdamage		= 2;					// Used for setting mode. (ability to hit other players)
 int                 z_coords[3]			= {0, 0, 0};				// Used for setting customizable walkable area
@@ -791,17 +815,17 @@ int                 scoreformat			= 0;					// If set fill score values with 6 Ze
 
 // Funny neon lights
 unsigned char       neontable[MAX_PAL_SIZE];
-unsigned int        neon_time			= 0;
+uint64_t        neon_time			= 0;
 
 int                 panel_width			= 0;
 int                 panel_height		= 0;
 int                 frontpanels_loaded	= 0;
 
-unsigned int        sprites_loaded		= 0;
-unsigned int        anims_loaded		= 0;
+uint64_t        sprites_loaded		= 0;
+uint64_t        anims_loaded		= 0;
 
-unsigned int        models_loaded		= 0;
-unsigned int        models_cached		= 0;
+uint64_t        models_loaded		= 0;
+uint64_t        models_cached		= 0;
 
 entity            **ent_list;
 entity            **ent_stack; //temporary list, reference only
@@ -809,10 +833,11 @@ int					ent_stack_size = 0;
 entity             *self;
 int                 ent_count			= 0;					// log count of entites
 int                 ent_max				= 0;
+static uint64_t     entity_unique_id_counter = ENTITY_UNIQUE_ID_NONE;
 
 s_player            player[MAX_PLAYERS];
-unsigned long long  bothkeys;
-unsigned long long  bothnewkeys;
+key_mask_t  bothkeys;
+key_mask_t  bothnewkeys;
 
 s_playercontrols    playercontrols1;
 s_playercontrols    playercontrols2;
@@ -827,9 +852,17 @@ Script level_script;		//execute when level start
 Script endlevel_script;		//execute when level finished
 Script update_script;		//execute when ingame update
 Script updated_script;		//execute when ingame update finished
+Script update_logic_script;   //execute before each logical tick
+Script updated_logic_script;  //execute after each logical tick
+Script model_load_script;     //execute after any model finishes loading
+Script model_unload_script;   //execute before any model is unloaded
 Script loading_script;		// in loading screen
 Script input_script_all;  //keyscript for all players
 Script key_script_all;		//keyscript for all players
+Script score_script_all;    //score listener for all players
+Script join_script_all;     //join listener for all players
+Script respawn_script_all;  //respawn listener for all players
+Script pdie_script_all;     //death listener for all players
 Script timetick_script;		//time tick script.
 
 //player script
@@ -1000,24 +1033,74 @@ int buffer_pakfile(const char *filename, char **pbuffer, size_t *psize)
 
 int buffer_append(char **buffer, const char *str, size_t n, size_t *bufferlen, size_t *len)
 {
-    size_t appendlen = strlen(str);
-    if(appendlen > n)
+    size_t appendlen = 0;
+
+    while(appendlen < n && str[appendlen])
     {
-        appendlen = n;
+        appendlen++;
     }
+
     if(appendlen + *len + 1 > *bufferlen)
     {
         //printf("*Debug* reallocating buffer...\n");
         *buffer = realloc(*buffer, *bufferlen = appendlen + *len + 1024);
         if(*buffer == NULL)
         {
-            borShutdown(1, "Unalbe to resize buffer.\n");
+            borShutdown(1, "Unable to resize buffer.\n");
         }
     }
-    strncpy(*buffer + *len, str, appendlen);
+    memcpy(*buffer + *len, str, appendlen);
     *len = *len + appendlen;
     (*buffer)[*len] = 0;
     return *len;
+}
+
+/*
+- Caskey, Damon V.
+- 2026-08-12
+-
+- Verify and atomically remove two adjoining suffixes
+  from a generated text buffer. Leave the buffer intact
+  if its tail does not match the complete sequence.
+*/
+static bool buffer_remove_suffix_pair(
+    char* buffer,
+    size_t* length,
+    const char* first,
+    size_t first_length,
+    const char* second,
+    size_t second_length
+) {
+    size_t pair_length;
+
+    assert(length);
+    assert(first);
+    assert(second);
+
+    if(!buffer || first_length > SIZE_MAX - second_length) {
+        return false;
+    }
+
+    pair_length = first_length + second_length;
+
+    if(*length < pair_length
+        || memcmp(
+            buffer + *length - second_length,
+            second,
+            second_length
+        )
+        || memcmp(
+            buffer + *length - pair_length,
+            first,
+            first_length
+        )) {
+        return false;
+    }
+
+    *length -= pair_length;
+    buffer[*length] = '\0';
+
+    return true;
 }
 
 int handle_txt_include(char *command, ArgList *arglist, char **fn, char *namebuf, char **buf, ptrdiff_t *pos, size_t *len)
@@ -1033,7 +1116,7 @@ int handle_txt_include(char *command, ArgList *arglist, char **fn, char *namebuf
             *buf = realloc(*buf, *len + size + strlen(incfile) + strlen(filename) + 100); //leave enough memory for jump command
             if(*buf == NULL)
             {
-                borShutdown(1, "Unalbe to resize buffer. (handle_txt_include)\n");
+                borShutdown(1, "Unable to resize buffer. (handle_txt_include)\n");
                 free(buf2);
                 return 0;
             }
@@ -1103,10 +1186,18 @@ void init_scripts()
     Script_Global_Init();
     Script_Init(&update_script,     "update",  NULL,  1);
     Script_Init(&updated_script,    "updated",  NULL, 1);
+    Script_Init(&update_logic_script,  "updatelogic",  NULL, 1);
+    Script_Init(&updated_logic_script, "updatedlogic", NULL, 1);
+    Script_Init(&model_load_script,    "modelload",    NULL, 1);
+    Script_Init(&model_unload_script,  "modelunload",  NULL, 1);
     Script_Init(&level_script,      "level",    NULL,  1);
     Script_Init(&endlevel_script,   "endlevel",  NULL, 1);
 	Script_Init(&input_script_all, "inputall", NULL, 1);
     Script_Init(&key_script_all,    "keyall",   NULL,  1);
+    Script_Init(&score_script_all,  "scoreall", NULL,  1);
+    Script_Init(&join_script_all,   "joinall",  NULL,  1);
+    Script_Init(&respawn_script_all, "respawnall", NULL, 1);
+    Script_Init(&pdie_script_all,   "dieall",   NULL,  1);
     Script_Init(&timetick_script,   "timetick",  NULL, 1);
     Script_Init(&loading_script,    "loading",   NULL, 1);
     for(i = 0; i < MAX_PLAYERS; i++)
@@ -1147,6 +1238,22 @@ void load_scripts()
     {
         Script_Clear(&updated_script,       2);
     }
+    if(!load_script(&update_logic_script, "data/scripts/updatelogic.c"))
+    {
+        Script_Clear(&update_logic_script,  2);
+    }
+    if(!load_script(&updated_logic_script, "data/scripts/updatedlogic.c"))
+    {
+        Script_Clear(&updated_logic_script, 2);
+    }
+    if(!load_script(&model_load_script, "data/scripts/modelload.c"))
+    {
+        Script_Clear(&model_load_script, 2);
+    }
+    if(!load_script(&model_unload_script, "data/scripts/modelunload.c"))
+    {
+        Script_Clear(&model_unload_script, 2);
+    }
     if(!load_script(&level_script,      "data/scripts/level.c"))
     {
         Script_Clear(&level_script,         2);
@@ -1162,6 +1269,22 @@ void load_scripts()
     if(!load_script(&key_script_all,    "data/scripts/keyall.c"))
     {
         Script_Clear(&key_script_all,       2);
+    }
+    if(!load_script(&score_script_all,  "data/scripts/scoreall.c"))
+    {
+        Script_Clear(&score_script_all,     2);
+    }
+    if(!load_script(&join_script_all,   "data/scripts/joinall.c"))
+    {
+        Script_Clear(&join_script_all,      2);
+    }
+    if(!load_script(&respawn_script_all, "data/scripts/respawnall.c"))
+    {
+        Script_Clear(&respawn_script_all,   2);
+    }
+    if(!load_script(&pdie_script_all,   "data/scripts/dieall.c"))
+    {
+        Script_Clear(&pdie_script_all,      2);
     }
     if(!load_script(&timetick_script,   "data/scripts/timetick.c"))
     {
@@ -1253,10 +1376,18 @@ void load_scripts()
     }
     Script_Compile(&update_script);
     Script_Compile(&updated_script);
+    Script_Compile(&update_logic_script);
+    Script_Compile(&updated_logic_script);
+    Script_Compile(&model_load_script);
+    Script_Compile(&model_unload_script);
     Script_Compile(&level_script);
     Script_Compile(&endlevel_script);
 	Script_Compile(&input_script_all);
     Script_Compile(&key_script_all);
+    Script_Compile(&score_script_all);
+    Script_Compile(&join_script_all);
+    Script_Compile(&respawn_script_all);
+    Script_Compile(&pdie_script_all);
     Script_Compile(&timetick_script);
     Script_Compile(&loading_script);
     for(i = 0; i < MAX_PLAYERS; i++)
@@ -1302,10 +1433,18 @@ void clear_scripts()
     //and will never have another chance to be loaded, so just clear the variable list in it
     Script_Clear(&update_script,    2);
     Script_Clear(&updated_script,   2);
+    Script_Clear(&update_logic_script,  2);
+    Script_Clear(&updated_logic_script, 2);
+    Script_Clear(&model_load_script,    2);
+    Script_Clear(&model_unload_script,  2);
     Script_Clear(&level_script,     2);
     Script_Clear(&endlevel_script,  2);
 	Script_Clear(&input_script_all, 2);
     Script_Clear(&key_script_all,   2);
+    Script_Clear(&score_script_all, 2);
+    Script_Clear(&join_script_all,  2);
+    Script_Clear(&respawn_script_all, 2);
+    Script_Clear(&pdie_script_all,  2);
     Script_Clear(&timetick_script,  2);
     Script_Clear(&loading_script,   2);
     for(i = 0; i < MAX_PLAYERS; i++)
@@ -1387,54 +1526,94 @@ void copy_all_scripts(s_scripts *src, s_scripts *dest, int method)
     }
 }
 
-void execute_animation_script(entity *ent)
-{
+/*
+* Caskey, Damon V.
+* 2026-07-31
+*
+* Execute model-owned animation bytecode with 
+* an entity's local variables.
+*
+* This function fixes an issue where oncreate()
+* and ondestroy() were called every time an 
+* animation script was executed.
+*
+* Script_Copy() is a lifecycle operation: it 
+* runs ondestroy() for the current script and 
+* oncreate() for the incoming script. Animation 
+* scripts only need to borrow the model interpreter 
+* while processing a frame, so temporarily select 
+* the source interpreter without recreating the 
+* entity script.
+*/
+static void execute_animation_script_source(Script *context, Script *source) {
+
+    Interpreter *saved_interpreter = context->pinterpreter;
+    char *saved_comment = context->comment;
+
+    context->pinterpreter = source->pinterpreter;
+    context->comment = source->comment;
+
+    Script_Execute(context);
+
+    context->pinterpreter = saved_interpreter;
+    context->comment = saved_comment;
+}
+
+void execute_animation_script(entity *ent) {
     ScriptVariant tempvar;
-    int is1 = 0, is2 = 0;
+
     char *namelist[] = {"self", "animnum", "frame", "animhandle", ""};
     int handle = 0;
+    
     Script *cs = ent->scripts->animation_script;
-    Script *s1 = ent->model->scripts->animation_script;
-    Script *s2 = ent->defaultmodel->scripts->animation_script;
-    is1 = Script_IsInitialized(s1);
-    is2 = Script_IsInitialized(s2);
-    if(is1 || is2)
-    {
-        if(cs->pinterpreter && cs->pinterpreter->bReset)
-        {
+    Script *model_script = ent->model->scripts->animation_script;
+    Script *defaultmodel_script = ent->defaultmodel->scripts->animation_script;
+    
+    const bool model_script_initialized = Script_IsInitialized(model_script);
+    const bool defaultmodel_script_initialized = Script_IsInitialized(defaultmodel_script);
+    
+    if(model_script_initialized || defaultmodel_script_initialized) {
+
+        if(cs->pinterpreter && cs->pinterpreter->bReset) {
             handle = Script_Save_Local_Variant(cs, namelist);
         }
+        
         ScriptVariant_Init(&tempvar);
+        
         ScriptVariant_ChangeType(&tempvar, VT_PTR);
         tempvar.ptrVal = (VOID *)ent;
         Script_Set_Local_Variant(cs, "self",    &tempvar);
+        
         ScriptVariant_ChangeType(&tempvar, VT_INTEGER);
         tempvar.lVal = (LONG)ent->animnum;
+        
         Script_Set_Local_Variant(cs, "animnum", &tempvar);
         ScriptVariant_ChangeType(&tempvar, VT_INTEGER);
+        
         tempvar.lVal = (LONG)ent->animpos;
         Script_Set_Local_Variant(cs, "frame",   &tempvar);
+        
         ScriptVariant_ChangeType(&tempvar, VT_INTEGER);
         tempvar.lVal = (LONG)ent->animation->index;
         Script_Set_Local_Variant(cs, "animhandle",   &tempvar);
-        if(is1)
-        {
-            Script_Copy(cs, s1, 0);
-            Script_Execute(cs);
+        
+        if(model_script_initialized) {
+            execute_animation_script_source(cs, model_script);
         }
-        if(ent->model != ent->defaultmodel && is2)
-        {
-            Script_Copy(cs, s2, 0);
-            Script_Execute(cs);
+
+        
+        if(ent->model != ent->defaultmodel && defaultmodel_script_initialized) {
+            execute_animation_script_source(cs, defaultmodel_script);
         }
+
         //clear to save variant space
         ScriptVariant_Clear(&tempvar);
         Script_Set_Local_Variant(cs, "self",    &tempvar);
         Script_Set_Local_Variant(cs, "animnum", &tempvar);
         Script_Set_Local_Variant(cs, "frame",   &tempvar);
         Script_Set_Local_Variant(cs, "animhandle", &tempvar);
-        if(handle)
-        {
+        
+        if(handle) {
             Script_Load_Local_Variant(cs, handle);
         }
     }
@@ -1768,40 +1947,6 @@ void execute_onblockp_script(entity *ent, int plane, entity *platform)
     }
 }
 
-void execute_onentitycollision_script(entity *ent, entity *target, s_collision_entity *ebox_ent, s_collision_entity *ebox_target)
-{
-    ScriptVariant tempvar;
-    Script *cs = ent->scripts->onentitycollision_script;
-    if(Script_IsInitialized(cs))
-    {
-        ScriptVariant_Init(&tempvar);
-        ScriptVariant_ChangeType(&tempvar, VT_PTR);
-        tempvar.ptrVal = (VOID *)ent;
-        Script_Set_Local_Variant(cs, "self", &tempvar);
-
-        ScriptVariant_ChangeType(&tempvar, VT_PTR);
-        tempvar.ptrVal = (VOID *)target;
-        Script_Set_Local_Variant(cs, "target", &tempvar);
-
-        ScriptVariant_ChangeType(&tempvar, VT_PTR);
-        tempvar.ptrVal = (VOID *)ebox_ent;
-        Script_Set_Local_Variant(cs, "self_ebox_handler", &tempvar);
-
-        ScriptVariant_ChangeType(&tempvar, VT_PTR);
-        tempvar.ptrVal = (VOID *)ebox_target;
-        Script_Set_Local_Variant(cs, "target_ebox_handler", &tempvar);
-
-        Script_Execute(cs);
-
-        //clear to save variant space
-        ScriptVariant_Clear(&tempvar);
-        Script_Set_Local_Variant(cs, "self", &tempvar);
-        Script_Set_Local_Variant(cs, "target", &tempvar);
-        Script_Set_Local_Variant(cs, "self_ebox_handler", &tempvar);
-        Script_Set_Local_Variant(cs, "target_ebox_handler", &tempvar);
-    }
-}
-
 void execute_onblocko_script(entity *ent, int plane, entity *other)
 {
     ScriptVariant tempvar;
@@ -1846,10 +1991,10 @@ void execute_onblockz_script(entity *ent)
     }
 }
 
-void execute_onblocka_script(entity *ent, entity *other)
+void execute_onblocky_script(entity *ent, entity *other)
 {
     ScriptVariant tempvar;
-    Script *cs = ent->scripts->onblocka_script;
+    Script *cs = ent->scripts->onblocky_script;
     if(Script_IsInitialized(cs))
     {
         ScriptVariant_Init(&tempvar);
@@ -2120,7 +2265,7 @@ void execute_ondoattack_script(entity *ent, entity *other, s_attack *attack, e_e
         Script_Set_Local_Variant(cs, "jugglecost",  &tempvar);
         Script_Set_Local_Variant(cs, "pauseadd",    &tempvar);
         Script_Set_Local_Variant(cs, "which",		&tempvar);
-        Script_Set_Local_Variant(cs, "attackid",	&tempvar);
+        Script_Set_Local_Variant(cs, "attack_id",	&tempvar);
         Script_Set_Local_Variant(cs, "tag",	        &tempvar);
     }
 }
@@ -2298,6 +2443,9 @@ void execute_ondraw_script(entity *ent)
 
 void execute_entity_key_script(entity *ent)
 {
+    int recovery_chord;
+    animation_id_t recovery_animation_before;
+    int64_t recovery_guard_before;
     ScriptVariant tempvar;
     Script *cs ;
     if(!ent)
@@ -2305,6 +2453,63 @@ void execute_entity_key_script(entity *ent)
         return;
     }
     cs = ent->scripts->key_script;
+
+    recovery_chord = ent->playerindex >= 0
+        && ent->playerindex < MAX_PLAYERS
+        && ent->drop
+        && (player[ent->playerindex].keys & (FLAG_MOVEUP | FLAG_JUMP))
+            == (FLAG_MOVEUP | FLAG_JUMP);
+    recovery_animation_before = ent->animnum;
+    recovery_guard_before = ent->guardpoints;
+
+    /*
+    * Caskey, Damon V.
+    * 2026-08-23
+    *
+    * Temporary diagnostic for tracing the SORX aerial-recovery
+    * regression. Report the complete native gate state only when
+    * a falling player holds the recovery chord.
+    */
+    if(recovery_chord)
+    {
+        printf(
+            "AERIAL_RECOVERY_GATE player=%" PRId64
+            " animation=%" PRIu64
+            " fall=%" PRIu64
+            " mapped_fall=%" PRIu64
+            " frame=%" PRIu64
+            " seal=%" PRId64
+            " sealtime=%" PRIu64
+            " time=%" PRIu64
+            " nextanim=%" PRIu64
+            " animating=%d"
+            " falling=%d"
+            " drop=%d"
+            " dead=%d"
+            " guard=%" PRId64
+            " maxguard=%d"
+            " projectile=%d"
+            " linked=%d\n",
+            ent->playerindex,
+            (uint64_t)ent->animnum,
+            (uint64_t)ANI_FALL,
+            (uint64_t)animfalls[ATK_NORMAL],
+            ent->animpos,
+            ent->seal,
+            ent->sealtime,
+            _time,
+            ent->nextanim,
+            ent->animating,
+            ent->falling,
+            ent->drop,
+            (ent->death_state & DEATH_STATE_DEAD) != 0,
+            ent->guardpoints,
+            ent->modeldata.guardpoints,
+            ent->projectile,
+            ent->link != NULL
+        );
+    }
+
     if(Script_IsInitialized(cs))
     {
         ScriptVariant_Init(&tempvar);
@@ -2315,6 +2520,29 @@ void execute_entity_key_script(entity *ent)
         tempvar.lVal = (LONG)ent->playerindex;
         Script_Set_Local_Variant(cs, "player",  &tempvar);
         Script_Execute(cs);
+
+        if(recovery_chord)
+        {
+            printf(
+                "AERIAL_RECOVERY_RESULT player=%" PRId64
+                " animation_before=%" PRIu64
+                " animation_after=%" PRIu64
+                " guard_before=%" PRId64
+                " guard_after=%" PRId64
+                " projectile_after=%d"
+                " falling_after=%d"
+                " drop_after=%d\n",
+                ent->playerindex,
+                (uint64_t)recovery_animation_before,
+                (uint64_t)ent->animnum,
+                recovery_guard_before,
+                ent->guardpoints,
+                ent->projectile,
+                ent->falling,
+                ent->drop
+            );
+        }
+
         //clear to save variant space
         ScriptVariant_Clear(&tempvar);
         Script_Set_Local_Variant(cs, "self",    &tempvar);
@@ -2341,6 +2569,7 @@ void execute_spawn_script(s_spawn_entry *p, entity *e)
             tempvar.dblVal = (DOUBLE)p->position.z;
             Script_Set_Local_Variant(cs, "spawnz", &tempvar);
             tempvar.dblVal = (DOUBLE)p->position.y;
+            Script_Set_Local_Variant(cs, "spawny", &tempvar);
             Script_Set_Local_Variant(cs, "spawna", &tempvar);
             ScriptVariant_ChangeType(&tempvar, VT_INTEGER);
             tempvar.lVal = (LONG)p->at;
@@ -2353,6 +2582,7 @@ void execute_spawn_script(s_spawn_entry *p, entity *e)
             Script_Set_Local_Variant(cs, "self", &tempvar);
             Script_Set_Local_Variant(cs, "spawnx", &tempvar);
             Script_Set_Local_Variant(cs, "spawnz", &tempvar);
+            Script_Set_Local_Variant(cs, "spawny", &tempvar);
             Script_Set_Local_Variant(cs, "spawna", &tempvar);
             Script_Set_Local_Variant(cs, "spawnat", &tempvar);
         }
@@ -2421,6 +2651,37 @@ void execute_key_script_all(int player)
     }
 }
 
+/*
+* Caskey, Damon V.
+* 2026-08-20
+*
+* Execute the shared score listener with the zero-based
+* playerindex and signed 64-bit score adjustment.
+*/
+void execute_score_script_all(int playerindex, int64_t score)
+{
+    ScriptVariant tempvar;
+    Script *cs = &score_script_all;
+
+    if(Script_IsInitialized(cs))
+    {
+        ScriptVariant_Init(&tempvar);
+        ScriptVariant_ChangeType(&tempvar, VT_INTEGER);
+        tempvar.lVal = (LONG)playerindex;
+        Script_Set_Local_Variant(cs, "playerindex", &tempvar);
+
+        ScriptVariant_ChangeType(&tempvar, VT_INTEGER64);
+        tempvar.llVal = score;
+        Script_Set_Local_Variant(cs, "score", &tempvar);
+
+        Script_Execute(cs);
+
+        ScriptVariant_Clear(&tempvar);
+        Script_Set_Local_Variant(cs, "playerindex", &tempvar);
+        Script_Set_Local_Variant(cs, "score", &tempvar);
+    }
+}
+
 void execute_timetick_script(int time, int gotime)
 {
     ScriptVariant tempvar;
@@ -2469,12 +2730,37 @@ void execute_key_script(int index)
     }
 }
 
+/*
+* Caskey, Damon V.
+* 2026-08-20
+*
+* Execute a shared player event script with the zero-based
+* playerindex that triggered the event.
+*/
+static void execute_player_script_all(Script *cs, int playerindex)
+{
+    ScriptVariant tempvar;
+
+    if(Script_IsInitialized(cs))
+    {
+        ScriptVariant_Init(&tempvar);
+        ScriptVariant_ChangeType(&tempvar, VT_INTEGER);
+        tempvar.lVal = (LONG)playerindex;
+        Script_Set_Local_Variant(cs, "playerindex", &tempvar);
+        Script_Execute(cs);
+        ScriptVariant_Clear(&tempvar);
+        Script_Set_Local_Variant(cs, "playerindex", &tempvar);
+    }
+}
+
 void execute_join_script(int index)
 {
     if(Script_IsInitialized(&join_script[index]))
     {
         Script_Execute(&join_script[index]);
     }
+
+    execute_player_script_all(&join_script_all, index);
 }
 
 void execute_respawn_script(int index)
@@ -2483,6 +2769,8 @@ void execute_respawn_script(int index)
     {
         Script_Execute(&respawn_script[index]);
     }
+
+    execute_player_script_all(&respawn_script_all, index);
 }
 
 void execute_pdie_script(int index)
@@ -2491,6 +2779,8 @@ void execute_pdie_script(int index)
     {
         Script_Execute(&pdie_script[index]);
     }
+
+    execute_player_script_all(&pdie_script_all, index);
 }
 
 // ------------------------ Save/load -----------------------------
@@ -2501,7 +2791,7 @@ void clearbuttons(int player)
 
     if (player == 0)
     {
-        savedata.keys[0][SDID_MOVEUP]    = CONTROL_DEFAULT1_UP; //Kratus (22-04-21) Maintain the key config only for player 1 because other modules like PSP will not work with CONTROL_NONE
+        savedata.keys[0][SDID_MOVEUP]    = CONTROL_DEFAULT1_UP; //Kratus (22-04-21) Maintain the key config only for player 1 because other modules will not work with CONTROL_NONE
         savedata.keys[0][SDID_MOVEDOWN]  = CONTROL_DEFAULT1_DOWN;
         savedata.keys[0][SDID_MOVELEFT]  = CONTROL_DEFAULT1_LEFT;
         savedata.keys[0][SDID_MOVERIGHT] = CONTROL_DEFAULT1_RIGHT;
@@ -2623,13 +2913,7 @@ void clearsettings()
     savedata.debuginfo = 0;
     savedata.fullscreen = 0;
     savedata.fpslimit = 1; // default to vsync
-
-	#if WII
-    savedata.stretch = 1;
-	#else
     savedata.stretch = 0;
-	#endif
-
     savedata.swfilter = 0;
 
     #ifdef SDL
@@ -2734,11 +3018,157 @@ void loadfromdefault()
 }
 
 
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Append complete allowselect state to the fixed-record save
+  file using length-prefixed values without imposing a list-size
+  limit.
+*/
+#define SAVE_ALLOWSELECT_EXTENSION_MAGIC UINT64_C(0x5443454C45534C41)
+#define SAVE_ALLOWSELECT_EXTENSION_VERSION UINT32_C(1)
+
+static bool write_saved_allowselect_extension(FILE* handle)
+{
+    const uint64_t magic = SAVE_ALLOWSELECT_EXTENSION_MAGIC;
+    const uint32_t version = SAVE_ALLOWSELECT_EXTENSION_VERSION;
+    const uint64_t entry_count = (uint64_t)savelevel_count;
+    size_t i;
+
+    if(fwrite(&magic, sizeof(magic), 1, handle) != 1
+        || fwrite(&version, sizeof(version), 1, handle) != 1
+        || fwrite(&entry_count, sizeof(entry_count), 1, handle) != 1)
+    {
+        return false;
+    }
+
+    for(i = 0; i < savelevel_count; i++)
+    {
+        const char* value = get_saved_allowselect_arguments(i);
+        const uint64_t length = value ? (uint64_t)strlen(value) : 0;
+
+        if(fwrite(&length, sizeof(length), 1, handle) != 1
+            || (length
+                && fwrite(value, 1, (size_t)length, handle)
+                    != (size_t)length))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool get_file_remaining_size(FILE* handle, uint64_t* remaining)
+{
+    long current_position;
+    long end_position;
+
+    current_position = ftell(handle);
+
+    if(current_position < 0 || fseek(handle, 0, SEEK_END) != 0)
+    {
+        return false;
+    }
+
+    end_position = ftell(handle);
+
+    if(end_position < current_position
+        || fseek(handle, current_position, SEEK_SET) != 0)
+    {
+        return false;
+    }
+
+    *remaining = (uint64_t)(end_position - current_position);
+
+    return true;
+}
+
+static bool read_saved_allowselect_extension(FILE* handle)
+{
+    uint64_t magic;
+    uint32_t version;
+    uint64_t entry_count;
+    char** loaded_values;
+    size_t i;
+
+    if(fread(&magic, sizeof(magic), 1, handle) != 1
+        || magic != SAVE_ALLOWSELECT_EXTENSION_MAGIC)
+    {
+        return false;
+    }
+
+    if(fread(&version, sizeof(version), 1, handle) != 1
+        || fread(&entry_count, sizeof(entry_count), 1, handle) != 1)
+    {
+        return false;
+    }
+
+    if(version != SAVE_ALLOWSELECT_EXTENSION_VERSION
+        || entry_count != (uint64_t)savelevel_count)
+    {
+        return false;
+    }
+
+    loaded_values = calloc(savelevel_count, sizeof(*loaded_values));
+
+    for(i = 0; i < savelevel_count; i++)
+    {
+        uint64_t length;
+        uint64_t remaining;
+
+        if(fread(&length, sizeof(length), 1, handle) != 1
+            || length > (uint64_t)(SIZE_MAX - 1)
+            || !get_file_remaining_size(handle, &remaining)
+            || length > remaining)
+        {
+            goto error;
+        }
+
+        if(length)
+        {
+            loaded_values[i] = malloc((size_t)length + 1);
+
+            if(fread(loaded_values[i], 1, (size_t)length, handle)
+                != (size_t)length)
+            {
+                goto error;
+            }
+
+            loaded_values[i][(size_t)length] = '\0';
+        }
+    }
+
+    for(i = 0; i < savelevel_count; i++)
+    {
+        set_saved_allowselect_arguments(i, loaded_values[i]);
+        free(loaded_values[i]);
+    }
+
+    free(loaded_values);
+    return true;
+
+error:
+    for(i = 0; i < savelevel_count; i++)
+    {
+        free(loaded_values[i]);
+    }
+
+    free(loaded_values);
+    return false;
+}
+
 
 
 void clearSavedGame()
 {
-    memset(savelevel, 0, sizeof(*savelevel)*num_difficulties);
+    clear_saved_allowselect_arguments();
+
+    if(savelevel)
+    {
+        memset(savelevel, 0, sizeof(*savelevel) * savelevel_count);
+    }
 }
 
 
@@ -2758,6 +3188,7 @@ void clearHighScore()
 
 int saveGameFile()
 {
+    size_t i;
     FILE *handle = NULL;
     char path[MAX_BUFFER_LEN] = {""};
     char tmpname[MAX_BUFFER_LEN] = {""};
@@ -2773,7 +3204,24 @@ int saveGameFile()
         return 0;
     }
 
-    fwrite(savelevel, sizeof(*savelevel), num_difficulties, handle);
+    if(!savelevel || savelevel_count != (size_t)num_difficulties)
+    {
+        fclose(handle);
+        return 0;
+    }
+
+    for(i = 0; i < savelevel_count; i++)
+    {
+        savelevel[i].compatibleversion = CV_SAVED_GAME;
+    }
+
+    if(fwrite(savelevel, sizeof(*savelevel), savelevel_count, handle)
+            != savelevel_count
+        || !write_saved_allowselect_extension(handle))
+    {
+        fclose(handle);
+        return 0;
+    }
 
     fclose(handle);
 
@@ -2783,7 +3231,8 @@ int saveGameFile()
 
 int loadGameFile()
 {
-    int result = 1, i;
+    int result = 1;
+    size_t i;
     FILE *handle = NULL;
     char path[MAX_BUFFER_LEN] = {""};
     char tmpname[MAX_BUFFER_LEN] = {""};
@@ -2799,12 +3248,24 @@ int loadGameFile()
         return 0;
     }
 
+    if(!savelevel || savelevel_count != (size_t)num_difficulties)
+    {
+        fclose(handle);
+        return 0;
+    }
+
+    clearSavedGame();
+
     //fseek(handle, 0L, SEEK_END);
     //filesize = ftell(handle);
     //fseek(handle, 0L, SEEK_SET); // or rewind(handle);
     //(filesize != sizeof(*savelevel)*num_difficulties)
 
-    if( (fread(savelevel, sizeof(*savelevel), num_difficulties, handle) >= sizeof(*savelevel) && savelevel[0].compatibleversion != CV_SAVED_GAME) )
+    if(fread(savelevel, sizeof(*savelevel), savelevel_count, handle)
+            != savelevel_count
+        || (savelevel_count
+            && savelevel[0].compatibleversion != CV_SAVED_GAME)
+        || !read_saved_allowselect_extension(handle))
     {
         clearSavedGame();
         result = 0;
@@ -2812,7 +3273,7 @@ int loadGameFile()
     else
     {
         bonus = 0;
-        for(i = 0; i < num_difficulties; i++) if(savelevel[i].times_completed > 0)
+        for(i = 0; i < savelevel_count; i++) if(savelevel[i].times_completed > 0)
             {
                 bonus += savelevel[i].times_completed;
             }
@@ -3142,19 +3603,17 @@ int isNumeric(const char *text)
 }
 
 
-int getValidInt(const char *text, const char *file, const char *cmd)
-{
+int64_t getValidInt(const char *text, const char *file, const char *cmd) {
     const char *WARN_NUMBER_EXPECTED = "WARNING: %s tries to load a non-numeric value at %s, where a number is expected!\nerroneus string: %s\n";
     if(!text || !*text)
     {
         return 0;
     }
-    if(isNumeric(text))
-    {
-        return atoi(text);
-    }
-    else
-    {
+
+    if(isNumeric(text)) {
+        return atoll(text);
+    
+    } else {
         printf(WARN_NUMBER_EXPECTED, file, cmd, text);
         return 0;
     }
@@ -3181,6 +3640,1631 @@ float getValidFloat(const char *text, const char *file, const char *cmd)
         printf(WARN_NUMBER_EXPECTED, file, cmd, text);
         return 0.0f;
     }
+}
+
+/*
+* Non-owning view of a token in a command line.
+*
+* Text is not null terminated. Length identifies
+* the complete token.
+*/
+typedef struct s_command_token
+{
+    const char* text;
+    size_t length;
+    size_t value_length;
+} s_command_token;
+
+/*
+* Sequential reader for tokens in a command line.
+*
+* Cursor points directly into the original file
+* buffer. No token collection or copy is required.
+*/
+typedef struct s_command_token_reader
+{
+    const char* cursor;
+    char unterminated_quote;
+} s_command_token_reader;
+
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Identify command quote delimiters and update quote state.
+  Double quotes may group text anywhere within an argument.
+  Single quotes may begin grouping only at the argument boundary,
+  allowing apostrophes in ordinary words to remain literal.
+*/
+static bool command_token_update_quote_state(
+    const char* token_start,
+    const char* cursor,
+    bool* inside_double_quotes,
+    bool* inside_single_quotes
+) {
+    bool escaped;
+
+    assert(token_start);
+    assert(cursor);
+    assert(inside_double_quotes);
+    assert(inside_single_quotes);
+
+    escaped =
+        cursor > token_start
+        && cursor[-1] == '\\';
+
+    if(*cursor == '"' && !escaped && !*inside_single_quotes) {
+        *inside_double_quotes = !*inside_double_quotes;
+        return true;
+    }
+
+    if(*cursor == '\'' && !escaped && !*inside_double_quotes) {
+        if(*inside_single_quotes || cursor == token_start) {
+            *inside_single_quotes = !*inside_single_quotes;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*
+* Read the next token from a command line.
+*
+* Tokens end at whitespace, a line ending, a comment
+* marker, or the null terminator. Quoted text may contain
+* whitespace, line endings, and comment markers. Double
+* quotes may open anywhere in an argument. Single quotes
+* may open only at its beginning so ordinary apostrophes
+* remain literal. Matching delimiters are omitted from the
+* logical value, while the opposite quote type is literal.
+*
+* Return true when a token is available. Return false
+* when the command line has no remaining tokens or the
+* current token contains an unterminated quote. The reader
+* records the invalid delimiter for callers that distinguish
+* malformed input from an ordinary end.
+*/
+static bool command_token_reader_next(s_command_token_reader* reader, s_command_token* token) {
+    const char* cursor;
+    const char* token_start;
+
+    size_t value_length = 0;
+
+    bool inside_double_quotes = false;
+    bool inside_single_quotes = false;
+
+    assert(reader);
+    assert(token);
+
+    cursor = reader->cursor;
+
+    /*
+    * Skip whitespace before the next token.
+    */
+    while(*cursor == ' ' || *cursor == '\t') {
+        cursor++;
+    }
+
+    /*
+    * Stop at the end of the command line or the
+    * beginning of a comment.
+    */
+    if(*cursor == '\0'
+        || *cursor == '\r'
+        || *cursor == '\n'
+        || *cursor == '#') {
+        reader->cursor = cursor;
+        token->text = NULL;
+        token->length = 0;
+        token->value_length = 0;
+
+        return false;
+    }
+
+    token_start = cursor;
+
+    while(*cursor) {
+        if(command_token_update_quote_state(
+                token_start,
+                cursor,
+                &inside_double_quotes,
+                &inside_single_quotes
+            )) {
+            cursor++;
+            continue;
+        }
+
+        if(!inside_double_quotes && !inside_single_quotes) {
+            if(*cursor == ' '
+                || *cursor == '\t'
+                || *cursor == '\r'
+                || *cursor == '\n'
+                || *cursor == '#') {
+                break;
+            }
+        }
+
+        value_length++;
+        cursor++;
+    }
+
+    if(inside_double_quotes || inside_single_quotes) {
+        reader->cursor = cursor;
+        reader->unterminated_quote = inside_double_quotes ? '"' : '\'';
+        token->text = NULL;
+        token->length = 0;
+        token->value_length = 0;
+
+        return false;
+    }
+
+    token->text = token_start;
+    token->length = (size_t)(cursor - token_start);
+    token->value_length = value_length;
+    reader->cursor = cursor;
+
+    return true;
+}
+
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Copy a command token while discarding quote delimiters.
+  The destination receives the logical argument text and
+  is always null terminated on success.
+*/
+static bool command_token_copy_value(
+    const s_command_token* token,
+    char* destination,
+    const size_t capacity
+) {
+    const char* cursor;
+    const char* source_end;
+
+    size_t destination_index = 0;
+
+    bool inside_double_quotes = false;
+    bool inside_single_quotes = false;
+
+    assert(token);
+    assert(destination);
+
+    if(!token->text) {
+        return false;
+    }
+
+    source_end = token->text + token->length;
+
+    if(capacity <= token->value_length) {
+        return false;
+    }
+
+    if(token->length == token->value_length) {
+        memcpy(destination, token->text, token->length);
+        destination[token->length] = '\0';
+        return true;
+    }
+
+    for(cursor = token->text; cursor < source_end; cursor++) {
+        if(command_token_update_quote_state(
+                token->text,
+                cursor,
+                &inside_double_quotes,
+                &inside_single_quotes
+            )) {
+            continue;
+        }
+
+        destination[destination_index++] = *cursor;
+    }
+
+    assert(!inside_double_quotes);
+    assert(!inside_single_quotes);
+    assert(destination_index == token->value_length);
+
+    destination[destination_index] = '\0';
+
+    return true;
+}
+
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read one requested command argument sequentially from the
+  source line. Return its non-owning source view and decoded
+  length so the caller can allocate only the required storage.
+  Distinguish malformed quoting from a missing argument.
+*/
+e_command_argument_read_result command_argument_read(
+    const char* command_line,
+    size_t argument_index,
+    s_command_argument_view* argument
+) {
+    s_command_token_reader reader = {
+        .cursor = command_line
+    };
+
+    s_command_token token;
+
+    assert(command_line);
+    assert(argument);
+
+    *argument = (s_command_argument_view){0};
+
+    while(argument_index) {
+        if(!command_token_reader_next(&reader, &token)) {
+            return reader.unterminated_quote
+                ? COMMAND_ARGUMENT_READ_INVALID
+                : COMMAND_ARGUMENT_READ_END;
+        }
+
+        argument_index--;
+    }
+
+    if(!command_token_reader_next(&reader, &token)) {
+        return reader.unterminated_quote
+            ? COMMAND_ARGUMENT_READ_INVALID
+            : COMMAND_ARGUMENT_READ_END;
+    }
+
+    argument->source = token.text;
+    argument->source_length = token.length;
+    argument->length = token.value_length;
+
+    return COMMAND_ARGUMENT_READ_SUCCESS;
+}
+
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Copy a previously read command argument into caller-owned
+  storage while discarding its opening and closing quote
+  delimiters. Preserve literal apostrophes and opposite quotes.
+*/
+bool command_argument_copy(
+    const s_command_argument_view* argument,
+    char* destination,
+    const size_t capacity
+) {
+    s_command_token token;
+
+    assert(argument);
+    assert(destination);
+
+    token = (s_command_token){
+        .text = argument->source,
+        .length = argument->source_length,
+        .value_length = argument->length
+    };
+
+    return command_token_copy_value(&token, destination, capacity);
+}
+
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Reserve fixed storage for one sequentially read command
+  argument. Keep this independent from the legacy command-line,
+  script file-stream, path, and persistent save-field limit.
+*/
+#define MAX_COMMAND_ARGUMENT_LEN 512
+
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Maintain sequential command argument reading state. The
+  underlying token reader walks the source line directly,
+  while one fixed scratch buffer holds only the current item.
+*/
+typedef struct s_command_argument_reader
+{
+    s_command_token_reader token_reader;
+    char value[MAX_COMMAND_ARGUMENT_LEN];
+} s_command_argument_reader;
+
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Initialize a command argument reader at the requested
+  argument index. Skip preceding items directly in the
+  source line without collecting them into a buffer.
+*/
+static bool command_argument_reader_initialize(
+    s_command_argument_reader* reader,
+    const char* command_line,
+    size_t argument_index
+) {
+    s_command_token skipped_token;
+
+    assert(reader);
+    assert(command_line);
+
+    *reader = (s_command_argument_reader){
+        .token_reader = {
+            .cursor = command_line
+        }
+    };
+
+    while(argument_index) {
+        if(!command_token_reader_next(
+                &reader->token_reader,
+                &skipped_token
+            )) {
+            if(reader->token_reader.unterminated_quote) {
+                borShutdown(
+                    1,
+                    "Command argument has an unterminated %c quote.\n",
+                    reader->token_reader.unterminated_quote
+                );
+            }
+
+            return false;
+        }
+
+        argument_index--;
+    }
+
+    return true;
+}
+
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read the next command argument into the reader's reusable
+  fixed buffer. Enforce the dedicated per-item length limit
+  without imposing whole-line or argument-count limits.
+*/
+static bool command_argument_reader_next(
+    s_command_argument_reader* reader,
+    const char** value
+) {
+    s_command_token token;
+
+    assert(reader);
+    assert(value);
+
+    if(!command_token_reader_next(&reader->token_reader, &token)) {
+        if(reader->token_reader.unterminated_quote) {
+            borShutdown(
+                1,
+                "Command argument has an unterminated %c quote.\n",
+                reader->token_reader.unterminated_quote
+            );
+        }
+
+        *value = NULL;
+        return false;
+    }
+
+    if(token.value_length >= sizeof(reader->value)) {
+        borShutdown(
+            1,
+            "Command argument exceeds the maximum length of %zu characters.\n",
+            sizeof(reader->value) - 1
+        );
+        *value = NULL;
+        return false;
+    }
+
+    if(!command_token_copy_value(
+            &token,
+            reader->value,
+            sizeof(reader->value)
+        )) {
+        *value = NULL;
+        return false;
+    }
+
+    *value = reader->value;
+
+    return true;
+}
+
+static void clear_saved_allowselect_arguments(void)
+{
+    size_t i;
+
+    if(!savelevel_allowselect_args) {
+        return;
+    }
+
+    for(i = 0; i < savelevel_count; i++) {
+        free(savelevel_allowselect_args[i]);
+        savelevel_allowselect_args[i] = NULL;
+    }
+}
+
+static const char* get_saved_allowselect_arguments(size_t index)
+{
+    if(index >= savelevel_count || !savelevel_allowselect_args) {
+        return NULL;
+    }
+
+    return savelevel_allowselect_args[index];
+}
+
+static void set_saved_allowselect_arguments(
+    size_t index,
+    const char* source
+) {
+    char* owned_source = NULL;
+
+    if(index >= savelevel_count || !savelevel_allowselect_args) {
+        return;
+    }
+
+    if(source && source[0]) {
+        const size_t length = strlen(source);
+
+        if(length == SIZE_MAX) {
+            borShutdown(1, "Allowselect state exceeds addressable memory.\n");
+            return;
+        }
+
+        owned_source = malloc(length + 1);
+        memcpy(owned_source, source, length + 1);
+    }
+
+    free(savelevel_allowselect_args[index]);
+    savelevel_allowselect_args[index] = owned_source;
+}
+
+/*
+* Compare a command token with a null-terminated
+* string without regard to letter case.
+*/
+static bool command_token_equals(const s_command_token* token, const char* expected) {
+    size_t index;
+    const size_t expected_length = strlen(expected);
+
+    assert(token);
+    assert(expected);
+
+    if(token->length != expected_length) {
+        return false;
+    }
+
+    for(index = 0; index < token->length; index++) {
+        const unsigned char token_character =
+            (unsigned char)token->text[index];
+
+        const unsigned char expected_character =
+            (unsigned char)expected[index];
+
+        if(tolower(token_character)
+            != tolower(expected_character)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-16
+*
+* Convert a complete command token to a signed
+* 64-bit integer.
+*
+* Return true when the token contains only an
+* optional sign followed by decimal digits and
+* the result fits within the int64_t range.
+*
+* Return false when the token is empty, malformed,
+* or outside the int64_t range.
+*/
+static bool command_token_get_int64(const s_command_token* token, int64_t* result) {
+    size_t index = 0;
+
+    bool negative = false;
+
+    uint64_t magnitude = 0;
+    uint64_t magnitude_limit;
+
+    const uint64_t negative_limit = (uint64_t)INT64_MAX + UINT64_C(1);
+
+    assert(token);
+    assert(result);
+
+    if(!token->text || token->length == 0) {
+        return false;
+    }
+
+    /*
+    * Read an optional leading sign.
+    */
+    if(token->text[index] == '+'
+        || token->text[index] == '-') {
+        negative = token->text[index] == '-';
+        index++;
+
+        /*
+        * A sign by itself is not an integer.
+        */
+        if(index >= token->length) {
+            return false;
+        }
+    }
+
+    /*
+    * INT64_MIN has a magnitude one greater than
+    * INT64_MAX, so negative values receive the
+    * larger magnitude limit.
+    */
+    magnitude_limit = negative
+        ? negative_limit
+        : (uint64_t)INT64_MAX;
+
+    for(; index < token->length; index++) {
+        const unsigned char character =
+            (unsigned char)token->text[index];
+
+        uint64_t digit;
+
+        if(character < '0' || character > '9') {
+            return false;
+        }
+
+        digit = (uint64_t)(character - '0');
+
+        /*
+        * Test before multiplying so malformed input
+        * cannot overflow the unsigned accumulator.
+        */
+        if(magnitude > (magnitude_limit - digit) / UINT64_C(10)) {
+            return false;
+        }
+
+        magnitude =
+            magnitude * UINT64_C(10) + digit;
+    }
+
+    if(negative) {
+        /*
+        * INT64_MIN cannot be produced by negating
+        * INT64_MAX + 1 as a signed value, so handle
+        * that exact magnitude directly.
+        */
+        if(magnitude == negative_limit) {
+            *result = INT64_MIN;
+        } else {
+            *result = -(int64_t)magnitude;
+        }
+    } else {
+        *result = (int64_t)magnitude;
+    }
+
+    return true;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-17
+*
+* Convert a complete command token to an unsigned
+* 64-bit integer.
+*
+* Hold durations accept decimal digits only. Testing
+* before multiplication prevents the accumulator from
+* overflowing when a malformed value is too large.
+*/
+static bool command_token_get_uint64(const s_command_token* token, uint64_t* result) {
+    size_t index;
+
+    uint64_t value = 0;
+
+    assert(token);
+    assert(result);
+
+    if(!token->text || token->length == 0) {
+        return false;
+    }
+
+    for(index = 0; index < token->length; index++) {
+        const unsigned char character =
+            (unsigned char)token->text[index];
+
+        uint64_t digit;
+
+        if(character < '0' || character > '9') {
+            return false;
+        }
+
+        digit = (uint64_t)(character - '0');
+
+        if(value > (UINT64_MAX - digit) / UINT64_C(10)) {
+            return false;
+        }
+
+        value = value * UINT64_C(10) + digit;
+    }
+
+    *result = value;
+
+    return true;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-20
+*
+* Convert a null-terminated command argument to a
+* signed 64-bit integer using the bounded token parser.
+*/
+static bool command_argument_get_int64(const char* argument, int64_t* result) {
+    s_command_token token;
+
+    assert(argument);
+    assert(result);
+
+    token.text = argument;
+    token.length = strlen(argument);
+
+    return command_token_get_int64(&token, result);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-06
+*
+* Convert a delay unit name to its internal constant. Model
+* frame delays may select the models.txt global mode, while
+* the models.txt setting itself must resolve to a concrete
+* unit.
+*/
+static const char* delay_unit_from_text(
+    const char* unit_text,
+    const bool allow_global,
+    e_delay_unit* unit
+) {
+    assert(unit);
+
+    if(!unit_text || !unit_text[0]) {
+        return allow_global
+            ? "Delay unit requires a value."
+            : "Delay unit requires a value.";
+    }
+
+    if(stricmp(unit_text, "global") == 0) {
+        if(!allow_global) {
+            return "Global delay unit must be 'centisecond', 'millisecond', 'second', 'minute', or 'direct'.";
+        }
+
+        *unit = DELAY_UNIT_GLOBAL;
+    } else if(stricmp(unit_text, "centisecond") == 0) {
+        *unit = DELAY_UNIT_CENTISECOND;
+    } else if(stricmp(unit_text, "millisecond") == 0) {
+        *unit = DELAY_UNIT_MILLISECOND;
+    } else if(stricmp(unit_text, "second") == 0) {
+        *unit = DELAY_UNIT_SECOND;
+    } else if(stricmp(unit_text, "minute") == 0) {
+        *unit = DELAY_UNIT_MINUTE;
+    } else if(stricmp(unit_text, "direct") == 0) {
+        *unit = DELAY_UNIT_DIRECT;
+    } else {
+        return allow_global
+            ? "Delay unit must be 'global', 'centisecond', 'millisecond', 'second', 'minute', or 'direct'."
+            : "Global delay unit must be 'centisecond', 'millisecond', 'second', 'minute', or 'direct'.";
+    }
+
+    return NULL;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-06
+*
+* Parse an animation frame delay and its optional input
+* unit. Negative numeric values and the symbolic infinite
+* forms normalize to DELAY_INFINITE. Finite positive values
+* must fit the reserved 32-bit delay range; the bit-63 flag
+* value is accepted as the explicit infinite representation.
+*/
+static const char* command_token_get_delay(
+    const char* value_text,
+    const char* unit_text,
+    uint64_t* result,
+    e_delay_unit* unit
+) {
+    size_t index;
+
+    s_command_token numeric_token;
+    s_command_token value_token;
+
+    uint64_t parsed_value;
+
+    bool negative = false;
+
+    assert(result);
+    assert(unit);
+
+    if(!value_text || !value_text[0]) {
+        return "Delay requires a value.";
+    }
+
+    value_token.text = value_text;
+    value_token.length = strlen(value_text);
+
+    if(command_token_equals(&value_token, "\xE2\x88\x9E")
+        || command_token_equals(&value_token, "infinite")) {
+        *result = DELAY_INFINITE;
+    } else {
+        numeric_token = value_token;
+
+        if(numeric_token.text[0] == '+'
+            || numeric_token.text[0] == '-') {
+            negative = numeric_token.text[0] == '-';
+            numeric_token.text++;
+            numeric_token.length--;
+        }
+
+        if(numeric_token.length == 0) {
+            return "Delay must be an integer, '\xE2\x88\x9E', or 'infinite'.";
+        }
+
+        if(negative) {
+            /*
+            * Magnitude is irrelevant once a delay is negative,
+            * but every remaining character must still be numeric.
+            */
+            for(index = 0; index < numeric_token.length; index++) {
+                if(numeric_token.text[index] < '0'
+                    || numeric_token.text[index] > '9') {
+                    return "Delay must be an integer, '\xE2\x88\x9E', or 'infinite'.";
+                }
+            }
+
+            *result = DELAY_INFINITE;
+        } else {
+            if(!command_token_get_uint64(&numeric_token, &parsed_value)) {
+                return "Delay must fit the unsigned 64-bit integer range.";
+            }
+
+            if(parsed_value == DELAY_INFINITE) {
+                *result = DELAY_INFINITE;
+            } else if(parsed_value > DELAY_FINITE_MAX) {
+                return "Finite delay must not exceed the 32-bit delay range.";
+            } else {
+                *result = parsed_value;
+            }
+        }
+    }
+
+    if(!unit_text || !unit_text[0]) {
+        *unit = DELAY_UNIT_GLOBAL;
+
+        return NULL;
+    }
+
+    return delay_unit_from_text(unit_text, true, unit);
+}
+
+/*
+* Read the next command token and convert it to an
+* integer.
+*
+* Return true when the next token is a complete,
+* valid integer. Return false when the token is
+* missing or is not an integer.
+*/
+static bool command_token_reader_next_int64(s_command_token_reader* reader, int64_t* result) {
+    s_command_token token;
+
+    assert(reader);
+    assert(result);
+
+    if(!command_token_reader_next(reader, &token)) {
+        return false;
+    }
+
+    return command_token_get_int64(&token, result);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-18
+*
+* Parse and validate a numbered freespecial animation
+* token without atoi(), atoll(), or signed overflow.
+*
+* Recognized distinguishes unrelated animation or input
+* names from malformed freespecial names. The unnumbered
+* legacy spelling "freespecial" selects freespecial1.
+*
+* Return NULL when the token is unrelated or valid.
+* Return error_buffer when a recognized freespecial name
+* is malformed or exceeds the configured animation table.
+*/
+static const char* command_token_get_freespecial_number(
+    const s_command_token* token,
+    bool* recognized,
+    int* result,
+    char* error_buffer,
+    const size_t error_buffer_size
+) {
+    static const char prefix[] = "freespecial";
+
+    const size_t prefix_length = sizeof(prefix) - 1;
+
+    s_command_token prefix_token;
+    s_command_token suffix_token;
+
+    uint64_t parsed_number;
+
+    assert(token);
+    assert(recognized);
+    assert(result);
+    assert(error_buffer);
+    assert(error_buffer_size);
+
+    *recognized = false;
+    *result = 0;
+
+    if(token->length < prefix_length) {
+        return NULL;
+    }
+
+    prefix_token.text = token->text;
+    prefix_token.length = prefix_length;
+
+    if(!command_token_equals(&prefix_token, prefix)) {
+        return NULL;
+    }
+
+    *recognized = true;
+
+    /*
+    * Preserve legacy behavior where an omitted suffix
+    * means freespecial1.
+    */
+    if(token->length == prefix_length) {
+        *result = 1;
+        return NULL;
+    }
+
+    suffix_token.text = token->text + prefix_length;
+    suffix_token.length = token->length - prefix_length;
+
+    if(suffix_token.text[0] < '1'
+        || suffix_token.text[0] > '9') {
+        snprintf(
+            error_buffer,
+            error_buffer_size,
+            "Freespecial animation number must be at least 1."
+        );
+
+        return error_buffer;
+    }
+
+    if(!command_token_get_uint64(&suffix_token, &parsed_number)) {
+        snprintf(
+            error_buffer,
+            error_buffer_size,
+            "Freespecial animation number is malformed or exceeds "
+            "the unsigned 64-bit range."
+        );
+
+        return error_buffer;
+    }
+
+    if(parsed_number > (uint64_t)max_freespecials) {
+        snprintf(
+            error_buffer,
+            error_buffer_size,
+            "Freespecial animation %" PRIu64 " exceeds maxfreespecials %d.\n"
+            "Increase maxfreespecials in data/models.txt.",
+            parsed_number,
+            max_freespecials
+        );
+
+        return error_buffer;
+    }
+
+    *result = (int)parsed_number;
+
+    return NULL;
+}
+
+/*
+* Convert a command-sequence token into its input flag.
+*
+* Return true when the token names a recognized input.
+* Return false when it is not an input token.
+*/
+static bool command_token_get_input_flag(const s_command_token* token, e_key_def* result) {
+    static const struct {
+        const char* name;
+        e_key_def flag;
+    } input_map[] = {
+        {"l",  FLAG_MOVELEFT},
+        {"r",  FLAG_MOVERIGHT},
+        {"u",  FLAG_MOVEUP},
+        {"d",  FLAG_MOVEDOWN},
+        {"f",  FLAG_FORWARD},
+        {"b",  FLAG_BACKWARD},
+        {"a",  FLAG_ATTACK},
+        {"a1", FLAG_ATTACK},
+        {"a2", FLAG_ATTACK2},
+        {"a3", FLAG_ATTACK3},
+        {"a4", FLAG_ATTACK4},
+        {"j",  FLAG_JUMP},
+        {"st", FLAG_START},
+        {"sc", FLAG_SCREENSHOT},
+        {"s",  FLAG_SPECIAL},
+        {"k",  FLAG_SPECIAL}
+    };
+
+    size_t index;
+
+    assert(token);
+    assert(result);
+
+    for(index = 0;
+        index < sizeof(input_map) / sizeof(input_map[0]);
+        index++) {
+        if(command_token_equals(token, input_map[index].name)) {
+            *result = input_map[index].flag;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-17
+*
+* Parse one configurable special-command input token.
+*
+* Supported forms:
+*
+* key             Positive-edge press.
+* ~key            Negative-edge release.
+* key[min]        Held-state requirement with an
+*                 inclusive minimum duration.
+* key[min][max]   Held-state requirement with inclusive
+*                 minimum and maximum durations. A zero
+*                 maximum means no upper bound.
+* *key[min]       Automatic positive edge generated once
+*                 when the held duration reaches min.
+* key*[min]       Compatible alternate spelling.
+*
+* Return NULL on success or a static error message when
+* the complete token is malformed.
+*/
+static const char* command_token_get_input_requirement(
+    const s_command_token* token,
+    s_command_input_step* result
+) {
+    s_command_token input_name;
+    s_command_token hold_time_minimum_token;
+    s_command_token hold_time_maximum_token;
+
+    e_key_def input_flag;
+
+    size_t hold_minimum_open_index = 0;
+    size_t hold_minimum_close_index = 0;
+    size_t hold_maximum_open_index = 0;
+    size_t input_name_start = 0;
+    size_t input_name_length;
+    size_t index;
+
+    bool automatic_hold = false;
+
+    uint64_t hold_time_minimum;
+    uint64_t hold_time_maximum = 0;
+
+    assert(token);
+    assert(result);
+
+    memset(result, 0, sizeof(*result));
+
+    if(!token->text || token->length == 0) {
+        return "Empty input token in special command";
+    }
+
+    /*
+    * A leading tilde marks a negative-edge input.
+    * Release and hold modifiers remain separate tokens,
+    * as in a[50] + ~a.
+    */
+    if(token->text[0] == '~') {
+        if(token->length == 1) {
+            return "Release input is missing a key name";
+        }
+
+        input_name.text = token->text + 1;
+        input_name.length = token->length - 1;
+
+        for(index = 0; index < input_name.length; index++) {
+            if(input_name.text[index] == '['
+                || input_name.text[index] == ']'
+                || input_name.text[index] == '*'
+                || input_name.text[index] == '~') {
+                return "Release input cannot contain a hold modifier";
+            }
+        }
+
+        if(!command_token_get_input_flag(&input_name, &input_flag)) {
+            return "Invalid release input token in special command";
+        }
+
+        result->release = (key_mask_t)input_flag;
+
+        return NULL;
+    }
+
+    /*
+    * A closing bracket makes the token a held
+    * requirement. The first bracket is the minimum. One
+    * optional second bracket is the inclusive maximum.
+    */
+    if(token->text[token->length - 1] == ']') {
+        for(index = 0; index < token->length; index++) {
+            if(token->text[index] == '[') {
+                hold_minimum_open_index = index;
+                break;
+            }
+        }
+
+        if(!hold_minimum_open_index) {
+            return "Held input is missing a key name or opening bracket";
+        }
+
+        for(index = hold_minimum_open_index + 1;
+            index < token->length;
+            index++) {
+
+            if(token->text[index] == ']') {
+                hold_minimum_close_index = index;
+                break;
+            }
+        }
+
+        if(!hold_minimum_close_index) {
+            return "Held input minimum time is missing a closing bracket";
+        }
+
+        if(hold_minimum_close_index < token->length - 1) {
+            hold_maximum_open_index =
+                hold_minimum_close_index + 1;
+
+            if(token->text[hold_maximum_open_index] != '[') {
+                return "Held input maximum time must immediately follow the minimum";
+            }
+        }
+
+        input_name_length = hold_minimum_open_index;
+
+        /*
+        * Accept the automatic modifier before the key,
+        * as in *a[600]. Keep the earlier a*[600] form as
+        * a compatible alias so existing definitions do
+        * not need conversion.
+        */
+        if(token->text[0] == '*') {
+            automatic_hold = true;
+            input_name_start = 1;
+            input_name_length--;
+
+            if(!input_name_length) {
+                return "Automatic held input is missing a key name";
+            }
+        }
+
+        if(token->text[hold_minimum_open_index - 1] == '*') {
+            if(automatic_hold) {
+                return "Automatic held input has more than one trigger modifier";
+            }
+
+            automatic_hold = true;
+            input_name_length--;
+
+            if(!input_name_length) {
+                return "Automatic held input is missing a key name";
+            }
+        }
+
+        input_name.text = token->text + input_name_start;
+        input_name.length = input_name_length;
+
+        hold_time_minimum_token.text =
+            token->text + hold_minimum_open_index + 1;
+
+        hold_time_minimum_token.length =
+            hold_minimum_close_index
+            - hold_minimum_open_index - 1;
+
+        if(hold_maximum_open_index) {
+            hold_time_maximum_token.text =
+                token->text + hold_maximum_open_index + 1;
+
+            hold_time_maximum_token.length =
+                token->length - hold_maximum_open_index - 2;
+        }
+
+        if(!command_token_get_input_flag(&input_name, &input_flag)) {
+            return "Invalid held input token in special command";
+        }
+
+        if(!command_token_get_uint64(
+            &hold_time_minimum_token,
+            &hold_time_minimum
+        )) {
+            return "Held input minimum time must be an unsigned integer";
+        }
+
+        if(hold_maximum_open_index
+            && !command_token_get_uint64(
+                &hold_time_maximum_token,
+                &hold_time_maximum
+            )) {
+            return "Held input maximum time must be an unsigned integer";
+        }
+
+        if(hold_time_maximum
+            && hold_time_maximum < hold_time_minimum) {
+            return "Held input maximum time must be zero or at least the minimum";
+        }
+
+        if(automatic_hold) {
+            result->hold_trigger = (key_mask_t)input_flag;
+
+        } else {
+            result->hold = (key_mask_t)input_flag;
+        }
+
+        result->hold_time = hold_time_minimum;
+        result->hold_time_maximum = hold_time_maximum;
+
+        return NULL;
+    }
+
+    /*
+    * Brackets, tildes, and stars are only valid in the
+    * complete decorated forms handled above.
+    */
+    for(index = 0; index < token->length; index++) {
+        if(token->text[index] == '['
+            || token->text[index] == ']'
+            || token->text[index] == '*'
+            || token->text[index] == '~') {
+            return "Malformed input modifier in special command";
+        }
+    }
+
+    input_name = *token;
+
+    if(!command_token_get_input_flag(&input_name, &input_flag)) {
+        return "Invalid input token in special command";
+    }
+
+    result->press = (key_mask_t)input_flag;
+
+    return NULL;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-18
+*
+* Parse the optional grace modifier for a plain press
+* chord. The complete token form is +[time].
+*
+* Recognized distinguishes a non-modifier token from a
+* malformed modifier. Return NULL when the token is not
+* a modifier or when parsing succeeds. Return a static
+* error message when a modifier begins with +[ but does
+* not contain one unsigned tick value.
+*/
+static const char* command_token_get_chord_time_modifier(
+    const s_command_token* token,
+    bool* recognized,
+    uint64_t* result
+) {
+    s_command_token chord_time_token;
+
+    assert(token);
+    assert(recognized);
+    assert(result);
+
+    *recognized = false;
+    *result = 0;
+
+    if(token->length < 2
+        || token->text[0] != '+'
+        || token->text[1] != '[') {
+        return NULL;
+    }
+
+    *recognized = true;
+
+    if(token->length < 4
+        || token->text[token->length - 1] != ']') {
+        return "Chord grace time must use +[time]";
+    }
+
+    chord_time_token.text = token->text + 2;
+    chord_time_token.length = token->length - 3;
+
+    if(!command_token_get_uint64(&chord_time_token, result)) {
+        return "Chord grace time must be an unsigned integer";
+    }
+
+    return NULL;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-18
+*
+* Parse the optional grace modifier for a complete
+* command sequence. The complete token form is
+* :[time].
+*
+* Recognized distinguishes a non-modifier token from a
+* malformed modifier. Return NULL when the token is not
+* a modifier or when parsing succeeds. Return a static
+* error message when a modifier begins with :[ but does
+* not contain one unsigned logical tick value.
+*/
+static const char* command_token_get_sequence_grace_time_modifier(const s_command_token* token, bool* recognized, uint64_t* result) {
+    
+    s_command_token sequence_grace_time_token;
+
+    assert(token);
+    assert(recognized);
+    assert(result);
+
+    *recognized = false;
+    *result = 0;
+
+    if(token->length < 2
+        || token->text[0] != ':'
+        || token->text[1] != '[') {
+        return NULL;
+    }
+
+    *recognized = true;
+
+    if(token->length < 4
+        || token->text[token->length - 1] != ']') {
+        return "Sequence grace time must use :[time]";
+    }
+
+    sequence_grace_time_token.text = token->text + 2;
+    sequence_grace_time_token.length = token->length - 3;
+
+    if(!command_token_get_uint64(&sequence_grace_time_token, result)) {
+        return "Sequence grace time must be an unsigned integer";
+    }
+
+    return NULL;
+}
+
+/*
+* Parse the input-sequence portion of a special command.
+*
+* Sequence grammar:
+*
+* input [-> input ...] freespecial#
+* input + input [+[time]] [-> input ...] freespecial#
+*
+* The arrow token is an optional visual separator.
+* The plus token combines the following input with the
+* preceding sequence step. The +[time] token overrides
+* same-tick sensitivity for the preceding press chord.
+* The :[time] token overrides the global grace time
+* between every step in this command sequence. It may
+* appear once in any token position outside an unfinished
+* plus expression.
+*
+* Return NULL on success. Return a static error message
+* when the sequence is invalid.
+*/
+static const char* special_command_parse_sequence(
+    s_command_token_reader* reader,
+    s_com* special,
+    int* freespecial_number,
+    char* error_buffer,
+    const size_t error_buffer_size
+) {
+    s_command_token token;
+
+    s_command_input_step input_requirement;
+    s_command_input_step* destination_step;
+
+    size_t step_count = 0;
+    size_t step_index;
+
+    bool combine_with_previous = false;
+
+    uint64_t chord_time_defined_steps = 0;
+
+    assert(reader);
+    assert(special);
+    assert(freespecial_number);
+    assert(error_buffer);
+    assert(error_buffer_size);
+
+    *freespecial_number = 0;
+    special->numkeys = 0;
+    special->steps = 0;
+    special->sequence_grace_time = 0;
+    special->sequence_grace_time_override = false;
+
+    while(command_token_reader_next(reader, &token)) {
+        bool freespecial_recognized;
+
+        int numbered_animation;
+
+        const char* freespecial_error =
+            command_token_get_freespecial_number(
+                &token,
+                &freespecial_recognized,
+                &numbered_animation,
+                error_buffer,
+                error_buffer_size
+            );
+
+        if(freespecial_error) {
+            return freespecial_error;
+        }
+
+        /*
+        * Destination animation terminates the sequence.
+        */
+        if(freespecial_recognized) {
+            
+            /*
+            * A plus token must be followed by another
+            * input, not the destination animation.
+            */
+            if(combine_with_previous) {
+                return "Invalid '+' placement in special command";
+            }
+
+            /*
+            * Destination animation must be the final
+            * non-comment token.
+            */
+            if(command_token_reader_next(reader, &token)) {
+                return "Unexpected token after special command animation";
+            }
+
+            if(step_count == 0) {
+                return "Special command requires at least one input step";
+            }
+
+            if(special->sequence_grace_time_override
+                && step_count < 2) {
+                return "Sequence grace time requires at least two complete input steps";
+            }
+
+            /*
+            * Passive held requirements qualify a press,
+            * release, or future automatic hold event. They
+            * cannot create a sequence step by themselves.
+            */
+            for(step_index = 0;
+                step_index < step_count;
+                step_index++) {
+
+                const s_command_input_step* input_step =
+                    &special->input[step_index];
+
+                if(!input_step->press
+                    && !input_step->release
+                    && !input_step->hold_trigger) {
+                    return "Held input step requires a press, release, or automatic trigger";
+                }
+            }
+
+            special->steps = (int)step_count;
+            *freespecial_number = numbered_animation;
+
+            return NULL;
+        }
+
+        /*
+        * Optional command-wide grace between separate
+        * input steps. A zero value is a valid explicit
+        * override, so the boolean records its presence.
+        * Its token position does not affect its scope.
+        */
+        {
+            bool sequence_grace_time_recognized;
+
+            uint64_t sequence_grace_time;
+
+            const char* sequence_grace_time_error =
+                command_token_get_sequence_grace_time_modifier(
+                    &token,
+                    &sequence_grace_time_recognized,
+                    &sequence_grace_time
+                );
+
+            if(sequence_grace_time_error) {
+                return sequence_grace_time_error;
+            }
+
+            if(sequence_grace_time_recognized) {
+                if(combine_with_previous) {
+                    return "Sequence grace time cannot interrupt a '+' expression";
+                }
+
+                if(special->sequence_grace_time_override) {
+                    return "Sequence grace time is already defined for this command";
+                }
+
+                special->sequence_grace_time =
+                    sequence_grace_time;
+
+                special->sequence_grace_time_override = true;
+
+                continue;
+            }
+        }
+
+        /*
+        * Optional separator between sequence steps.
+        *
+        * Preserve the old parser's acceptance of repeated
+        * arrows after at least one input step.
+        */
+        if(command_token_equals(&token, "->")) {
+            if(combine_with_previous
+                || (step_count == 0
+                    && !special->sequence_grace_time_override)) {
+                return "Invalid '->' placement in special command";
+            }
+
+            continue;
+        }
+
+        /*
+        * Optional grace for the multi-key press chord in
+        * the current sequence step.
+        */
+        {
+            bool chord_time_recognized;
+
+            uint64_t chord_time;
+
+            const char* chord_time_error =
+                command_token_get_chord_time_modifier(
+                    &token,
+                    &chord_time_recognized,
+                    &chord_time
+                );
+
+            if(chord_time_error) {
+                return chord_time_error;
+            }
+
+            if(chord_time_recognized) {
+                uint64_t step_flag;
+
+                if(step_count == 0 || combine_with_previous) {
+                    return "Chord grace time must follow a complete press chord";
+                }
+
+                destination_step =
+                    &special->input[step_count - 1];
+
+                if(!(destination_step->press
+                    & (destination_step->press - 1))) {
+                    return "Chord grace time requires a multi-key press chord";
+                }
+
+                step_flag =
+                    UINT64_C(1) << (step_count - 1);
+
+                if(chord_time_defined_steps & step_flag) {
+                    return "Chord grace time is already defined for this step";
+                }
+
+                destination_step->chord_time = chord_time;
+                chord_time_defined_steps |= step_flag;
+
+                continue;
+            }
+        }
+
+        /*
+        * Combine the next input with the most recently
+        * stored sequence step.
+        */
+        if(command_token_equals(&token, "+")) {
+            if(step_count == 0 || combine_with_previous) {
+                return "Invalid '+' placement in special command";
+            }
+
+            combine_with_previous = true;
+            continue;
+        }
+
+        {
+            const char* input_error =
+                command_token_get_input_requirement(
+                    &token,
+                    &input_requirement
+                );
+
+            if(input_error) {
+                return input_error;
+            }
+        }
+
+        if(combine_with_previous) {
+            destination_step =
+                &special->input[step_count - 1];
+
+            combine_with_previous = false;
+
+        } else {
+            if(step_count >= MAX_SPECIAL_INPUTS) {
+                return "Special command exceeds the maximum of 64 sequence steps.";
+            }
+
+            destination_step = &special->input[step_count];
+            step_count++;
+        }
+
+        /*
+        * One command step stores one held-time range.
+        * Multiple held inputs may share that range, but a
+        * step cannot silently collapse different bounds.
+        */
+        if(input_requirement.hold
+            || input_requirement.hold_trigger) {
+
+            if((destination_step->hold
+                    || destination_step->hold_trigger)
+                && (destination_step->hold_time
+                        != input_requirement.hold_time
+                    || destination_step->hold_time_maximum
+                        != input_requirement.hold_time_maximum)) {
+                return "Held inputs combined in one step must use the same time range";
+            }
+
+            destination_step->hold_time =
+                input_requirement.hold_time;
+
+            destination_step->hold_time_maximum =
+                input_requirement.hold_time_maximum;
+        }
+
+        destination_step->press |= input_requirement.press;
+        destination_step->hold |= input_requirement.hold;
+        destination_step->hold_trigger |=
+            input_requirement.hold_trigger;
+
+        destination_step->release |= input_requirement.release;
+
+        /*
+        * Preserve existing ranking behavior. numkeys
+        * counts input tokens, including inputs combined
+        * into the same sequence step.
+        */
+        special->numkeys++;
+    }
+
+    if(combine_with_previous) {
+        return "Special command ends with an incomplete '+' expression";
+    }
+
+    return "Special command is missing a freespecial animation";
 }
 
 size_t ParseArgs(ArgList *list, char *input, char *output)
@@ -3346,71 +5430,10 @@ int readByte(char *buf)
 {
     int num = 0;
 
-    num = (unsigned int)buf[0]&0xFF;
+    num = (uint64_t)buf[0]&0xFF;
 
     return num;
 }
-
-char *findarg(char *command, int which)
-{
-    const char comment_mark[] = {"#"};
-    int d;
-    int argc;
-    int inarg;
-    int argstart;
-    static char arg[MAX_ARG_LEN];
-
-
-    // Copy the command line, replacing spaces by zeroes,
-    // finally returning a pointer to the requested arg.
-    d = 0;
-    inarg = 0;
-    argstart = 0;
-    argc = -1;
-
-    while(d < MAX_ARG_LEN - 1 && command[d])
-    {
-        // Zero out whitespace
-        if(command[d] == ' ' || command[d] == '\t')
-        {
-            arg[d] = 0;
-            inarg = 0;
-            if(argc == which)
-            {
-                return arg + argstart;
-            }
-        }
-        else if(command[d] == 0 || command[d] == '\n' || command[d] == '\r' ||
-                strcmp(command + d, comment_mark) == 0)
-        {
-            // End of line
-            arg[d] = 0;
-            if(argc == which)
-            {
-                return arg + argstart;
-            }
-            return arg + d;
-        }
-        else
-        {
-            if(!inarg)
-            {
-                // if(argc==-1 && command[d]=='#') return arg;
-                inarg = 1;
-                argstart = d;
-                argc++;
-            }
-            arg[d] = command[d];
-        }
-        ++d;
-    }
-    arg[d] = 0;
-
-    return arg;
-}
-
-
-
 
 float diff(float a, float b)
 {
@@ -3543,7 +5566,7 @@ int load_palette(unsigned char *palette, char *filename)
 {
     char *fileext;
     int file_id, i;
-    unsigned int *acting_palette;
+    uint64_t *acting_palette;
     unsigned char rgb_temp[COLOR_COMPONENT_RGB];
 
     //printf("\n\nfileext: %s", filename);
@@ -3566,7 +5589,7 @@ int load_palette(unsigned char *palette, char *filename)
         memset(palette, 0, MAX_PAL_SIZE);
 
 
-        acting_palette = (unsigned int*)palette;
+        acting_palette = (uint64_t*)palette;
 
         
         for(i = 0; i < MAX_PAL_SIZE / 4; i++)
@@ -4283,26 +6306,26 @@ void cachesound(int index, int load)
 // Rewrite by Caskey, Damon V.
 // 2018-03-19
 //
-// Add or remove a sprite to the the sprite list
+// Add or remove a sprite to the sprite list
 // by index.
 //
 // index: Target index in the sprite list.
 // load: Load 1, or unload 0 the target sprite index.
-void cachesprite(int index, int load)
-{
+void cachesprite(int index, int load) {
+
     s_sprite *sprite;           // Sprite placeholder.
     s_sprite_list *map_node;    // Sprite map node placeholder.
 
     // Valid sprite list?
-    if(sprite_map)
-    {
+    if(sprite_map) {
+
         // Index argument valid?
-        if(index >= 0)
-        {
+        if(index >= 0) {
+
             // Index argument should be more than
             // the number of sprites loaded.
-            if(index < sprites_loaded)
-            {
+            if(index < sprites_loaded) {
+
                 // Get the sprite list node from sprite maps
                 // using our target index.
                 map_node = sprite_map[index].node;
@@ -4311,28 +6334,28 @@ void cachesprite(int index, int load)
                 // a sprite and assign it the target index.
                 // Otherwise, we want to free a sprite with
                 // target index.
-                if(load)
-                {
+                if(load) {
+
                     // Make sure there is not already
                     // a sprite with our target index.
                     sprite = map_node->sprite;
 
-                    if(!sprite)
-                    {
+                    if(!sprite) {
+
                         // Load the sprite file, then assign its
                         // new pointer to the sprite map using our
                         // index for the sprite map position.
                         sprite = loadsprite2(map_node->filename, NULL, NULL);
                         map_node->sprite = sprite;
                     }
-                }
-                else if(!load)
-                {
+
+                } else if(!load) {
+
                     // Does the target sprite exist?
                     sprite = map_node->sprite;
 
-                    if(sprite)
-                    {
+                    if(sprite) {
+
                         // Free the target sprite's resources, then remove
                         // its pointer from sprite map.
                         free(sprite);
@@ -4346,153 +6369,267 @@ void cachesprite(int index, int load)
     }
 }
 
-// Returns sprite index.
-// Does not return on error, as it would shut the program down.
-// UT:
-// bmpformat - In 24bit mode, a sprite can have a 24bit palette(e.g., panel),
-//             so add this paramter to let sprite encoding function know.
-//             Actually the sprite pixel encoding method is the same, but a
-//             24bit palettte sprite should have a palette allocated at the end of
-//             pixel data, and the information is carried by the bitmap paramter.
-int loadsprite(char *filename, int ofsx, int ofsy, int bmpformat)
-{
-    ptrdiff_t i, size, len;
-    s_bitmap *bitmap = NULL;
-    int clipl, clipr, clipt, clipb;
-    s_sprite_list *curr = NULL, *head = NULL, *toshare = NULL;
+/*
+* Caskey, Damon V.
+* Original date and author unknown, reworked 2026-06-01.
+*
+* Loads a sprite from disk or the active pack file, encodes
+* it into the internal sprite format, and returns the sprite
+* index. If the same source image and offset were previously
+* loaded, the existing sprite index is returned.
+*
+* Hard fails on load or allocation failure and sends error
+* to log.
+*/
+int loadsprite(char *filename, int offset_x, int offset_y, int bmpformat) {
 
-    for(i = 0; i < sprites_loaded; i++)
-    {
-        if(sprite_map && sprite_map[i].node)
-        {
-            if(stricmp(sprite_map[i].node->filename, filename) == 0)
-            {
-                if(!sprite_map[i].node->sprite)
-                {
+    ptrdiff_t i;
+    ptrdiff_t size;
+    ptrdiff_t len;
+    s_bitmap *bitmap = NULL;
+    int clip_left; 
+    int clip_right; 
+    int clip_top; 
+    int clip_bottom;
+    s_sprite_list *curr = NULL;
+    s_sprite_list *head = NULL;
+    s_sprite_list *toshare = NULL;
+
+    /*
+    * Look for an already loaded copy of this sprite.
+    * Sprites with the same source image can share pixel data,
+    * but may still need separate sprite map entries if they use
+    * different offsets.
+    */
+    for(i = 0; i < sprites_loaded; i++) {
+        if(sprite_map && sprite_map[i].node) {
+            if(stricmp(sprite_map[i].node->filename, filename) == 0) {
+
+                /*
+                * Some shared sprite nodes may exist without encoded
+                * sprite data loaded yet. Load it on demand before
+                * checking offset values.
+                */
+                if(!sprite_map[i].node->sprite) {
                     sprite_map[i].node->sprite = loadsprite2(filename, NULL, NULL);
                 }
-                if(sprite_map[i].centerx + sprite_map[i].node->sprite->offsetx == ofsx &&
-                        sprite_map[i].centery + sprite_map[i].node->sprite->offsety == ofsy)
-                {
+
+                /*
+                * The sprite map stores center coordinates relative to
+                * the clipped sprite offset. If the requested offset
+                * matches an existing entry, return that sprite index.
+                */
+                if(sprite_map[i].centerx + sprite_map[i].node->sprite->offsetx == offset_x &&
+                        sprite_map[i].centery + sprite_map[i].node->sprite->offsety == offset_y) {
                     return i;
-                }
-                else
-                {
+                } else {
+
+                    /*
+                    * Same image, different offset. Keep the existing
+                    * sprite node so the new map entry can share the
+                    * encoded sprite data instead of loading another copy.
+                    */
                     toshare = sprite_map[i].node;
                 }
             }
         }
     }
 
-    if(toshare)
-    {
+    /*
+    * If the image was already loaded but the offset did not match,
+    * create a new sprite map entry that points to the existing sprite
+    * node. This avoids duplicate bitmap loads and duplicate encoded
+    * sprite allocations.
+    */
+    if(toshare && toshare->sprite){
         prepare_sprite_map(sprites_loaded + 1);
         sprite_map[sprites_loaded].node = toshare;
-        sprite_map[sprites_loaded].centerx = ofsx - toshare->sprite->offsetx;
-        sprite_map[sprites_loaded].centery = ofsy - toshare->sprite->offsety;
+        sprite_map[sprites_loaded].centerx = offset_x - toshare->sprite->offsetx;
+        sprite_map[sprites_loaded].centery = offset_y - toshare->sprite->offsety;
         ++sprites_loaded;
         return sprites_loaded - 1;
     }
 
+    /*
+    * No usable cached sprite was found, so load the source bitmap from
+    * disk or the active pack file. loadbitmap() returns NULL on any
+    * image open, allocation, or decode failure.
+    */
     bitmap = loadbitmap(filename, packfile, bmpformat);
-    if(bitmap == NULL)
-    {
-        borShutdown(1, "Unable to load file '%s'\n", filename);
+    if(bitmap == NULL) {
+        borShutdown(1, "Unable to load image file '%s'\nAcceptable formats: \n\t - 8bit non-interlaced .png \n\t - 24-bit .png (background only) \n\t - Animated .gif (cutscenes only) \n\n", filename);
     }
 
-    clipbitmap(bitmap, &clipl, &clipr, &clipt, &clipb);
+    /*
+    * Trim empty transparent borders from the bitmap before encoding.
+    * The clip values are saved as sprite offsets so the rendered image
+    * still aligns to the original requested position.
+    */
+    clipbitmap(bitmap, &clip_left, &clip_right, &clip_top, &clip_bottom);
 
+    /*
+    * Calculate storage requirements for the encoded sprite data.
+    * fakey_encodesprite() returns the number of bytes needed by
+    * encodesprite() for this bitmap and format.
+    */
     len = strlen(filename);
     size = fakey_encodesprite(bitmap);
+    
+    /*
+    * Allocate memory for the new sprite list node, and 
+    * the sprite and filename members of the new node. 
+    * If any of these allocations fail, free any memory 
+    * we allocated for the bitmap, and shut down to avoid 
+    * a crash.
+    */
     curr = malloc(sizeof(*curr));
-    curr->sprite = malloc(size);
-    curr->filename = malloc(len + 1);
-    if(curr == NULL || curr->sprite == NULL || curr->filename == NULL)
-    {
+    if(curr == NULL) {
         freebitmap(bitmap);
         borShutdown(1, "loadsprite() Out of memory!\n");
     }
+
+    curr->sprite = malloc(size);
+    curr->filename = malloc(len + 1);
+
+    if(curr->sprite == NULL || curr->filename == NULL) {
+        free(curr->sprite);
+        free(curr->filename);
+        free(curr);
+        freebitmap(bitmap);
+        borShutdown(1, "loadsprite() Out of memory!\n");
+    }
+
+    /*
+    * Store the original filename for future cache lookups, then encode
+    * the clipped bitmap into the engine's internal sprite format.
+    */
     memcpy(curr->filename, filename, len);
     curr->filename[len] = 0;
-    encodesprite(ofsx - clipl, ofsy - clipt, bitmap, curr->sprite);
-    if(sprite_list == NULL)
-    {
+    encodesprite(offset_x - clip_left, offset_y - clip_top, bitmap, curr->sprite);
+    
+    /*
+    * Insert the new sprite node at the head of the global sprite list.
+    * The sprite map below will point at this node by reference.
+    */
+    if(sprite_list == NULL) {
         sprite_list = curr;
         sprite_list->next = NULL;
-    }
-    else
-    {
+    } else {
         head = sprite_list;
         sprite_list = curr;
         sprite_list->next = head;
     }
+
+    /*
+    * Add the new sprite to the sprite map. The map stores the adjusted
+    * center position, while the sprite itself stores the clip offset and
+    * original clipped source dimensions for rendering and collision use.
+    */
     prepare_sprite_map(sprites_loaded + 1);
     sprite_map[sprites_loaded].node = sprite_list;
-    sprite_map[sprites_loaded].centerx = ofsx - clipl;
-    sprite_map[sprites_loaded].centery = ofsy - clipt;
-    sprite_list->sprite->offsetx = clipl;
-    sprite_list->sprite->offsety = clipt;
+    sprite_map[sprites_loaded].centerx = offset_x - clip_left;
+    sprite_map[sprites_loaded].centery = offset_y - clip_top;
+    sprite_list->sprite->offsetx = clip_left;
+    sprite_list->sprite->offsety = clip_top;
     sprite_list->sprite->srcwidth = bitmap->clipped_width;
     sprite_list->sprite->srcheight = bitmap->clipped_height;
+
+    /*
+    * The encoded sprite now owns the data needed by the engine, so the
+    * temporary bitmap can be released before returning the new index.
+    */
     freebitmap(bitmap);
     ++sprites_loaded;
     return sprites_loaded - 1;
 }
 
-void load_special_sprites()
-{
-    memset(shadowsprites, -1, sizeof(*shadowsprites) * 6);
-    golsprite = gosprite = -1;
-    if (testpackfile("data/sprites/shadow1.gif", packfile) >= 0 ||
-        testpackfile("data/sprites/shadow1.png", packfile) >= 0)
-    {
-        shadowsprites[0] = loadsprite("data/sprites/shadow1", 9, 3, pixelformat);
+/*
+* Caskey, Damon V.
+* Original date and author unknown, reworked 2026-07-06.
+*
+* Loads hard coded special sprites and 
+* configured icons. Does nothing if the
+* sprites do not exist in the packfile. 
+*
+* Reworked to remove .gif support and 
+* replace if chain with a more maintainable 
+* lookup table for hard coded paths.
+*/
+void load_special_sprites() {
+
+    /*
+    * Lookup table structure for hard coded special
+    * sprites.
+    */
+
+    typedef struct {
+        char* path;
+        int x_offset;
+        int y_offset;
+        int* sprite;
+    } s_special_sprite_load;
+    
+    const s_special_sprite_load special_sprite_loads[] = {
+        { "data/sprites/shadow1.png", 9,  3,  &shadowsprites[0] },
+        { "data/sprites/shadow2.png", 14, 5,  &shadowsprites[1] },
+        { "data/sprites/shadow3.png", 19, 6,  &shadowsprites[2] },
+        { "data/sprites/shadow4.png", 24, 8,  &shadowsprites[3] },
+        { "data/sprites/shadow5.png", 29, 9,  &shadowsprites[4] },
+        { "data/sprites/shadow6.png", 34, 11, &shadowsprites[5] },
+        { "data/sprites/arrow.png",   35, 23, &gosprite },
+        { "data/sprites/arrowl.png",  35, 23, &golsprite }
+    };
+
+    size_t sprite_index;
+    const s_special_sprite_load* sprite_load;
+    const size_t num_special_sprites = sizeof(special_sprite_loads) / sizeof(special_sprite_loads[0]);
+
+    /* 
+    * Scan the lookup table, test each path and
+    * load the corresponding sprite if the file 
+    * exists.
+    * 
+    * Non existent files get -1 assigned to their 
+    * sprite index to indicate they are not loaded.
+    */
+    for(sprite_index = 0; sprite_index < num_special_sprites; sprite_index++) {
+
+        /* 
+        * Dereference the current lookup table entry.
+        */
+        sprite_load = &special_sprite_loads[sprite_index];
+
+        /*
+        * Initialize the sprite index to -1 to indicate
+        * that the sprite is not loaded yet.
+        */
+        *sprite_load->sprite = -1;
+
+        /*
+        * Check if the file exists in the packfile. If it 
+        * does, load the sprite and update the sprite index.
+        */
+        if(testpackfile(sprite_load->path, packfile) >= 0) {
+            *sprite_load->sprite = loadsprite(sprite_load->path,
+                                              sprite_load->x_offset,
+                                              sprite_load->y_offset,
+                                              pixelformat);
+        }
     }
-    if (testpackfile("data/sprites/shadow2.gif", packfile) >= 0 ||
-        testpackfile("data/sprites/shadow2.png", packfile) >= 0)
-    {
-        shadowsprites[1] = loadsprite("data/sprites/shadow2", 14, 5, pixelformat);
-    }
-    if (testpackfile("data/sprites/shadow3.gif", packfile) >= 0 ||
-        testpackfile("data/sprites/shadow3.png", packfile) >= 0)
-    {
-        shadowsprites[2] = loadsprite("data/sprites/shadow3", 19, 6, pixelformat);
-    }
-    if (testpackfile("data/sprites/shadow4.gif", packfile) >= 0 ||
-        testpackfile("data/sprites/shadow4.png", packfile) >= 0)
-    {
-        shadowsprites[3] = loadsprite("data/sprites/shadow4", 24, 8, pixelformat);
-    }
-    if (testpackfile("data/sprites/shadow5.gif", packfile) >= 0 ||
-        testpackfile("data/sprites/shadow5.png", packfile) >= 0)
-    {
-        shadowsprites[4] = loadsprite("data/sprites/shadow5", 29, 9, pixelformat);
-    }
-    if (testpackfile("data/sprites/shadow6.gif", packfile) >= 0 ||
-        testpackfile("data/sprites/shadow6.png", packfile) >= 0)
-    {
-        shadowsprites[5] = loadsprite("data/sprites/shadow6", 34, 11, pixelformat);
-    }
-    if (testpackfile("data/sprites/arrow.gif", packfile) >= 0 ||
-        testpackfile("data/sprites/arrow.png", packfile) >= 0)
-    {
-        gosprite  = loadsprite("data/sprites/arrow", 35, 23, pixelformat);
-    }
-    if (testpackfile("data/sprites/arrowl.gif", packfile) >= 0 ||
-        testpackfile("data/sprites/arrowl.png", packfile) >= 0)
-    {
-        golsprite = loadsprite("data/sprites/arrowl", 35, 23, pixelformat);
-    }
-    if(timeicon_path[0])
-    {
+
+    /*
+    * Load configured icons.
+    */
+
+    if(timeicon_path[0]) {
         timeicon = loadsprite(timeicon_path, 0, 0, pixelformat);
     }
-    if(bgicon_path[0])
-    {
+
+    if(bgicon_path[0]) {
         bgicon = loadsprite(bgicon_path, 0, 0, pixelformat);
     }
-    if(olicon_path[0])
-    {
+
+    if(olicon_path[0]) {
         olicon = loadsprite(olicon_path, 0, 0, pixelformat);
     }
 }
@@ -4684,21 +6821,21 @@ proceed:
 int load_special_sounds()
 {
     sound_unload_all_samples();
-    global_sample_list.go = sound_load_sample("data/sounds/go.wav",		packfile,	0);
-    global_sample_list.beat = sound_load_sample("data/sounds/beat1.wav",	packfile,	0);
-    global_sample_list.block = sound_load_sample("data/sounds/block.wav",	packfile,	0);
-    global_sample_list.fall = sound_load_sample("data/sounds/fall.wav",		packfile,	0);
-    global_sample_list.get = sound_load_sample("data/sounds/get.wav",		packfile,	0);
-    global_sample_list.get_2 = sound_load_sample("data/sounds/money.wav",	packfile,	0);
-    global_sample_list.jump = sound_load_sample("data/sounds/jump.wav",		packfile,	0);
-    global_sample_list.indirect = sound_load_sample("data/sounds/indirect.wav",	packfile,	0);
-    global_sample_list.punch = sound_load_sample("data/sounds/punch.wav",	packfile,	0);
-    global_sample_list.one_up = sound_load_sample("data/sounds/1up.wav",		packfile,	0);
-    global_sample_list.time_over = sound_load_sample("data/sounds/timeover.wav", packfile,	0);
-    global_sample_list.beep = sound_load_sample("data/sounds/beep.wav",		packfile,	0);
-    global_sample_list.beep_2 = sound_load_sample("data/sounds/beep2.wav",	packfile,	0);
-    global_sample_list.pause = sound_load_sample("data/sounds/pause.wav",	packfile,	0);
-    global_sample_list.bike = sound_load_sample("data/sounds/bike.wav",		packfile,	0);
+    global_sample_list.go = sound_load_sample("data/sounds/go.wav",		packfile,	0, 0);
+    global_sample_list.beat = sound_load_sample("data/sounds/beat1.wav",	packfile,	0, 0);
+    global_sample_list.block = sound_load_sample("data/sounds/block.wav",	packfile,	0, 0);
+    global_sample_list.fall = sound_load_sample("data/sounds/fall.wav",		packfile,	0, 0);
+    global_sample_list.get = sound_load_sample("data/sounds/get.wav",		packfile,	0, 0);
+    global_sample_list.get_2 = sound_load_sample("data/sounds/money.wav",	packfile,	0, 0);
+    global_sample_list.jump = sound_load_sample("data/sounds/jump.wav",		packfile,	0, 0);
+    global_sample_list.indirect = sound_load_sample("data/sounds/indirect.wav",	packfile,	0, 0);
+    global_sample_list.punch = sound_load_sample("data/sounds/punch.wav",	packfile,	0, 0);
+    global_sample_list.one_up = sound_load_sample("data/sounds/1up.wav",		packfile,	0, 0);
+    global_sample_list.time_over = sound_load_sample("data/sounds/timeover.wav", packfile,	0, 0);
+    global_sample_list.beep = sound_load_sample("data/sounds/beep.wav",		packfile,	0, 0);
+    global_sample_list.beep_2 = sound_load_sample("data/sounds/beep2.wav",	packfile,	0, 0);
+    global_sample_list.pause = sound_load_sample("data/sounds/pause.wav",	packfile,	0, 0);
+    global_sample_list.bike = sound_load_sample("data/sounds/bike.wav",		packfile,	0, 0);
 
     if (global_sample_list.pause < 0 ) global_sample_list.pause = global_sample_list.beep_2;
     if(global_sample_list.go < 0 || global_sample_list.beat < 0 || global_sample_list.block < 0 ||
@@ -4824,12 +6961,12 @@ int nextcolourmapn(s_model *model, int map_index, int player_index)
 
         // This logic attempts to populate used_colors_map array with
 		// every color in use by other players who picking same
-		// character. If there are aren't enough unused map indexes to
+		// character. If there aren't enough unused map indexes to
 		// go around (i.e. three players select a character that only
 		// has two maps), then we return initial map selection.
 
         for(i = 0; i < MAX_PLAYERS; i++)
-        {			
+        {
 			// Compare every player index to player_index argument. If
 			// it's a different index but that index's model matches
 			// player_index's model, then it's another player choosing 
@@ -4943,7 +7080,7 @@ int prevcolourmapn(s_model *model, int map_index, int player_index)
 
 		// This logic attempts to populate used_colors_map array with
 		// every color in use by other players who picking same
-		// character. If there are aren't enough unused map indexes to
+		// character. If there aren't enough unused map indexes to
 		// go around (i.e. three players select a character that only
 		// has two maps), then we return initial map selection.
 
@@ -5256,49 +7393,218 @@ static void reset_playable_list(char which)
     }
 }
 
-// Specify which Player Models are allowable for selecting
-static void load_playable_list(char *buf)
-{
-    int i, index;
-    char *value;
-    s_model *playermodels = NULL;
-    ArgList arglist;
-    char argbuf[MAX_ALLOWSELECT_LEN] = "";
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Grow a normalized command line as sequential arguments arrive.
+  Capacity follows actual content, so total command size is bound
+  only by addressable memory while individual arguments retain
+  their dedicated validation limit.
+*/
+static void append_command_argument(
+    char** command_line,
+    size_t* length,
+    size_t* capacity,
+    const char* value
+) {
+    const size_t value_length = strlen(value);
+    const size_t separator_length = *length ? 1 : 0;
+    size_t required_capacity;
+    size_t expanded_capacity;
 
-    ParseArgs(&arglist, buf, argbuf);
-
-    // avoid to load characters if there isn't an allowselect
-    if ( stricmp(value = GET_ARG(0), "allowselect") != 0 ) return;
-
-    reset_playable_list(0);
-
-    for(i = 0; i < sizeof(argbuf); i++) allowselect_args[i] = ' ';
-    for(i = 0; i < sizeof(argbuf); i++)
-    {
-        if ( argbuf[i] != '\0' ) allowselect_args[i] = argbuf[i]; // store allowselect players for savefile
-        else allowselect_args[i] = ' ';
+    if(*length > SIZE_MAX - separator_length - 1
+        || value_length
+            > SIZE_MAX - *length - separator_length - 1) {
+        borShutdown(1, "Command line exceeds addressable memory.\n");
+        return;
     }
-    allowselect_args[sizeof(argbuf)-1] = '\0';
 
-    for(i = 1; (value = GET_ARG(i))[0]; i++)
-    {
-        playermodels = findmodel(value);
-        //if(playermodels == NULL) borShutdown(1, "Player model '%s' is not loaded.\n", value);
-        index = get_cached_model_index(playermodels->name);
-        if(index == -1)
-        {
-            borShutdown(1, "Player model '%s' is not cached.\n", value);
+    required_capacity =
+        *length + separator_length + value_length + 1;
+
+    if(required_capacity > *capacity) {
+        expanded_capacity = *capacity ? *capacity : 64;
+
+        while(expanded_capacity < required_capacity) {
+            if(expanded_capacity > SIZE_MAX / 2) {
+                expanded_capacity = required_capacity;
+                break;
+            }
+
+            expanded_capacity *= 2;
         }
-        model_cache[index].selectable = 1;
+
+        *command_line = realloc(*command_line, expanded_capacity);
+        *capacity = expanded_capacity;
     }
 
-    return;
+    if(separator_length) {
+        (*command_line)[(*length)++] = ' ';
+    }
+
+    memcpy(*command_line + *length, value, value_length);
+    *length += value_length;
+    (*command_line)[*length] = '\0';
 }
 
-void alloc_specials(s_model *newchar)
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read selectable player model names directly from the source
+  line one item at a time. Apply and retain the complete runtime
+  list without a whole-line or persistent save-field ceiling.
+*/
+static void load_playable_list(const char* command_line)
 {
-    newchar->special = realloc(newchar->special, sizeof(s_com) * (newchar->specials_loaded + 1));
-    memset(newchar->special + newchar->specials_loaded, 0, sizeof(s_com));
+    const char* value;
+    s_command_argument_reader reader;
+    s_model* playermodel;
+    char* stored_arguments = NULL;
+    size_t stored_length = 0;
+    size_t stored_capacity = 0;
+    int index;
+
+    if(!command_line
+        || !command_argument_reader_initialize(
+            &reader,
+            command_line,
+            0
+        )
+        || !command_argument_reader_next(&reader, &value)
+        || stricmp(value, "allowselect") != 0) {
+        return;
+    }
+
+    reset_playable_list(0);
+    append_command_argument(
+        &stored_arguments,
+        &stored_length,
+        &stored_capacity,
+        "allowselect"
+    );
+
+    while(command_argument_reader_next(&reader, &value)) {
+        playermodel = findmodel((char*)value);
+
+        if(!playermodel) {
+            free(stored_arguments);
+            borShutdown(1, "Player model '%s' is not loaded.\n", value);
+            return;
+        }
+
+        index = get_cached_model_index(playermodel->name);
+
+        if(index == -1) {
+            free(stored_arguments);
+            borShutdown(1, "Player model '%s' is not cached.\n", value);
+            return;
+        }
+
+        model_cache[index].selectable = 1;
+        append_command_argument(
+            &stored_arguments,
+            &stored_length,
+            &stored_capacity,
+            value
+        );
+    }
+
+    free(allowselect_args);
+    allowselect_args = stored_arguments;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-18 - Original author and date unknown, reworked 2026-07-06.
+*
+* Expand the model's configurable special-command table
+* by one zero-initialized entry.
+*
+* Preserve an owned table until realloc succeeds. When a
+* subclass still shares its parent's table, allocate and
+* copy the inherited entries before appending so changes
+* cannot modify or reallocate the parent table.
+*/
+static bool alloc_specials(s_model* newchar)
+{
+    s_com* expanded_specials;
+    size_t expanded_count;
+    bool owns_special_table;
+
+    if(!newchar
+        || newchar->specials_loaded < 0
+        || newchar->specials_loaded == INT_MAX) {
+        return false;
+    }
+
+    owns_special_table =
+        (newchar->freetypes & MF_SPECIAL) != 0;
+
+    /*
+    * A subclass initially shares its parent's command
+    * table. A positive inherited count without a table
+    * is invalid and cannot be copied safely.
+    */
+    if(newchar->specials_loaded > 0
+        && !newchar->special) {
+        return false;
+    }
+
+    /*
+    * Calculate the new size of the table, which is
+    * the current number of loaded specials plus one
+    * for the new entry. Check for overflow before
+    * attempting to realloc the table.
+    */
+    expanded_count = (size_t)newchar->specials_loaded + 1;
+
+    if(expanded_count > SIZE_MAX / sizeof(*expanded_specials)) {
+        return false;
+    }
+
+    /*
+    * Models that own their table may expand it in place.
+    * A subclass that still shares an inherited table must
+    * allocate and copy first, leaving the parent untouched.
+    */
+
+    if(owns_special_table) {
+        expanded_specials = realloc(
+            newchar->special,
+            sizeof(*expanded_specials) * expanded_count
+        );
+    } else {
+        expanded_specials = malloc(
+            sizeof(*expanded_specials) * expanded_count
+        );
+
+        if(expanded_specials
+            && newchar->specials_loaded > 0) {
+            memcpy(
+                expanded_specials,
+                newchar->special,
+                sizeof(*expanded_specials)
+                    * (size_t)newchar->specials_loaded
+            );
+        }
+    }
+
+    if(!expanded_specials) {
+        return false;
+    }
+
+    newchar->special = expanded_specials;
+    newchar->freetypes |= MF_SPECIAL;
+
+    memset(
+        &newchar->special[newchar->specials_loaded],
+        0,
+        sizeof(*newchar->special)
+    );
+
+    return true;
 }
 
 void alloc_frames(s_anim *anim, int fcount)
@@ -5311,16 +7617,12 @@ void alloc_frames(s_anim *anim, int fcount)
     memset(anim->vulnerable, 0, fcount * sizeof(*anim->vulnerable));
 }
 
-void free_frames(s_anim *anim)
-{
-    int i, instance;
+void free_frames(s_anim *anim) {
+    int i;
 
-    if(anim->offset)
-    {
-        for(i = 0; i < anim->numframes; i++)
-        {
-            if(anim->offset[i])
-            {
+    if(anim->offset) {
+        for(i = 0; i < anim->numframes; i++) {
+            if(anim->offset[i]) {
                 free(anim->offset[i]);
                 anim->offset[i] = NULL;
             }
@@ -5329,18 +7631,14 @@ void free_frames(s_anim *anim)
         anim->offset = NULL;
     }
 
-    if(anim->idle)
-    {
+    if(anim->idle) {
         free(anim->idle);
         anim->idle = NULL;
     }
 
-    if(anim->move)
-    {
-        for(i = 0; i < anim->numframes; i++)
-        {
-            if(anim->move[i])
-            {
+    if(anim->move) {
+        for(i = 0; i < anim->numframes; i++) {
+            if(anim->move[i]) {
                 free(anim->move[i]);
                 anim->move[i] = NULL;
             }
@@ -5349,101 +7647,88 @@ void free_frames(s_anim *anim)
         anim->move = NULL;
     }
 
-    if(anim->delay)
-    {
+    if(anim->delay) {
         free(anim->delay);
         anim->delay = NULL;
     }
-    if(anim->sprite)
-    {
+
+    if(anim->sprite) {
         free(anim->sprite);
         anim->sprite = NULL;
     }
-    if(anim->platform)
-    {
+
+    if(anim->platform) {
         free(anim->platform);
         anim->platform = NULL;
     }
-    if(anim->vulnerable)
-    {
+
+    if(anim->vulnerable) {
         free(anim->vulnerable);
         anim->vulnerable = NULL;
     }
 
-    if (anim->collision_attack)
-    {
-        collision_attack_free_list(*anim->collision_attack);
+    if (anim->collision_attack) {
+        
+        for (i = 0; i < anim->numframes; i++) {
+            collision_collection_free(anim->collision_attack[i]);
+            anim->collision_attack[i] = NULL;
+        }
+
+        free(anim->collision_attack);
         anim->collision_attack = NULL;
     }
 
-    if (anim->collision_body)
-    {
-        collision_body_free_list(*anim->collision_body);
+    if (anim->collision_body) {
+
+        for (i = 0; i < anim->numframes; i++) {
+            collision_collection_free(anim->collision_body[i]);
+            anim->collision_body[i] = NULL;
+        }
+
+        free(anim->collision_body);
         anim->collision_body = NULL;
     }
 
-    if (anim->child_spawn)
-    {
+    if (anim->collision_space) {
+        
+        for (i = 0; i < anim->numframes; i++) {
+            collision_collection_free(anim->collision_space[i]);
+            anim->collision_space[i] = NULL;
+        }
+
+        free(anim->collision_space);
+        anim->collision_space = NULL;
+    }
+
+    if (anim->child_spawn) {
         child_spawn_free_list(*anim->child_spawn);
         anim->child_spawn = NULL;
     }
 
-    if(anim->collision_entity)
-    {
-        for(i = 0; i < anim->numframes; i++)
-        {
-            if(anim->collision_entity[i])
-            {
-                // Check each instance and free memory as needed.
-                // Momma always said put your toys away when you're done!
-                for(instance = 0; instance < max_collisons; instance++)
-                {
-                    if(anim->collision_entity[i]->instance[instance])
-                    {
-                        // First free any pointers allocated
-                        // for sub structures.
-
-                        // Coords.
-                        if(anim->collision_entity[i]->instance[instance]->coords)
-                        {
-                            free(anim->collision_entity[i]->instance[instance]->coords);
-                            anim->collision_entity[i]->instance[instance]->coords = NULL;
-                        }
-
-                        free(anim->collision_entity[i]->instance[instance]);
-                        anim->collision_entity[i]->instance[instance] = NULL;
-                    }
-                }
-
-                free(anim->collision_entity[i]);
-                anim->collision_entity[i] = NULL;
-            }
-        }
-        free(anim->collision_entity);
-        anim->collision_entity = NULL;
-    }
-    if(anim->shadow)
-    {
+    if(anim->shadow) {
         free(anim->shadow);
         anim->shadow = NULL;
     }
-    if(anim->shadow_coords)
-    {
+
+    if(anim->shadow_coords) {
         free(anim->shadow_coords);
         anim->shadow_coords = NULL;
     }
-    if(anim->soundtoplay)
-    {
-        free(anim->soundtoplay);
-        anim->soundtoplay = NULL;
+
+    if(anim->sound) {
+        for(i = 0; i < anim->numframes; i++) {
+            frame_sound_collection_free(anim->sound[i]);
+            anim->sound[i] = NULL;
+        }
+
+        free(anim->sound);
+        anim->sound = NULL;
     }
     
-    if(anim->drawmethods)
-    {
-        for(i = 0; i < anim->numframes; i++)
-        {
-            if(anim->drawmethods[i])
-            {
+    if(anim->drawmethods) {
+        for(i = 0; i < anim->numframes; i++) {
+            
+            if(anim->drawmethods[i]) {
                 free(anim->drawmethods[i]);
                 anim->drawmethods[i] = NULL;
             }
@@ -5523,22 +7808,43 @@ void addFreeType(s_model *m, e_ModelFreetype t)
     m->freetypes |= t;
 }
 
-// Caskey, Damon V.
-// 2020-03-30
-// Load/unload sound IDs assigned to a list of 
-// attack collisions.
-void cache_attack_hit_sounds(s_collision_attack* head, int load)
-{
-    s_collision_attack* cursor;
+/*
+* Caskey, Damon V.
+* 2026-07-04
+*
+* Forward declaration for collision active mask scan.
+*/
+static int collision_get_lowest_active_index(uint64_t active_status);
 
-    cursor = head;
+/*
+* Caskey, Damon V.
+* 2020-03-30
+*
+* Load/unload sound IDs assigned to attack collisions.
+*/
+void cache_attack_hit_sounds(s_collision_collection* collection, int load) {
+    s_collision_instance* collision = NULL;
+    uint64_t active_status;
+    int collision_index;
 
-    while (cursor != NULL && cursor->attack)
-    {
-        cachesound(cursor->attack->hitsound, load);
-        cachesound(cursor->attack->blocksound, load);   
-    
-        cursor = cursor->next;
+    if (!collection || !collection->active_status) {
+        return;
+    }
+
+    active_status = collection->active_status;
+
+    while (active_status) {
+        collision_index = collision_get_lowest_active_index(active_status);
+        active_status &= active_status - 1;
+
+        collision = collection->slots[collision_index];
+
+        if (!collision || !collision->attack) {
+            continue;
+        }
+
+        cachesound(collision->attack->hitsound, load);
+        cachesound(collision->attack->blocksound, load);
     }
 }
 
@@ -5571,9 +7877,9 @@ void cache_model_sprites(s_model *m, int ld)
             for(f = 0; f < anim->numframes; f++)
             {
                 cachesprite(anim->sprite[f], ld);
-                if(anim->soundtoplay)
+                if(anim->sound)
                 {
-                    cachesound(anim->soundtoplay[f], ld);
+                    frame_sound_cache_collection(anim->sound[f], ld);
                 }
                 
                 // Hit sounds.
@@ -5586,15 +7892,101 @@ void cache_model_sprites(s_model *m, int ld)
     }
 }
 
+/*
+* Caskey, Damon V.
+* 2026-08-21
+*
+* Execute a model lifecycle script with the model template,
+* stable cache index, and model name exposed as local values.
+*/
+static void execute_model_lifecycle_script(Script *cs, s_model *model)
+{
+    ScriptVariant tempvar;
+
+    if(!Script_IsInitialized(cs))
+    {
+        return;
+    }
+
+    ScriptVariant_Init(&tempvar);
+
+    ScriptVariant_ChangeType(&tempvar, VT_PTR);
+    tempvar.ptrVal = (VOID *)model;
+    Script_Set_Local_Variant(cs, "model", &tempvar);
+
+    ScriptVariant_ChangeType(&tempvar, VT_INTEGER);
+    tempvar.lVal = (LONG)model->index;
+    Script_Set_Local_Variant(cs, "modelindex", &tempvar);
+
+    ScriptVariant_ChangeType(&tempvar, VT_STR);
+    tempvar.strVal = StrCache_CreateNewFrom(model_cache[model->index].name);
+    Script_Set_Local_Variant(cs, "modelname", &tempvar);
+
+    Script_Execute(cs);
+
+    ScriptVariant_Clear(&tempvar);
+    Script_Set_Local_Variant(cs, "model", &tempvar);
+    Script_Set_Local_Variant(cs, "modelindex", &tempvar);
+    Script_Set_Local_Variant(cs, "modelname", &tempvar);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-21
+*
+* Execute model-owned setup before notifying the global
+* model-load observer of a completed model parse.
+*/
+static void execute_model_load_scripts(s_model *model)
+{
+    s_modelcache *cache = &model_cache[model->index];
+
+    execute_model_lifecycle_script(cache->load_script, model);
+    execute_model_lifecycle_script(&model_load_script, model);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-21
+*
+* Execute model-owned teardown before notifying the global
+* model-unload observer and beginning native destruction.
+*/
+static void execute_model_unload_scripts(s_model *model)
+{
+    s_modelcache *cache = &model_cache[model->index];
+
+    execute_model_lifecycle_script(cache->unload_script, model);
+    execute_model_lifecycle_script(&model_unload_script, model);
+}
+
 
 // Unload single model from memory
 int free_model(s_model *model)
 {
     int i;
+    s_modelcache *cache;
+
     if(!model)
     {
         return 0;
     }
+
+    cache = &model_cache[model->index];
+
+    /*
+    * Ignore recursive removal from lifecycle callbacks and
+    * attempts to remove a model that has not finished loading.
+    */
+    if(cache->lifecycle != MODEL_LIFECYCLE_LOADED)
+    {
+        return 0;
+    }
+
+    cache->lifecycle = MODEL_LIFECYCLE_UNLOAD_EVENT;
+    execute_model_unload_scripts(model);
+    cache->lifecycle = MODEL_LIFECYCLE_UNLOADING;
+
     printf("Unload '%s' ", model->name);
 
     if(hasFreetype(model, MF_ANIMLIST))
@@ -5687,9 +8079,13 @@ int free_model(s_model *model)
     }
     printf(".");
 
-    model_cache[model->index].model = NULL;
+    cache->model = NULL;
     deleteModel(model->name);
     printf(".");
+
+    Script_Clear(cache->load_script, 1);
+    Script_Clear(cache->unload_script, 1);
+    cache->lifecycle = MODEL_LIFECYCLE_UNLOADED;
 
     printf("Done.\n");
 
@@ -5807,6 +8203,12 @@ void free_models()
         free(animbackdies);
         animbackdies        = NULL;
     }
+    if(ai_attack_choices)
+    {
+        free(ai_attack_choices);
+        ai_attack_choices = NULL;
+        ai_attack_choice_capacity = 0;
+    }
 }
 
 
@@ -5848,49 +8250,6 @@ void meta_data_free_list(s_meta_data* head)
     free(head);
 }
 
-// Allocate a collision entity instance, copy
-// property data if present, and return pointer.
-s_collision_entity *collision_alloc_entity_instance(s_collision_entity *properties)
-{
-    s_collision_entity    *result;
-    size_t              alloc_size;
-
-    // Get amount of memory we'll need.
-    alloc_size = sizeof(*result);
-
-    // Allocate memory and get pointer.
-    result = malloc(alloc_size);
-
-    // If previous data is provided,
-    // copy into new allocation.
-    if(properties)
-    {
-        memcpy(result, properties, alloc_size);
-    }
-
-    // return result.
-    return result;
-}
-
-// Allocate an empty collision entity list.
-s_collision_entity **collision_alloc_entity_list()
-{
-    s_collision_entity **result;
-    size_t             alloc_size;
-
-    // Get amount of memory we'll need.
-    alloc_size = sizeof(*result);
-
-    // Allocate memory and get pointer.
-    result = malloc(alloc_size);
-
-    // Make sure the list is blank.
-    memset(result, 0, alloc_size);
-
-    // return result.
-    return result;
-}
-
 /*
 * Caskey, Damon V.
 * 2022-06-22
@@ -5898,9 +8257,9 @@ s_collision_entity **collision_alloc_entity_list()
 * Accept string and return function reference for 
 * damage taking behavior.
 */
-int (*takedamage_get_reference_from_argument(char* value))(struct entity* attacking_entity, s_attack* attack_object, int fall_flag, s_defense* defense_object)
+entity_takedamage_function takedamage_get_reference_from_argument(char* value)
 {
-    int (*result)(struct entity* attacking_entity, s_attack * attack_object, int fall_flag, s_defense * defense_object) = NULL;
+    entity_takedamage_function result = NULL;
 
     if (stricmp(value, "none") == 0)
     {
@@ -6031,7 +8390,9 @@ int child_spawn_get_color_from_argument(char* filename, char* command, char* val
 * Read a text argument for child spawn config
 * flag and output appropriate constant.
 */
-e_child_spawn_config child_spawn_get_config_bit_from_argument(char* value)
+e_child_spawn_config child_spawn_get_config_bit_from_argument(
+    const char* value
+)
 {
     e_child_spawn_config result = CHILD_SPAWN_CONFIG_NONE;
 
@@ -6143,14 +8504,18 @@ e_child_spawn_config child_spawn_get_config_bit_from_argument(char* value)
 * and outputs integer. Accepts existing
 * argument as a default.
 */
-e_child_spawn_config child_spawn_get_config_argument(ArgList* arglist, e_child_spawn_config config_current)
+e_child_spawn_config child_spawn_get_config_argument(
+    const char* command_line,
+    e_child_spawn_config config_current
+)
 {
+    const char* value;
+    s_command_argument_reader reader;
     e_child_spawn_config result = config_current;
-    int i;
-    char* value;
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
         result |= child_spawn_get_config_bit_from_argument(value);
     }
 
@@ -6618,7 +8983,7 @@ void child_spawn_execute_list(s_child_spawn* head, entity* parent)
 * 2022-05-29
 * 
 * Accept pointer to node in list of child
-* spawns. Apply properties to to spawn
+* spawns. Apply properties to spawn
 * a child entity. Returns pointer to
 * spawned entity.
 */
@@ -6922,403 +9287,1615 @@ entity* child_spawn_execute_object(s_child_spawn* object, entity* parent)
     return child_entity;
 }
 
-
-/* **** Collision Attack **** */
+/* **** Frame Sound Support Functions */
 
 /*
 * Caskey, Damon V.
-* 2020-02-10
+* 2026-08-07
 *
-* Allocate a blank collision object 
-* and return its pointer. Does not 
-* allocate sub-objects (attack, body, etc.).
+* Validate an author-facing frame sound slot index.
 */
-s_collision_attack* collision_attack_allocate_object()
-{
-    s_collision_attack* result;
-    size_t       alloc_size;
+static bool frame_sound_validate_slot_index(const int index) {
+    return index >= 0 && index < MAX_FRAME_SOUNDS_PER_FRAME;
+}
 
-    /* Get amount of memory we'll need. */
-    alloc_size = sizeof(*result);
+/*
+* Caskey, Damon V.
+* 2026-08-08
+*
+* Parse and validate an author-facing mixer channel.
+*/
+static bool frame_sound_parse_channel(
+    const char* const text,
+    int* const result
+) {
+    s_command_token token;
+    uint64_t channel;
 
-    /* Allocate memoryand get pointer. */
-    result = malloc(alloc_size);
+    if (!text || !result) {
+        return false;
+    }
 
-    /*
-    * Make sure the data members are 
-    * zero'd and that "next" member 
-    * is NULL.
-    */
-    
-    memset(result, 0, alloc_size);
+    token.text = text;
+    token.length = strlen(text);
 
-    result->next = NULL;
+    if (!command_token_get_uint64(&token, &channel)
+        || channel >= SOUND_CHANNEL_COUNT_MAX) {
+        return false;
+    }
 
-    
+    *result = (int)channel;
+    return true;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Return the active mask bit for a frame sound slot.
+*/
+static uint64_t frame_sound_get_slot_mask(const int index) {
+    return UINT64_C(1) << (uint64_t)index;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Return an inclusive mask for a validated pair of frame
+* sound slot indexes without ever shifting by 64 bits.
+*/
+static uint64_t frame_sound_get_slot_range_mask(const int min, const int max) {
+    const uint64_t lower_mask = UINT64_MAX << (uint64_t)min;
+    const uint64_t upper_mask = max == MAX_FRAME_SOUNDS_PER_FRAME - 1
+        ? UINT64_MAX
+        : (UINT64_C(1) << ((uint64_t)max + 1U)) - 1U;
+
+    return lower_mask & upper_mask;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Return the lowest active slot in a non-zero mask.
+*/
+static int frame_sound_get_lowest_active_index(uint64_t active_status) {
+    int sound_index = 0;
+
+    while (!(active_status & UINT64_C(1))) {
+        active_status >>= 1;
+        sound_index++;
+    }
+
+    return sound_index;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-08
+*
+* Translate one author-facing sound group name.
+*/
+static bool sound_group_get_flag_from_string(
+    const char* const value,
+    sound_group_mask_t* const result
+) {
+    static const struct {
+        const char* text_name;
+        sound_group_mask_t flag;
+    } flag_lookup_table[] = {
+        { "none", SOUND_GROUP_NONE },
+        { "all", SOUND_GROUP_ALL },
+        { "all0", SOUND_GROUP_ALL_0 },
+        { "all1", SOUND_GROUP_ALL_1 },
+        { "a", SOUND_GROUP_A },
+        { "b", SOUND_GROUP_B },
+        { "c", SOUND_GROUP_C },
+        { "d", SOUND_GROUP_D },
+        { "e", SOUND_GROUP_E },
+        { "f", SOUND_GROUP_F },
+        { "g", SOUND_GROUP_G },
+        { "h", SOUND_GROUP_H },
+        { "i", SOUND_GROUP_I },
+        { "j", SOUND_GROUP_J },
+        { "k", SOUND_GROUP_K },
+        { "l", SOUND_GROUP_L },
+        { "m", SOUND_GROUP_M },
+        { "n", SOUND_GROUP_N },
+        { "o", SOUND_GROUP_O },
+        { "p", SOUND_GROUP_P },
+        { "q", SOUND_GROUP_Q },
+        { "r", SOUND_GROUP_R },
+        { "s", SOUND_GROUP_S },
+        { "t", SOUND_GROUP_T },
+        { "u", SOUND_GROUP_U },
+        { "v", SOUND_GROUP_V },
+        { "w", SOUND_GROUP_W },
+        { "x", SOUND_GROUP_X },
+        { "y", SOUND_GROUP_Y },
+        { "z", SOUND_GROUP_Z },
+        { "a1", SOUND_GROUP_A1 },
+        { "b1", SOUND_GROUP_B1 },
+        { "c1", SOUND_GROUP_C1 },
+        { "d1", SOUND_GROUP_D1 },
+        { "e1", SOUND_GROUP_E1 },
+        { "f1", SOUND_GROUP_F1 },
+        { "g1", SOUND_GROUP_G1 },
+        { "h1", SOUND_GROUP_H1 },
+        { "i1", SOUND_GROUP_I1 },
+        { "j1", SOUND_GROUP_J1 },
+        { "k1", SOUND_GROUP_K1 },
+        { "l1", SOUND_GROUP_L1 },
+        { "m1", SOUND_GROUP_M1 },
+        { "n1", SOUND_GROUP_N1 },
+        { "o1", SOUND_GROUP_O1 },
+        { "p1", SOUND_GROUP_P1 },
+        { "q1", SOUND_GROUP_Q1 },
+        { "r1", SOUND_GROUP_R1 },
+        { "s1", SOUND_GROUP_S1 },
+        { "t1", SOUND_GROUP_T1 },
+        { "u1", SOUND_GROUP_U1 },
+        { "v1", SOUND_GROUP_V1 },
+        { "w1", SOUND_GROUP_W1 },
+        { "x1", SOUND_GROUP_X1 },
+        { "y1", SOUND_GROUP_Y1 },
+        { "z1", SOUND_GROUP_Z1 }
+    };
+    size_t flag_index;
+
+    if (!value || !value[0] || !result) {
+        return false;
+    }
+
+    for (flag_index = 0;
+        flag_index < sizeof(flag_lookup_table) / sizeof(*flag_lookup_table);
+        flag_index++) {
+        if (stricmp(value, flag_lookup_table[flag_index].text_name) == 0) {
+            *result = flag_lookup_table[flag_index].flag;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-08
+*
+* Combine every sound group argument into one independent
+* mask. Return the first invalid token for diagnostics.
+*/
+static bool sound_group_get_flags_from_arglist_range(
+    const ArgList* const arglist,
+    const size_t argument_first,
+    const size_t argument_end,
+    sound_group_mask_t* const result,
+    const char** const invalid_value
+) {
+    sound_group_mask_t flag;
+    const char* value;
+    size_t argument_index;
+
+    if (!arglist || !result || argument_first >= argument_end
+        || argument_end > arglist->count) {
+        if (invalid_value) {
+            *invalid_value = "";
+        }
+        return false;
+    }
+
+    *result = SOUND_GROUP_NONE;
+
+    for (argument_index = argument_first;
+        argument_index < argument_end;
+        argument_index++) {
+        value = GET_ARGP(argument_index);
+
+        if (!sound_group_get_flag_from_string(value, &flag)) {
+            if (invalid_value) {
+                *invalid_value = value;
+            }
+            return false;
+        }
+
+        *result |= flag;
+    }
+
+    return true;
+}
+
+static bool sound_group_get_flags_from_arglist(
+    const ArgList* const arglist,
+    sound_group_mask_t* const result,
+    const char** const invalid_value
+) {
+    return sound_group_get_flags_from_arglist_range(
+        arglist,
+        1,
+        arglist ? arglist->count : 0,
+        result,
+        invalid_value
+    );
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Allocate one frame sound instance with playback disabled.
+*/
+s_frame_sound* frame_sound_allocate(void) {
+    s_frame_sound* result = malloc(sizeof(*result));
+
+    if (!result) {
+        borShutdown(1, E_OUT_OF_MEMORY);
+    }
+
+    memset(result, 0, sizeof(*result));
+    result->channel = -1;
+    result->sample = SAMPLE_ID_NONE;
+    result->chance = SOUND_PLAY_CHANCE_MAX;
+    result->group = SOUND_GROUP_DEFAULT;
+
     return result;
 }
 
 /*
 * Caskey, Damon V.
-* 2020-02-10
+* 2026-08-07
 *
-* Allocate new collision node and append it to
-* end of collision linked list. If no lists exists
-* yet, the new node becomes head of a new list.
-*
-* First step in adding another collision instance
-* of any type (body, space, or attack).
-*
-* Returns pointer to new node.
+* Free one frame sound instance.
 */
-s_collision_attack* collision_attack_append_node(struct s_collision_attack* head)
-{
-    /* Allocate node. */
-    struct s_collision_attack* new_node = NULL;
-    struct s_collision_attack* last = NULL;
-
-    /*
-    * Allocate memory and get pointer for new
-    * collision node, then default last to head.
-    */
-    new_node = collision_attack_allocate_object();
-    last = head;
-
-    /*
-    * New node is going to be the last node in
-    * list, so set its next as NULL.
-    */
-    new_node->next = NULL;
-
-    /*
-    * If there wasn't already a list, the
-    * new node is our head. We are done and
-    * can return the new node pointer.
-    */
-
-    if (head == NULL)
-    {
-        head = new_node;
-
-        return new_node;
+void frame_sound_free(s_frame_sound* const sound) {
+    if (!sound) {
+        return;
     }
 
-    /*
-    * If we got here, there was already a
-    * list in place. Iterate to its last
-    * node.
-    */
-
-    while (last->next != NULL)
-    {
-        last = last->next;
-    }
-
-    /*
-    * Populate existing last node's next
-    * with new node pointer. The new node
-    * is now the last node in list.
-    */
-
-    last->next = new_node;
-
-    return new_node;
+    free(sound->source);
+    sound->source = NULL;
+    free(sound);
 }
 
 /*
-* Caskey, Damon V
-* 2020-03-10
+* Caskey, Damon V.
+* 2026-08-08
 *
-* Return FALSE if a collision object
-* has coordinates set, FALSE otherwise.
+* Replace the temporary source path for an indexed frame
+* sound. Sample loading is deferred until the frame command
+* so loading mode and source may be supplied in any order.
 */
-int collision_attack_check_has_coords(s_collision_attack* target)
-{
-    /*
-    * If target missing or coordinates
-    * are not allocated then return FALSE.
-    */
+static void frame_sound_set_source(s_frame_sound* const sound, const char* const source) {
+    char* source_copy = NULL;
 
-    if (!target)
-    {
-        return FALSE;
+    if (!sound) {
+        return;
     }
 
-    if (!target->coords)
-    {
-        return FALSE;
+    if (source) {
+        source_copy = strdup(source);
     }
 
-    /*
-    * If any one coordinate property has a value
-    * then return TRUE instantly.
-    */
-    if (target->coords->x || target->coords->y || target->coords->height || target->coords->width)
-    {
-        return TRUE;
-    }
-
-    return FALSE;
+    free(sound->source);
+    sound->source = source_copy;
+    sound->sample = SAMPLE_ID_NONE;
 }
 
 /*
-* Caskey, Damon V
-* 2020-03-09
+* Caskey, Damon V.
+* 2026-08-07
 *
-* Allocate new collision list with same values as source.
-* Returns pointer to head of new list.
+* Allocate an empty indexed frame sound collection.
 */
-s_collision_attack* collision_attack_clone_list(s_collision_attack* source_head, int check_coords)
-{
-    s_collision_attack* source_cursor = NULL;
-    s_collision_attack* clone_head = NULL;
-    s_collision_attack* clone_node = NULL;
+s_frame_sound_collection* frame_sound_collection_allocate(void) {
+    s_frame_sound_collection* result = malloc(sizeof(*result));
 
-    /* Head is null? Get out now. */
-    if (source_head == NULL)
-    {
-        return source_cursor;
+    if (!result) {
+        borShutdown(1, E_OUT_OF_MEMORY);
     }
 
-    source_cursor = source_head;    
+    memset(result, 0, sizeof(*result));
+    result->active_status = FRAME_SOUND_ACTIVE_NONE;
 
-    while (source_cursor != NULL)
-    {
+    return result;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Free a frame sound collection and its instances.
+*/
+void frame_sound_collection_free(s_frame_sound_collection* const collection) {
+    int sound_index;
+
+    if (!collection) {
+        return;
+    }
+
+    for (sound_index = 0; sound_index < MAX_FRAME_SOUNDS_PER_FRAME; sound_index++) {
+        frame_sound_free(collection->slots[sound_index]);
+        collection->slots[sound_index] = NULL;
+    }
+
+    collection->active_status = FRAME_SOUND_ACTIVE_NONE;
+    collection->random_status = FRAME_SOUND_ACTIVE_NONE;
+    free(collection->action);
+    collection->action = NULL;
+    collection->action_count = 0;
+    collection->action_capacity = 0;
+    free(collection);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-08
+*
+* Append a frame-level sound operation. Actions retain
+* declaration order and execute before new sounds are
+* submitted for the frame.
+*/
+static s_frame_sound_action* frame_sound_action_append(
+    s_frame_sound_collection** const collection,
+    const e_frame_sound_action type
+) {
+    s_frame_sound_action* action;
+    s_frame_sound_action* resized_actions;
+    size_t new_capacity;
+
+    if (!collection) {
+        return NULL;
+    }
+
+    if (!*collection) {
+        *collection = frame_sound_collection_allocate();
+    }
+
+    if ((*collection)->action_count
+        == (*collection)->action_capacity) {
+        new_capacity = (*collection)->action_capacity
+            ? (*collection)->action_capacity * 2U
+            : 4U;
+
+        if (new_capacity < (*collection)->action_capacity
+            || new_capacity > SIZE_MAX / sizeof(*resized_actions)) {
+            borShutdown(1, E_OUT_OF_MEMORY);
+        }
+
+        resized_actions = realloc(
+            (*collection)->action,
+            new_capacity * sizeof(*resized_actions)
+        );
+
+        if (!resized_actions) {
+            borShutdown(1, E_OUT_OF_MEMORY);
+        }
+
+        (*collection)->action = resized_actions;
+        (*collection)->action_capacity = new_capacity;
+    }
+
+    action = &(*collection)->action[
+        (*collection)->action_count++
+    ];
+    memset(action, 0, sizeof(*action));
+    action->type = type;
+
+    return action;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Find an allocated sound instance by author-facing slot index.
+* Allocation may precede the sound command so properties can
+* be supplied in any order.
+*/
+s_frame_sound* frame_sound_find_slot_index(s_frame_sound_collection* const collection, const int sound_index) {
+    if (!collection || !frame_sound_validate_slot_index(sound_index)) {
+        return NULL;
+    }
+
+    return collection->slots[sound_index];
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Find or allocate an indexed sound instance. Collection
+* allocation is deferred until the first sound property is
+* supplied.
+*/
+s_frame_sound* frame_sound_upsert_index(s_frame_sound_collection** const collection, const int sound_index) {
+    s_frame_sound* sound;
+
+    if (!collection || !frame_sound_validate_slot_index(sound_index)) {
+        return NULL;
+    }
+
+    if (!*collection) {
+        *collection = frame_sound_collection_allocate();
+    }
+
+    sound = frame_sound_find_slot_index(*collection, sound_index);
+
+    if (!sound) {
+        frame_sound_free((*collection)->slots[sound_index]);
+        sound = frame_sound_allocate();
+        (*collection)->slots[sound_index] = sound;
+    }
+
+    return sound;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Clone explicitly configured sound slots into a frame-owned
+* collection. SAMPLE_ID_NONE remains active so it can serve
+* as a deliberate blank in a random selection.
+*/
+s_frame_sound_collection* frame_sound_collection_clone(const s_frame_sound_collection* const source) {
+    s_frame_sound_collection* result;
+    s_frame_sound* sound_clone;
+    const s_frame_sound* source_sound;
+    uint64_t active_status;
+    size_t action_memory_size;
+    int sound_index;
+
+    if (!source || (!source->active_status
+        && !source->action_count)) {
+        return NULL;
+    }
+
+    result = frame_sound_collection_allocate();
+    result->random_status = source->random_status;
+
+    if (source->action_count) {
+        action_memory_size = source->action_count
+            * sizeof(*result->action);
+        result->action = malloc(action_memory_size);
+
+        if (!result->action) {
+            frame_sound_collection_free(result);
+            borShutdown(1, E_OUT_OF_MEMORY);
+        }
+
+        memcpy(
+            result->action,
+            source->action,
+            action_memory_size
+        );
+        result->action_count = source->action_count;
+        result->action_capacity = source->action_count;
+    }
+
+    active_status = source->active_status;
+
+    while (active_status) {
+        sound_index = frame_sound_get_lowest_active_index(active_status);
+        active_status &= active_status - 1;
+        source_sound = source->slots[sound_index];
+
+        if (!source_sound) {
+            continue;
+        }
+
+        sound_clone = frame_sound_allocate();
+        sound_clone->delay = source_sound->delay;
+        sound_clone->loop_offset = source_sound->loop_offset;
+        sound_clone->start_offset = source_sound->start_offset;
+        sound_clone->group = source_sound->group;
+        sound_clone->channel = source_sound->channel;
+        sound_clone->sample = source_sound->sample;
+        sound_clone->chance = source_sound->chance;
+        sound_clone->priority = source_sound->priority;
+        sound_clone->loop = source_sound->loop;
+        sound_clone->start_offset_supplied =
+            source_sound->start_offset_supplied;
+        sound_clone->stream = source_sound->stream;
+        result->slots[sound_index] = sound_clone;
+        result->active_status |= frame_sound_get_slot_mask(sound_index);
+    }
+
+    return result;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-08
+*
+* Resolve explicit frame sound sources after every indexed
+* property has been parsed. Explicit silent entries retain
+* SAMPLE_ID_NONE. Failed sources are removed from the frame.
+*/
+static void frame_sound_load_collection(
+    s_frame_sound_collection* const collection,
+    char* const packfilename
+) {
+    s_frame_sound* sound;
+    uint64_t active_status;
+    int sound_index;
+
+    if (!collection || !collection->active_status) {
+        return;
+    }
+
+    active_status = collection->active_status;
+
+    while (active_status) {
+        sound_index = frame_sound_get_lowest_active_index(active_status);
+        active_status &= active_status - 1U;
+        sound = collection->slots[sound_index];
+
+        if (!sound) {
+            collection->active_status &=
+                ~frame_sound_get_slot_mask(sound_index);
+            continue;
+        }
+
+        if (!sound->source) {
+            sound->sample = SAMPLE_ID_NONE;
+            continue;
+        }
+
+        sound->sample = sound_load_sample(
+            sound->source,
+            packfilename,
+            true,
+            sound->stream
+        );
+
+        if (sound->sample < 0) {
+            collection->active_status &=
+                ~frame_sound_get_slot_mask(sound_index);
+        }
+    }
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Clone parser scratch sounds into an animation frame.
+*/
+void frame_sound_initialize_frame_property(s_addframe_data* const data, const ptrdiff_t frame) {
+    s_frame_sound_collection* sound_clone;
+    size_t memory_size;
+
+    sound_clone = frame_sound_collection_clone(data->sound);
+
+    if (!sound_clone) {
+        return;
+    }
+
+    if (!data->animation->sound) {
+        memory_size = data->framecount * sizeof(*data->animation->sound);
+        data->animation->sound = malloc(memory_size);
+
+        if (!data->animation->sound) {
+            frame_sound_collection_free(sound_clone);
+            borShutdown(1, E_OUT_OF_MEMORY);
+        }
+
+        memset(data->animation->sound, 0, memory_size);
+    }
+
+    data->animation->sound[frame] = sound_clone;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Load or unload every sample referenced by a frame.
+*/
+void frame_sound_cache_collection(const s_frame_sound_collection* const collection, const int load) {
+    const s_frame_sound* sound;
+    uint64_t active_status;
+    int sound_index;
+
+    if (!collection || !collection->active_status) {
+        return;
+    }
+
+    active_status = collection->active_status;
+
+    while (active_status) {
+        sound_index = frame_sound_get_lowest_active_index(active_status);
+        active_status &= active_status - 1;
+        sound = collection->slots[sound_index];
+
+        if (sound && sound->sample >= 0) {
+            cachesound(sound->sample, load);
+        }
+    }
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Select one configured sound bit uniformly from a non-zero
+* candidate mask. Rejection avoids modulo bias while keeping
+* random selection on the entity update thread.
+*/
+static uint64_t frame_sound_select_random_status(uint64_t candidate_status) {
+    uint64_t candidate_scan;
+    uint64_t random_limit;
+    uint64_t random_value;
+    unsigned int candidate_count = 0;
+    unsigned int candidate_offset;
+
+    candidate_scan = candidate_status;
+    while (candidate_scan) {
+        candidate_scan &= candidate_scan - 1U;
+        candidate_count++;
+    }
+
+    if (candidate_count <= 1U) {
+        return candidate_status;
+    }
+
+    random_limit = (UINT64_C(1) << 32)
+        - ((UINT64_C(1) << 32) % candidate_count);
+
+    do {
+        random_value = rand32();
+    } while (random_value >= random_limit);
+
+    candidate_offset = (unsigned int)(random_value % candidate_count);
+    while (candidate_offset) {
+        candidate_status &= candidate_status - 1U;
+        candidate_offset--;
+    }
+
+    return candidate_status & (~candidate_status + 1U);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-08
+*
+* Apply frame-level sound operations in declaration order.
+* These run before the frame submits new sounds, allowing
+* earlier playback to be manipulated before new submission.
+*/
+static void frame_sound_execute_actions(
+    const s_frame_sound_collection* const collection,
+    const uint64_t owner_id
+) {
+    const s_frame_sound_action* action;
+    size_t action_index;
+
+    if (!collection) {
+        return;
+    }
+
+    for (action_index = 0;
+        action_index < collection->action_count;
+        action_index++) {
+        action = &collection->action[action_index];
+
+        switch (action->type) {
+            case FRAME_SOUND_CHANNEL_ACTION_STOP:
+                sound_stop_sample(action->channel);
+                break;
+            case FRAME_SOUND_CHANNEL_ACTION_PAUSE:
+                sound_pause_single_sample(true, action->channel);
+                break;
+            case FRAME_SOUND_CHANNEL_ACTION_RESUME:
+                sound_pause_single_sample(false, action->channel);
+                break;
+            case FRAME_SOUND_CHANNEL_ACTION_OFFSET:
+                sound_set_channel_position(
+                    action->channel,
+                    action->offset
+                );
+                break;
+            case FRAME_SOUND_GROUP_ACTION_STOP:
+                sound_group_stop(action->group, owner_id);
+                break;
+            case FRAME_SOUND_GROUP_ACTION_PAUSE:
+                sound_group_pause(true, action->group, owner_id);
+                break;
+            case FRAME_SOUND_GROUP_ACTION_RESUME:
+                sound_group_pause(false, action->group, owner_id);
+                break;
+            case FRAME_SOUND_GROUP_ACTION_OFFSET:
+                sound_group_set_position(
+                    action->group,
+                    owner_id,
+                    action->offset
+                );
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-07
+*
+* Submit active frame sounds in ascending slot order. When a
+* random range is enabled, submit one configured entry from
+* that range and every configured entry outside it. The
+* acquired mixer channel owns delay, chance, looping, and
+* offsets from this point forward.
+*/
+void frame_sound_execute_collection(
+    const s_frame_sound_collection* const collection,
+    const uint64_t owner_id
+) {
+    const s_frame_sound* sound;
+    s_sound_play_options options;
+    uint64_t active_status;
+    int sound_index;
+
+    if (!collection) {
+        return;
+    }
+
+    frame_sound_execute_actions(collection, owner_id);
+
+    if (!collection->active_status) {
+        return;
+    }
+
+    active_status = collection->active_status;
+
+    if (collection->random_status) {
+        const uint64_t random_candidates =
+            active_status & collection->random_status;
+
+        active_status &= ~collection->random_status;
+        active_status |= frame_sound_select_random_status(random_candidates);
+    }
+
+    while (active_status) {
+        sound_index = frame_sound_get_lowest_active_index(active_status);
+        active_status &= active_status - 1;
+        sound = collection->slots[sound_index];
+
+        if (!sound || sound->sample < 0) {
+            continue;
+        }
+
+        memset(&options, 0, sizeof(options));
+        options.delay = sound->delay;
+        options.loop_offset = sound->loop_offset;
+        options.owner_id = owner_id;
+        options.start_offset = sound->start_offset;
+        options.group = sound->group;
+        options.channel = sound->channel >= 0
+            ? (unsigned int)sound->channel
+            : 0;
+        options.delay_rate = global_config.game_speed > 0
+            ? (unsigned int)global_config.game_speed
+            : GAME_SPEED_DEFAULT;
+        options.chance = sound->chance;
+        options.channel_supplied = sound->channel >= 0;
+        options.loop = sound->loop;
+        options.start_offset_supplied =
+            sound->start_offset_supplied;
+
+        sound_play_sample_with_options(
+            sound->sample,
+            sound->priority,
+            savedata.effectvol,
+            savedata.effectvol,
+            100,
+            &options
+        );
+    }
+}
+
+/* **** Collision Support Functions */
+
+/*
+* Caskey, Damon V.
+* 2026-06-27
+*
+* Validate that a collision index is within allowed
+* range.
+*/
+static bool collision_validate_slot_index(const int index) {
+    if (index < 0 || index >= MAX_COLLISION_BOXES_PER_FRAME) {
+        return false;
+    }
+    return true;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-06-27
+*
+* Get the bitmask for a collision slot index.
+*
+* Ex: Index 0 returns 0x0000000000000001
+*     Index 1 returns 0x0000000000000002
+*/
+static uint64_t collision_get_slot_mask(const int index) {
+    return ((uint64_t)1 << (uint64_t)index);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-06-27
+*
+* Activate a collision slot bit in active masl
+* by index.
+*/
+static void collision_activate_slot(uint64_t* const active_status, const int index) {
+    *active_status |= collision_get_slot_mask(index);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-06-27
+*
+* Deactivate a collision slot bit in active masl
+* by index.
+*
+* 2026-07-03 - Not in use, left for future reference.
+*/
+//static void collision_deactivate_slot(uint64_t* const active_status, const int index) {
+//    *active_status &= ~collision_get_slot_mask(index);
+//}
+
+/*
+* Caskey, Damon V.
+* 2026-06-27
+*
+* 
+* Get the lowest active collision slot index from an
+* active status mask. The caller must ensure active_status
+* is not zero.
+*/
+static int collision_get_lowest_active_index(uint64_t active_status) {
+    int collision_index = 0;
+
+    while (!(active_status & 1)) {
+        active_status >>= 1;
+        collision_index++;
+    }
+
+    return collision_index;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-06-27
+*
+* Check if a collision object has coordinates set.
+* Returns TRUE if coordinates are set, FALSE otherwise.
+*/
+static int collision_check_has_coords(const s_hitbox* const coords) {
+    if (!coords) {
+        return FALSE;
+    }
+
+    return (coords->x || coords->y || coords->height || coords->width);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-06-27
+*
+* Allocate the collision collection - container
+* to house collision objects for a single frame. 
+* Returns pointer to new collection.
+*/
+s_collision_collection* collision_collection_allocate(void) {
+    s_collision_collection* result = malloc(sizeof(*result));
+
+    if (!result) {
+        borShutdown(1, E_OUT_OF_MEMORY);
+    }
+
+    memset(result, 0, sizeof(*result));
+    result->active_status = COLLISION_ACTIVE_STATUS_NONE;
+
+    return result;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-06-27 (rework from 2021)
+*
+* Apply final frame coordinate adjustments 
+* to a collision collection.
+*/
+static void collision_prepare_coordinates_for_frame(s_collision_collection* const collection, s_model* const model, const s_addframe_data* const add_frame_data, const bool apply_attack_z_default) {
+
+    s_collision_instance* collision;
+    s_hitbox* coords;
+    uint64_t active_status;
+    int collision_index;
+
+    if (!collection || !collection->active_status) {
+        return;
+    }
+
+    /*
+    * Get the active status mask from the collection.
+    */
+    active_status = collection->active_status;
+
+    while (active_status) {
+    
         /*
-        * If check coords flag set, we only clone
-        * collisions with valid coordinates.
+        * Get the lowest active collision slot index from 
+        * the active status mask.
         */
+        collision_index = collision_get_lowest_active_index(active_status);
 
-        if (check_coords && !collision_attack_check_has_coords(source_cursor))
-        {
-            source_cursor = source_cursor->next;
+        /*
+        * Clear the lowest active bit so the next loop
+        * finds the next active collision slot.
+        */
+        active_status &= active_status - 1;
+
+        collision = collection->slots[collision_index];
+
+        if (!collision) {
+            continue;
+        }
+
+        coords = &collision->coords;
+
+        coords->x = coords->x - add_frame_data->offset->x;
+        coords->y = coords->y - add_frame_data->offset->y;
+        coords->width = coords->width + coords->x;
+        coords->height = coords->height + coords->y;
+
+        /*
+        * Preserve legacy attack Z-depth fallback.
+        */
+        if (apply_attack_z_default && !coords->z_background && !coords->z_foreground) {
+            coords->z_background = coords->z_foreground = (int)(model->grabdistance / 3 + 1);
+        }
+    }
+}
+
+/*
+* Caskey, Damon V.
+* 2026-06-27
+*
+* Allocate a collision instance - container
+* to house collision data for a single instance.
+* Returns pointer to new instance.
+*
+* The basic instance will need additional data 
+* populated after allocation depending on use 
+* (attack, body, space, etc.).
+*/
+s_collision_instance* collision_instance_allocate(const e_collision_config config) {
+    s_collision_instance* result = malloc(sizeof(*result));
+
+    if (!result) {
+        borShutdown(1, E_OUT_OF_MEMORY);
+    }
+
+    memset(result, 0, sizeof(*result));
+
+    result->config = config;
+    result->coords = empty_collision_coords;
+
+    return result;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-06-30
+*
+* Allocate a new collision instance and copy values
+* from an existing collision instance.
+*
+* Important:
+* Do not memcpy the whole collision instance. The
+* collision instance owns optional child objects
+* like attack, body, space, and meta_data. A raw
+* memcpy would copy those pointers directly and
+* cause shared ownership, stale references, and
+* double-free problems during cleanup.
+*/
+s_collision_instance* collision_instance_clone(const s_collision_instance* const source) {
+    s_collision_instance* result = NULL;
+
+    /*
+    * No source means there is nothing to clone.
+    */
+    if (!source) {
+        return NULL;
+    }
+
+    /*
+    * Allocate the new collision instance using the
+    * same config flags as the source. This also
+    * initializes resident/default values.
+    */
+    result = collision_instance_allocate(source->config);
+
+    /*
+    * Copy resident value members.
+    *
+    * Coordinates are inlined in the collision instance,
+    * so a direct structure copy is safe here.
+    */
+    result->coords = source->coords;
+    result->meta_tag = source->meta_tag;
+
+    /*
+    * Clone owned optional property objects.
+    *
+    * These helpers are responsible for returning new
+    * allocations with the same values as their source
+    * object. Null source pointers stay null.
+    */
+    if (source->attack) {
+        result->attack = attack_clone_object(source->attack);
+    }
+
+    if (source->body) {
+        result->body = body_clone_object(source->body);
+    }
+
+    if (source->space) {
+        result->space = space_clone_object(source->space);
+    }
+
+    /*
+    * Meta data cloning is not implemented yet.
+    *
+    * Leave this null rather than shallow-copying the
+    * source pointer. The collision instance free path
+    * owns and frees meta_data, so a shallow copy would
+    * create shared ownership and eventual double-free.
+    */
+    result->meta_data = NULL;
+
+    return result;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-06-28
+*
+* Free a collision collection.
+*
+* This frees every collision instance in 
+* the collection, clears the active slot mask, 
+* and frees the collection itself.
+*/
+void collision_collection_free(s_collision_collection* const collection) {
+    int collision_index;
+
+    if (!collection) {
+        return;
+    }
+
+    /*
+    * Free every collision instance in the collection.
+    * 
+    * Since this is a clean up operation and shouldn't
+    * run in the hot path, we'll do a normal loop
+    * instead of using the active status mask 
+    * to find active slots. Just to ensure we 
+    * get everythign cleaned up.
+    */
+    for (collision_index = 0; collision_index < MAX_COLLISION_BOXES_PER_FRAME; collision_index++) {
+        collision_instance_free(collection->slots[collision_index]);
+        collection->slots[collision_index] = NULL;
+    }
+
+    collection->active_status = COLLISION_ACTIVE_STATUS_NONE;
+
+    free(collection);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-06-30
+*
+* Allocate a new collision collection and clone each
+* active collision instance from the source collection.
+*
+* The result preserves source slot indexes. This matters
+* because each collision index is author-facing data, not
+* merely an internal packed array position.
+*
+* If check_coords is enabled, source instances with empty
+* coordinates are skipped. This preserves legacy behavior
+* where all-zero coordinates mean "no collision here" and
+* should not become an active frame collision.
+*/
+s_collision_collection* collision_collection_clone(const s_collision_collection* const source, const int check_coords) {
+
+    s_collision_collection* result = NULL;
+    s_collision_instance* collision_clone = NULL;
+    const s_collision_instance* source_collision = NULL;
+    uint64_t active_status;
+    int collision_index;
+
+    /*
+    * No source collection, or no active source slots,
+    * means there is nothing to clone.
+    */
+    if (!source || !source->active_status) {
+        return NULL;
+    }
+
+    /*
+    * Work from a local copy of the active mask.
+    *
+    * The source collection must not be modified by clone.
+    * Each loop consumes one active bit from this local copy.
+    */
+    active_status = source->active_status;
+
+    while (active_status) {
+
+        /*
+        * Get the lowest active slot index from the local
+        * active mask copy.
+        */
+        collision_index = collision_get_lowest_active_index(active_status);
+
+        /*
+        * Clear the lowest active bit so the next loop
+        * moves to the next active source slot.
+        */
+        active_status &= active_status - 1;
+
+        /*
+        * Active mask and pointer slots should agree, but
+        * guard against a damaged or partially populated
+        * source collection. A missing instance is simply
+        * not cloned into the result.
+        */
+        source_collision = source->slots[collision_index];
+
+        if (!source_collision) {
             continue;
         }
 
         /*
-        * Allocate the clone node we will copy
-        * values to. 
+        * Optional coordinate filter.
+        *
+        * This is used when committing parser/carry-forward
+        * data to an animation frame. Empty coordinates mean
+        * the collision slot is inactive for the finalized
+        * frame, so do not allocate a downstream clear.
         */
+        if (check_coords && !collision_check_has_coords(&source_collision->coords)) {
+            continue;
+        }
 
-        clone_node = collision_attack_append_node(clone_head);
-        
         /*
-        * Populate head if NULL so we
-        * have one for the next cycle.
+        * Lazily allocate the destination collection only
+        * after we know at least one source instance should
+        * actually survive cloning.
         */
-
-        if (clone_head == NULL)
-        {
-            clone_head = clone_node;
+        if (!result) {
+            result = collision_collection_allocate();
         }
 
-        /* Copy the values. */
-        clone_node->attack = attack_clone_object(source_cursor->attack);
+        /*
+        * Clone the collision instance. The instance clone
+        * handles its owned child objects, so the collection
+        * only needs to install the returned pointer.
+        */
+        collision_clone = collision_instance_clone(source_collision);
 
-        if (source_cursor->coords != NULL)
-        {
-            clone_node->coords = collision_allocate_coords(source_cursor->coords);
+        /*
+        * This should not normally fail because a valid source
+        * instance was provided and allocation failure should
+        * shut down through the allocator. Still, keep this
+        * guard so clone failure cannot leave a partial result
+        * in circulation.
+        */
+        if (!collision_clone) {
+            collision_collection_free(result);
+            return NULL;
         }
 
-        clone_node->index = source_cursor->index;
-        clone_node->meta_data = source_cursor->meta_data;
-        clone_node->meta_tag = source_cursor->meta_tag;
-
-        source_cursor = source_cursor->next;
+        /*
+        * Preserve the original slot index, then mark that
+        * same slot active in the destination mask.
+        */
+        result->slots[collision_index] = collision_clone;
+        collision_activate_slot(&result->active_status, collision_index);
     }
 
-    return clone_head;
-}
-
-/*
-* Caskey, Damon V
-* 2020-03-10
-*
-* Send all collision list data to log for debugging.
-*/
-void collision_attack_dump_list(s_collision_attack* head)
-{
-    printf("\n\n -- Collision Attack List (head: %p) Dump --", head);
-
-    s_collision_attack* cursor;
-    int count = 0;
-
-    cursor = head;
-
-    while (cursor != NULL)
-    {
-        count++;
-
-        printf("\n\n\t Node: %p", cursor);
-        printf("\n\t\t ->attack: %p", cursor->attack);
-
-        if (cursor->attack)
-        {
-            attack_dump_object(cursor->attack);
-        }        
-
-        printf("\n\t\t ->coords: %p", cursor->coords);
-
-        if (cursor->coords)
-        {
-            printf("\n\t\t\t ->height: %d", cursor->coords->height);
-            printf("\n\t\t\t ->width: %d", cursor->coords->width);
-            printf("\n\t\t\t ->x: %d", cursor->coords->x);
-            printf("\n\t\t\t ->y: %d", cursor->coords->y);
-            printf("\n\t\t\t ->z_background: %d", cursor->coords->z_background);
-            printf("\n\t\t\t ->z_foreground: %d", cursor->coords->z_foreground);
-        }
-        
-        printf("\n\t\t ->index: %d", cursor->index);
-        printf("\n\t\t ->meta_data: %p", cursor->meta_data);
-        printf("\n\t\t ->meta_tag: %d", cursor->meta_tag);
-        printf("\n\t\t ->next: %p", cursor->next);
-
-        cursor = cursor->next;
-    }
-
-    printf("\n\n %d nodes.", count);
-    printf("\n\n -- Collision attack list (head: %p) dump complete! -- \n", head);
+    /*
+    * If every active source slot was filtered out, result
+    * remains NULL. That is intentional and avoids allocating
+    * collections that only represent "nothing here".
+    */
+    return result;
 }
 
 /*
 * Caskey, Damon V.
-* 2020-03-30
+* 2026-07-01
 *
-* Return first valid attack collision in animation
-* frame that has no_block enabled. If no match
-* found, return NULL.
+* Find an active collision instance by slot index.
+*
+* This is a read-style lookup. It does not allocate,
+* clone, activate, or deactivate anything. It only
+* returns an existing collision instance when the
+* collection exists, the requested index is valid,
+* and the requested slot is marked active.
 */
-s_collision_attack* collision_attack_find_no_block_on_frame(s_anim* animation, int frame, int block)
-{
-    s_collision_attack* cursor;
+s_collision_instance* collision_find_slot_index(s_collision_collection* const collection, const int collision_index) {
+    uint64_t active_bit;
 
-    /* Return NULL if there's no collision on this frame. */
-    if (!animation->collision_attack || !animation->collision_attack[frame])
-    {
+    /*
+    * No collection means there is nowhere to search.
+    */
+    if (!collection) {
         return NULL;
     }
 
-    cursor = animation->collision_attack[frame];
-
-    /* Check all collisions for attack type. */
-    while (cursor != NULL)
-    {        
-        if (cursor->attack->no_block < block)
-        {
-            return cursor;
-        }
-
-        cursor = cursor->next;
+    /*
+    * Guard against invalid author-facing collision indexes.
+    *
+    * This also protects collision_get_slot_mask() from
+    * shifting outside the 64-bit slot range.
+    */
+    if (!collision_validate_slot_index(collision_index)) {
+        return NULL;
     }
 
-    /* Loop didn't find a collision with attacking type. */
-    return NULL;
+    /*
+    * No active slots means the requested slot cannot
+    * currently contain a usable collision instance.
+    */
+    if (!collection->active_status) {
+        return NULL;
+    }
+
+    /*
+    * Convert the requested collision index into the
+    * matching active-status bit.
+    */
+    active_bit = collision_get_slot_mask(collision_index);
+
+    /*
+    * Active status is the source of truth for whether
+    * a slot participates in collision processing.
+    *
+    * A non-null pointer in an inactive slot should not
+    * be returned here.
+    */
+    if (!(collection->active_status & active_bit)) {
+        return NULL;
+    }
+
+    /*
+    * The slot is marked active. Return the stored
+    * collision instance pointer. In a healthy collection,
+    * this should be non-null.
+    */
+    return collection->slots[collision_index];
 }
 
 /*
 * Caskey, Damon V.
-* 2020-02-17
+* 2026-07-01
 *
-* Find a collision node by index and return pointer, or
-* NULL if no match found.
+* Find or create a collision instance at a specific
+* collection slot index.
+*
+* This is the generic upsert used by parser-facing
+* helpers for attack, body, and space boxes.
+*
+* Behavior:
+* - Allocates the collection if it does not exist.
+* - Reuses an active collision instance if present.
+* - Repairs an active slot with a missing instance.
+* - Marks the slot active.
+* - Applies the requested config flag to the instance.
+*
+* The function does not allocate attack/body/space
+* property objects directly. That work belongs to
+* the parser-facing property helpers.
 */
-s_collision_attack* collision_attack_find_node_index(s_collision_attack* head, int index)
-{
-    s_collision_attack* current = NULL;
+s_collision_instance* collision_upsert_index(s_collision_collection** const collection, const int collision_index, const e_collision_config config) {
+    s_collision_instance* collision = NULL;
 
     /*
-    * Starting from head node, iterate through
-    * all collision nodes and free them.
+    * The caller must provide the address of a collection
+    * pointer so this function can lazily allocate it.
     */
-    current = head;
-
-    while (current != NULL)
-    {
-        /* If we found a collision index match, return the pointer. */
-        if (current->index == index)
-        {
-            return current;
-        }
-
-        /* Go to next node. */
-        current = current->next;
+    if (!collection) {
+        return NULL;
     }
 
     /*
-    * If we got here, find failed.
-    * Just return NULL.
+    * Guard against invalid author-facing collision indexes.
+    *
+    * This also protects the active mask helpers from
+    * shifting outside the 64-bit slot range.
     */
-    return NULL;
-}
-
-/*
-* Caskey, Damon V.
-* 2020-02-17
-*
-* Clear a collision linked list from memory.
-*/
-void collision_attack_free_list(s_collision_attack* head)
-{
-    s_collision_attack* cursor = NULL;
-    s_collision_attack* next = NULL;
+    if (!collision_validate_slot_index(collision_index)) {
+        return NULL;
+    }
 
     /*
-    * Starting from head node, iterate through
-    * all collision nodes and free them.
+    * A config-less collision instance is not useful.
+    * Refuse to create one here.
     */
-    cursor = head;
+    if (config == COLLISION_CONFIG_NONE) {
+        return NULL;
+    }
 
-    while (cursor != NULL)
-    {
+    /*
+    * Allocate the collection on demand. This avoids
+    * burning memory for frames or parser scratch data
+    * that never actually receive collision boxes.
+    */
+    if (!*collection) {
+        *collection = collision_collection_allocate();
+    }
+
+    /*
+    * Try to find an already-active collision instance
+    * at the requested slot.
+    */
+    collision = collision_find_slot_index(*collection, collision_index);
+
+    /*
+    * If the slot was not active, or if the active bit
+    * somehow pointed to a missing instance, allocate
+    * a new collision instance for this slot.
+    */
+    if (!collision) {
+
         /*
-        * We still need the next member after we
-        * delete collision object, so we'll store
-        * it in a temp var.
+        * If a stale inactive pointer exists here, clear it
+        * before replacing the slot. Inactive slots should
+        * not own live collision data.
         */
+        if ((*collection)->slots[collision_index]) {
+            collision_instance_free((*collection)->slots[collision_index]);
+            (*collection)->slots[collision_index] = NULL;
+        }
 
-        next = cursor->next;
-
-        /* Free the current collision object. */
-        collision_attack_free_node(cursor);
-
-        cursor = next;
+        collision = collision_instance_allocate(config);
+        (*collection)->slots[collision_index] = collision;
     }
+    else {
+        /*
+        * Existing collision instances may accumulate config
+        * flags when later parser commands add another property
+        * family to the same slot.
+        */
+        collision->config |= config;
+    }
+
+    /*
+    * Mark the slot active. The active mask is the source
+    * of truth for iteration and hot-path collision scans.
+    */
+    collision_activate_slot(&(*collection)->active_status, collision_index);
+
+    return collision;
 }
 
 /*
 * Caskey, Damon V.
-* 2020-02-17
+* 2026-07-01
 *
-* Clear a single collision object from memory.
-* Note this does NOT remove node from list.
-* Be careful not to create a dangling pointer!
+* Find or create a collision instance at a specific
+* collection slot index, then return its coordinate
+* property.
+*
+* Coordinates are embedded directly in the collision
+* instance. There is no separate coordinate allocation
+* to perform here.
+*
+* This function intentionally does not clear or overwrite
+* existing coordinate values. Parser-facing code may be
+* updating an existing carried-forward collision slot, so
+* the caller is responsible for assigning whichever fields
+* the parsed command intends to change.
 */
-void collision_attack_free_node(s_collision_attack* target)
-{
-    /* Free sub objects. */
+s_hitbox* collision_upsert_coordinates_property(s_collision_collection** const collection, const int collision_index, const e_collision_config config) {
+    s_collision_instance* collision = NULL;
 
-    if (target->attack)
-    {
-        attack_free_object(target->attack);
-        target->attack = NULL;
+    /*
+    * Upsert the parent collision instance first.
+    *
+    * This handles:
+    * - Collection allocation.
+    * - Slot validation.
+    * - Collision instance allocation.
+    * - Active mask update.
+    * - Config flag accumulation.
+    */
+    collision = collision_upsert_index(collection, collision_index, config);
+
+    /*
+    * If the collision instance could not be created or
+    * found, there is no coordinate property to return.
+    */
+    if (!collision) {
+        return NULL;
     }
 
-    if (target->coords)
-    {
-        free(target->coords);
-        target->coords = NULL;
+    /*
+    * Coordinates live inline on the collision instance.
+    * Return their address so parser-facing code can write
+    * directly into the active slot.
+    */
+    return &collision->coords;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Find or create an attack property at a specific
+* collision collection slot.
+*/
+s_attack* collision_attack_upsert_property(s_collision_collection** const collection, const int collision_index) {
+    s_collision_instance* collision = NULL;
+
+    collision = collision_upsert_index(collection, collision_index, COLLISION_CONFIG_ATTACK);
+
+    if (!collision) {
+        return NULL;
     }
 
-    /* To Do: Free tag function. */
-    if (target->meta_data)
-    {
-        meta_data_free_list(target->meta_data);
-        target->meta_data = NULL;
+    if (!collision->attack) {
+        collision->attack = attack_allocate_object();
     }
 
-    /* Free the collision structure. */
-    free(target);
+    return collision->attack;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Find or create a recursive attack property at a
+* specific collision collection slot.
+*/
+s_recursive_effect* collision_attack_upsert_recursive_property(s_collision_collection** const collection, const int collision_index) {
+    s_attack* attack = NULL;
+
+    attack = collision_attack_upsert_property(collection, collision_index);
+
+    if (!attack) {
+        return NULL;
+    }
+
+    if (!attack->recursive) {
+        attack->recursive = recursive_effect_allocate_object();
+    }
+
+    return attack->recursive;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Find or create attack coordinates at a specific
+* collision collection slot.
+*/
+s_hitbox* collision_attack_upsert_coordinates_property(s_collision_collection** const collection, const int collision_index) {
+    return collision_upsert_coordinates_property(collection, collision_index, COLLISION_CONFIG_ATTACK);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Find or create a body property at a specific
+* collision collection slot.
+*/
+s_body* collision_body_upsert_property(s_collision_collection** const collection, const int collision_index) {
+    s_collision_instance* collision = NULL;
+
+    collision = collision_upsert_index(collection, collision_index, COLLISION_CONFIG_BODY);
+
+    if (!collision) {
+        return NULL;
+    }
+
+    if (!collision->body) {
+        collision->body = body_allocate_object();
+    }
+
+    return collision->body;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Find or create body coordinates at a specific
+* collision collection slot.
+*/
+s_hitbox* collision_body_upsert_coordinates_property(s_collision_collection** const collection, const int collision_index) {
+    return collision_upsert_coordinates_property(collection, collision_index, COLLISION_CONFIG_BODY);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Find or create a space property at a specific
+* collision collection slot.
+*/
+s_space* collision_space_upsert_property(s_collision_collection** const collection, const int collision_index) {
+    s_collision_instance* collision = NULL;
+
+    collision = collision_upsert_index(collection, collision_index, COLLISION_CONFIG_SPACE);
+
+    if (!collision) {
+        return NULL;
+    }
+
+    if (!collision->space) {
+        collision->space = space_allocate_object();
+    }
+
+    return collision->space;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Find or create space coordinates at a specific
+* collision collection slot.
+*/
+s_hitbox* collision_space_upsert_coordinates_property(s_collision_collection** const collection, const int collision_index) {
+    return collision_upsert_coordinates_property(collection, collision_index, COLLISION_CONFIG_SPACE);
+}
+
+
+/*
+* Free a collision instance and any optional property
+* objects owned by it.
+*/
+void collision_instance_free(s_collision_instance* const collision) {
+    
+    if (!collision) {
+        return;
+    }
+
+    if (collision->attack) {
+        attack_free_object(collision->attack);
+        collision->attack = NULL;
+    }
+
+    if (collision->body) {
+        body_free_object(collision->body);
+        collision->body = NULL;
+    }
+
+    if (collision->space) {
+        space_free_object(collision->space);
+        collision->space = NULL;
+    }
+
+    if (collision->meta_data) {
+        meta_data_free_list(collision->meta_data);
+        collision->meta_data = NULL;
+    }
+
+    free(collision);
 }
 
 /*
@@ -7327,1019 +10904,152 @@ void collision_attack_free_node(s_collision_attack* target)
 *
 * Allocate and apply collision settings to target frame.
 */
-void collision_attack_initialize_frame_property(s_addframe_data* data, ptrdiff_t frame)
-{
-    s_collision_attack* temp_collision;
+void collision_attack_initialize_frame_property(s_addframe_data* data, ptrdiff_t frame) {
+    
+    s_collision_collection* collision_clone = NULL;
     size_t memory_size;
 
-    if (!data->collision)
-    {
+    if (!data->collision_attack) {
         return;
     }
 
     /*
-    * If collision is not allocated yet, we need to allocate
-    * an array of collision pointers (one element for each
-    * animation frame). If the frame has a collision, its
-    * collision property is populated with pointer to head
-    * of a linked list of collision objects.
+    * If the animation does not have any collision
+    * attacks allocated yet, we need to allocate the
+    * frame pointer table for the animation. This
+    * will prepare us an array of empty pointers to
+    * s_collision_collection, one for each animation
+    * frame.  
     */
-    if (!data->animation->collision_attack)
-    {
+    if (!data->animation->collision_attack) {
         memory_size = data->framecount * sizeof(*data->animation->collision_attack);
 
         data->animation->collision_attack = malloc(memory_size);
+
+        if (!data->animation->collision_attack) {
+            borShutdown(1, E_OUT_OF_MEMORY);
+        }
+
         memset(data->animation->collision_attack, 0, memory_size);
     }
 
     /*
-    * Clone source list and populate frame's collision
-    * property with the pointer to clone list head.
+    * Allocates a copy of the temporary source collision
+    * list - this clone is the "real" collision list. The
+    * temp is discarded by parent function after the frame 
+    * is added to the animation.
     */
-    temp_collision = collision_attack_clone_list(data->collision, 1);
+    collision_clone = collision_collection_clone(data->collision_attack, TRUE);
+    
+    /* Finalize collision coordinates for the clone. */
+    collision_prepare_coordinates_for_frame(collision_clone, data->model, data, TRUE);
 
-    /* Apply final adjustments to any collision coordinates. */
-    collision_attack_prepare_coordinates_for_frame(temp_collision, data->model, data);
-
-    /* Frame collision property is head of collision list. */
-    data->animation->collision_attack[frame] = temp_collision;
+    /* Populate the animation frame with the pointer to the clone. */
+    data->animation->collision_attack[frame] = collision_clone;
 }
 
 /*
 * Caskey, Damon V.
-* 2020-03-10
+* 2026-06-27 (rework from 2021)
 *
-* Apply final adjustments to collision coordinates
-* with defaults settings for required properties 
-* author did not provide values for.
+* Accept animation, frame, and a block value.
+* Find the first active attack collision instance
+* whose no_block value is less than or equal to
+* the block argument.
 */
-void collision_attack_prepare_coordinates_for_frame(s_collision_attack* collision_head, s_model* model, s_addframe_data* add_frame_data)
-{
-    s_collision_attack* cursor;
-    s_hitbox* coords;
+s_collision_instance* collision_attack_find_no_block_on_frame(s_anim* animation, const int frame, const int block) {
+    s_collision_collection* collection = NULL;
+    s_collision_instance* collision = NULL;
+    uint64_t active_status;
+    int collision_index;
 
-    cursor = collision_head;
+    if (!animation || !animation->collision_attack) {
+        return NULL;
+    }
 
-    while (cursor != NULL)
-    {
-        coords = cursor->coords;
+    /*
+    * Protect the frame table lookup.
+    */
+    if (frame < 0 || frame >= animation->numframes) {
+        return NULL;
+    }
 
-        if (coords)
-        {
-            /* Position includes offset.Size includes position. */
-            coords->x = coords->x - add_frame_data->offset->x;
-            coords->y = coords->y - add_frame_data->offset->y;
-            coords->width = coords->width + coords->x;
-            coords->height = coords->height + coords->y;
+    collection = animation->collision_attack[frame];
 
-            /*
-            * We may need to apply a stand in for Z depth. 
-            * Legacy behavior calculates based on the model's
-            * grabdistance property. IMO it's not very logical 
-            * and doesn't allow creators to use 0 values, but 
-            * we need to keep it for backward compatabilty.
-            */
-            
-            if (!coords->z_background && !coords->z_foreground)
-            {
-                coords->z_background = coords->z_foreground = (int)(model->grabdistance / 3 + 1);
-            }            
+    if (!collection || !collection->active_status) {
+        return NULL;
+    }
+
+    active_status = collection->active_status;
+
+    while (active_status) {
+        collision_index = collision_get_lowest_active_index(active_status);
+        active_status &= active_status - 1;
+
+        collision = collection->slots[collision_index];
+
+        if (collision && collision->attack && collision->attack->no_block <= block) {
+            return collision;
         }
-
-        cursor = cursor->next;
-    }
-}
-
-/*
-* Caskey, Damon V.
-* 2020-03-10
-*
-* Receives a reference (pointer to pointer) to the head
-* of a list, deletes all occurrence of undefined collision
-* coordinates (no coords pointer or X/Y/H/W are all 0).
-*
-* This is to replicate legacy behavior of removing a collision
-* box during read in from text when all 0 values are provided
-* by author.
-*
-* Reference pointer is swapped for new head pointer if head
-* is deleted.
-*/
-void collision_attack_remove_undefined_coordinates(s_collision_attack** head)
-{
-    s_collision_attack* cursor = NULL;
-    s_collision_attack* prev = NULL;
-
-    /* Start with head. */
-    cursor = *head;
-    prev = *head;
-
-    /*
-    * If head node or mutiple nodes lack defined collision
-    * cordinates.
-    */
-    while (cursor != NULL && !collision_attack_check_has_coords(cursor))
-    {
-        /* Update head value. */
-        *head = cursor->next;
-
-        /* Free collision memory. */
-        collision_attack_free_node(cursor);
-
-        /* Change cursor to head. */
-        cursor = *head;
     }
 
-    /* Delete occurrences other than head. */
-    while (cursor != NULL)
-    {
-        /*
-        * Search for and delete nodes without collision
-        * coordinates defined. Keep track of the previous
-        * node as we need to change 'prev->next'.
-        */
-        while (cursor != NULL && collision_attack_check_has_coords(cursor))
-        {
-            prev = cursor;
-            cursor = cursor->next;
-
-        }
-
-        /*
-        * If we didn't find any blank coordinate sets
-        * then just get out now.
-        */
-        if (cursor == NULL)
-        {
-            return;
-        }
-
-        /* Unlink the node from linked list. */
-        prev->next = cursor->next;
-
-        /* Free collision memory. */
-        collision_attack_free_node(cursor);
-
-        /* Update cursor for next iteration of outer loop.  */
-        cursor = prev->next;
-    }
-}
-
-/*
-* 2020-02-23
-* Caskey, Damon V.
-*
-* Used when building a list of attack objects on
-* a frame during model load. Locates or allocates
-* an object matching index parameter, and returns
-* the resulting object pointer.
-*/
-s_hitbox* collision_attack_upsert_coordinates_property(s_collision_attack** head, int index)
-{
-    s_collision_attack* temp_collision_current;
-
-    /*
-    * 1. First we need to know index.
-    *  -- temp_collision_index
-
-    * 2. Look for index and get pointer (found or allocated).
-
-    * Get the node we want to work on by searching
-    * for a matched index. In most cases, this will
-    * just be the head node.
-    */
-    temp_collision_current = collision_attack_upsert_index(*head, index);
-
-    /*
-    * If head is NULL, this must be the first allocated
-    * collision for current frame. Populate head with
-    * current so we have a head for the next pass.
-    */
-    if (*head == NULL)
-    {
-        *head = temp_collision_current;
-    }
-
-    /* 3. Get attack pointer (find or allocate). */
-
-    /* Have collision coordinates ? If not we'll need to allocate them. */
-    if (!temp_collision_current->coords)
-    {
-        temp_collision_current->coords = collision_allocate_coords(temp_collision_current->coords);
-    }
-
-    /* Return pointer to the coords structure. */
-    return temp_collision_current->coords;
-}
-
-/*
-* Caskey, Damon V.
-* 2020-02-17
-*
-* Find a collision node by index, or append a new node
-* with target index if no match is found. Returns pointer
-* to found or appended node.
-*/
-s_collision_attack* collision_attack_upsert_index(s_collision_attack* head, int index)
-{
-    s_collision_attack* result = NULL;
-
-    /* Run index search. */
-    result = collision_attack_find_node_index(head,index);
-
-    /*
-    * If we couldn't find an index match, lets add
-    * a node and apply the index we wanted.
-    */
-    if (!result)
-    {
-        result = collision_attack_append_node(head);
-        result->index = index;
-    }
-
-    return result;
-}
-
-/*
-* 2020-02-23
-* Caskey, Damon V
-*
-* Get pointer to attack object for modification. Used when
-* loading a model and reading in attack properties.
-*
-* 1. Receive pointer to head node of collision list. If
-* the head node is NULL a new collision list is allocated
-* and the head property value is populated with head node.
-*
-* 2. Search collision list for an attack enabled node
-* with index matching received index property. New node
-* allocated if not found. See collision_attack_upsert_index().
-*
-* 3. Find or allocate attack object on collision node.
-* Returns pointer to attack object.
-*/
-s_attack* collision_attack_upsert_property(s_collision_attack** head, int index)
-{
-    // printf("\n\t collision_attack_upsert_property(%p, %d)", *head, index);
-
-    s_collision_attack* temp_collision_current;
-
-    /*
-    * 1. First we need to know index.
-                *  -- temp_collision_index
-
-                * 2. Look for index and get pointer (found or allocated).
-
-                * Get the node we want to work on by searching
-                * for a matched index. In most cases, this will
-                * just be the head node.
-    */
-
-    temp_collision_current = collision_attack_upsert_index(*head, index);
-
-    /*
-    * If head is NULL, this must be the first allocated
-    * collision for current frame. Populate head with
-    * current so we have a head for the next pass.
-    */
-
-    if (*head == NULL)
-    {
-        *head = temp_collision_current;
-    }
-
-    /* 3. Get attack pointer (find or allocate). */
-
-    // printf("\n\t\t temp_collision_current->attack (pre check): %p", temp_collision_current->attack);
-
-    /* Have an attack? if not we'll need to allocate it.*/
-    if (!temp_collision_current->attack)
-    {
-        temp_collision_current->attack = attack_allocate_object();
-    }
-
-    // printf("\n\t\t result: %p", temp_collision_current->attack);
-
-    /* Return pointer to the attack structure. */
-    return temp_collision_current->attack;
-}
-
-/*
-* 2020-03-10
-* Caskey, Damon V
-*
-* Create or update a recursive attack property.
-* Same principal as collision_attack_upsert_property.
-*/
-s_damage_recursive* collision_attack_upsert_recursive_property(s_collision_attack** head, int index)
-{
-    s_attack* cursor;
-
-    /*
-    * Run attack upsert to make sure we have a valid
-    * collision node for requested index, and that
-    * it has an attack property.
-    */
-    cursor = collision_attack_upsert_property(head, index);
-
-
-    /* Have a recursive property? If not we'll need to allocate it. */
-    if (!cursor->recursive)
-    {
-        cursor->recursive = recursive_damage_allocate_object();
-    }
-
-    /* Return pointer to the recrisve structure. */
-    return cursor->recursive;
-}
-
-
-/* **** Collision Body **** */
-
-/*
-* Caskey, Damon V.
-* 2021-08-22
-*
-* Allocate a blank collision object
-* and return its pointer. Does not
-* allocate sub-objects.
-*/
-s_collision_body* collision_body_allocate_object()
-{
-    s_collision_body* result;
-    size_t       alloc_size;
-
-    /* Get amount of memory we'll need. */
-    alloc_size = sizeof(*result);
-
-    /* Allocate memoryand get pointer. */
-    result = malloc(alloc_size);
-
-    /*
-    * Make sure the data members are
-    * zero'd and that "next" member
-    * is NULL.
-    */
-
-    memset(result, 0, alloc_size);
-
-    result->next = NULL;
-
-    return result;
-}
-
-/*
-* Caskey, Damon V.
-* 2021-08-22
-*
-* Allocate new collision node and append it to
-* end of collision linked list. If no lists exists
-* yet, the new node becomes head of a new list.
-*
-* First step in adding another collision instance.
-*
-* Returns pointer to new node.
-*/
-s_collision_body* collision_body_append_node(struct s_collision_body* head)
-{
-    /* Allocate node. */
-    struct s_collision_body* new_node = NULL;
-    struct s_collision_body* last = NULL;
-
-    /*
-    * Allocate memory and get pointer for new
-    * collision node, then default last to head.
-    */
-    new_node = collision_body_allocate_object();
-    last = head;
-
-    /*
-    * New node is going to be the last node in
-    * list, so set its next as NULL.
-    */
-    new_node->next = NULL;
-
-    /*
-    * If there wasn't already a list, the
-    * new node is our head. We are done and
-    * can return the new node pointer.
-    */
-
-    if (head == NULL)
-    {
-        head = new_node;
-
-        return new_node;
-    }
-
-    /*
-    * If we got here, there was already a
-    * list in place. Iterate to its last
-    * node.
-    */
-
-    while (last->next != NULL)
-    {
-        last = last->next;
-    }
-
-    /*
-    * Populate existing last node's next
-    * with new node pointer. The new node
-    * is now the last node in list.
-    */
-
-    last->next = new_node;
-
-    return new_node;
-}
-
-/*
-* Caskey, Damon V
-* 2021-08-22
-*
-* Return TRUE if a collision object
-* has coordinates set, FALSE otherwise.
-*/
-int collision_body_check_has_coords(s_collision_body* target)
-{
-    /*
-    * If target missing or coordinates
-    * are not allocated then return FALSE.
-    */
-
-    if (!target)
-    {
-        return FALSE;
-    }
-
-    if (!target->coords)
-    {
-        return FALSE;
-    }
-
-    /*
-    * If any one coordinate property has a value
-    * then return TRUE instantly.
-    */
-    if (target->coords->x || target->coords->y || target->coords->height || target->coords->width)
-    {
-        return TRUE;
-    }
-
-    return FALSE;
-}
-
-/*
-* Caskey, Damon V
-* 2021-08-22
-*
-* Allocate new collision list with same values as source.
-* Returns pointer to head of new list.
-*/
-s_collision_body* collision_body_clone_list(s_collision_body* source_head, int check_coords)
-{
-    s_collision_body* source_cursor = NULL;
-    s_collision_body* clone_head = NULL;
-    s_collision_body* clone_node = NULL;
-
-    /* Head is null? Get out now. */
-    if (source_head == NULL)
-    {
-        return source_cursor;
-    }
-
-    source_cursor = source_head;
-
-    while (source_cursor != NULL)
-    {
-        /*
-        * If check coords flag set, only
-        * clone nodes with valid coordinates.
-        */
-
-        if (check_coords && !collision_body_check_has_coords(source_cursor))
-        {
-            source_cursor = source_cursor->next;
-            continue;
-        }
-
-        clone_node = collision_body_append_node(clone_head);
-
-        /*
-        * Populate head if NULL so we
-        * have one for the next cycle.
-        */
-        if (clone_head == NULL)
-        {
-            clone_head = clone_node;
-        }
-
-        /* Copy the values. */
-        clone_node->body = body_clone_object(source_cursor->body);
-
-        if (source_cursor->coords != NULL)
-        {
-            clone_node->coords = collision_allocate_coords(source_cursor->coords);
-        }
-
-        clone_node->index = source_cursor->index;
-        clone_node->meta_data = source_cursor->meta_data;
-        clone_node->meta_tag = source_cursor->meta_tag;
-
-        source_cursor = source_cursor->next;
-    }
-
-    return clone_head;
-}
-
-/*
-* Caskey, Damon V
-* 2021-08-22
-*
-* Send all collision body list data to log for debugging.
-*/
-void collision_body_dump_list(s_collision_body* head)
-{
-    printf("\n\n -- Collision Body List (head: %p) Dump --", head);
-
-    s_collision_body* cursor;
-    int count = 0;
-
-    cursor = head;
-
-    while (cursor != NULL)
-    {
-        count++;
-
-        printf("\n\n\t Node: %p", cursor);
-        printf("\n\t\t ->body: %p", cursor->body);
-
-        if (cursor->body)
-        {
-            body_dump_object(cursor->body);
-        }
-
-        printf("\n\t\t ->coords: %p", cursor->coords);
-
-        if (cursor->coords)
-        {
-            printf("\n\t\t\t ->height: %d", cursor->coords->height);
-            printf("\n\t\t\t ->width: %d", cursor->coords->width);
-            printf("\n\t\t\t ->x: %d", cursor->coords->x);
-            printf("\n\t\t\t ->y: %d", cursor->coords->y);
-            printf("\n\t\t\t ->z_background: %d", cursor->coords->z_background);
-            printf("\n\t\t\t ->z_foreground: %d", cursor->coords->z_foreground);
-        }
-
-        printf("\n\t\t ->index: %d", cursor->index);
-        printf("\n\t\t ->meta_data: %p", cursor->meta_data);
-        printf("\n\t\t ->meta_tag: %d", cursor->meta_tag);
-        printf("\n\t\t ->next: %p", cursor->next);
-
-        cursor = cursor->next;
-    }
-
-    printf("\n\n %d nodes.", count);
-    printf("\n\n -- Collision body list (head: %p) dump complete! -- \n", head);
-}
-
-/*
-* Caskey, Damon V.
-* 2021-08-22
-*
-* Find a collision node by index and return pointer, or
-* NULL if no match found.
-*/
-s_collision_body* collision_body_find_node_index(s_collision_body* head, int index)
-{
-    s_collision_body* current = NULL;
-
-    /*
-    * Starting from head node, iterate through
-    * all collision nodes and free them.
-    */
-    current = head;
-
-    while (current != NULL)
-    {
-        /* If we found a collision index match, return the pointer. */
-        if (current->index == index)
-        {
-            return current;
-        }
-
-        /* Go to next node. */
-        current = current->next;
-    }
-
-    /*
-    * If we got here, find failed.
-    * Just return NULL.
-    */
     return NULL;
 }
 
 /*
 * Caskey, Damon V.
-* 2021-08-22
+* 2026-07-03
 *
-* Clear a collision linked list from memory.
+* Send collision collection data to log for debugging.
 */
-void collision_body_free_list(s_collision_body* head)
-{
-    s_collision_body* cursor = NULL;
-    s_collision_body* next = NULL;
+void collision_collection_dump(const s_collision_collection* const collection) {
+    const s_collision_instance* collision = NULL;
+    uint64_t active_status;
+    int collision_index;
 
-    /*
-    * Starting from head node, iterate through
-    * all collision nodes and free them.
-    */
-    cursor = head;
+    printf("\n\n -- Collision collection (%p) dump --", collection);
 
-    while (cursor != NULL)
-    {
-        /*
-        * We still need the next member after we
-        * delete collision object, so we'll store
-        * it in a temp var.
-        */
-
-        next = cursor->next;
-
-        /* Free the current collision object. */
-        collision_body_free_node(cursor);
-
-        cursor = next;
-    }
-}
-
-/*
-* Caskey, Damon V.
-* 2021-08-22
-*
-* Clear a single collision object from memory.
-* Note this does NOT remove node from list.
-* Be careful not to create a dangling pointer!
-*/
-void collision_body_free_node(s_collision_body* target)
-{
-    /* Free sub objects. */
-
-    if (target->body)
-    {
-        body_free_object(target->body);
-        target->body = NULL;
-    }
-
-    if (target->coords)
-    {
-        free(target->coords);
-        target->coords = NULL;
-    }
-
-    /* To Do: Free tag function. */
-    if (target->meta_data)
-    {
-        meta_data_free_list(target->meta_data);
-        target->meta_data = NULL;
-    }
-
-    /* Free the collision structure. */
-    free(target);
-}
-
-/*
-* Caskey, Damon V.
-* 2021-08-22
-*
-* Allocate and apply collision settings to target frame.
-*/
-void collision_body_initialize_frame_property(s_addframe_data* data, ptrdiff_t frame)
-{
-    s_collision_body* temp_collision;
-    size_t memory_size;
-
-    if (!data->collision_body)
-    {
+    if (!collection) {
+        printf("\n\n -- Collision collection dump complete... -- \n");
         return;
     }
 
-    /*
-    * If collision is not allocated yet, we need to allocate
-    * an array of collision pointers (one element for each
-    * animation frame). If the frame has a collision, its
-    * collision property is populated with pointer to head
-    * of a linked list of collision objects.
-    */
-    if (!data->animation->collision_body)
-    {
-        memory_size = data->framecount * sizeof(*data->animation->collision_body);
-
-        data->animation->collision_body = malloc(memory_size);
-        memset(data->animation->collision_body, 0, memory_size);
-    }
+    printf("\n\t ->active_status: %" PRIu64, collection->active_status);
 
     /*
-    * Clone source list and populate frame's collision
-    * property with the pointer to clone list head.
+    * Only dump active slots. This mirrors the runtime
+    * active-mask scan pattern and avoids noise from
+    * unused slot storage.
     */
-    temp_collision = collision_body_clone_list(data->collision_body, 1);
+    active_status = collection->active_status;
 
-    /* Apply final adjustments to any collision coordinates. */
-    collision_body_prepare_coordinates_for_frame(temp_collision, data->model, data);
+    while (active_status) {
+        collision_index = collision_get_lowest_active_index(active_status);
+        active_status &= active_status - 1;
 
-    /* Frame collision property is head of collision list. */
-    data->animation->collision_body[frame] = temp_collision;
+        collision = collection->slots[collision_index];
 
-    /* Turn on vulnerability so we can detect collisions. */
-    data->animation->vulnerable[frame] = 1;
-}
+        printf("\n\t ->slot[%d]: %p", collision_index, collision);
 
-/*
-* Caskey, Damon V.
-* 2021-08-22
-*
-* Apply final adjustments to collision coordinates
-* with defaults settings for required properties
-* author did not provide values for.
-*/
-void collision_body_prepare_coordinates_for_frame(s_collision_body* collision_head, s_model* model, s_addframe_data* add_frame_data)
-{
-    s_collision_body* cursor;
-    s_hitbox* coords;
-
-    cursor = collision_head;
-
-    while (cursor != NULL)
-    {
-        coords = cursor->coords;
-
-        if (coords)
-        {
-            /* Position includes offset.Size includes position. */
-            coords->x = coords->x - add_frame_data->offset->x;
-            coords->y = coords->y - add_frame_data->offset->y;
-            coords->width = coords->width + coords->x;
-            coords->height = coords->height + coords->y;
-
-            /*
-            * We aren't forgetting about Z depth. We just don't 
-            * need to worry about it because body box Z depth 
-            * defaults to 0.
-            */
+        if (!collision) {
+            continue;
         }
 
-        cursor = cursor->next;
-    }
-}
-
-/*
-* Caskey, Damon V.
-* 2021-08-22
-*
-* Receives a reference (pointer to pointer) to the head
-* of a list, deletes all occurrence of undefined collision
-* coordinates (no coords pointer or X/Y/H/W are all 0).
-*
-* This is to replicate legacy behavior of removing a collision
-* box during read in from text when all 0 values are provided
-* by author.
-*
-* Reference pointer is swapped for new head pointer if head
-* is deleted.
-*/
-void collision_body_remove_undefined_coordinates(s_collision_body** head)
-{
-    s_collision_body* cursor = NULL;
-    s_collision_body* prev = NULL;
-
-    /* Start with head. */
-    cursor = *head;
-    prev = *head;
-
-    /*
-    * If head node or mutiple nodes lack defined collision
-    * cordinates.
-    */
-    while (cursor != NULL && !collision_body_check_has_coords(cursor))
-    {
-        /* Update head value. */
-        *head = cursor->next;
-
-        /* Free collision memory. */
-        collision_body_free_node(cursor);
-
-        /* Change cursor to head. */
-        cursor = *head;
+        printf("\n\t\t ->config: %d", collision->config);
+        printf("\n\t\t ->coords.x: %d", collision->coords.x);
+        printf("\n\t\t ->coords.y: %d", collision->coords.y);
+        printf("\n\t\t ->coords.width: %d", collision->coords.width);
+        printf("\n\t\t ->coords.height: %d", collision->coords.height);
+        printf("\n\t\t ->coords.z_background: %d", collision->coords.z_background);
+        printf("\n\t\t ->coords.z_foreground: %d", collision->coords.z_foreground);
+        printf("\n\t\t ->attack: %p", collision->attack);
+        printf("\n\t\t ->body: %p", collision->body);
+        printf("\n\t\t ->space: %p", collision->space);
+        printf("\n\t\t ->meta_data: %p", collision->meta_data);
+        printf("\n\t\t ->meta_tag: %" PRId64, collision->meta_tag);
     }
 
-    /* Delete occurrences other than head. */
-    while (cursor != NULL)
-    {
-        /*
-        * Search for and delete nodes without collision
-        * coordinates defined. Keep track of the previous
-        * node as we need to change 'prev->next'.
-        */
-        while (cursor != NULL && collision_body_check_has_coords(cursor))
-        {
-            prev = cursor;
-            cursor = cursor->next;
-
-        }
-
-        /*
-        * If we didn't find any blank coordinate sets
-        * then just get out now.
-        */
-        if (cursor == NULL)
-        {
-            return;
-        }
-
-        /* Unlink the node from linked list. */
-        prev->next = cursor->next;
-
-        /* Free collision memory. */
-        collision_body_free_node(cursor);
-
-        /* Update cursor for next iteration of outer loop.  */
-        cursor = prev->next;
-    }
-}
-
-/*
-* 2021-08-22
-* Caskey, Damon V.
-*
-* Used when building a list of body objects on
-* a frame during model load. Locates or allocates
-* an object matching index parameter, and returns
-* the resulting object pointer.
-*/
-s_hitbox* collision_body_upsert_coordinates_property(s_collision_body** head, int index)
-{
-    s_collision_body* temp_collision_current;
-
-    /*
-    * 1. First we need to know index.
-    *  -- temp_collision_index
-
-    * 2. Look for index and get pointer (found or allocated).
-
-    * Get the node we want to work on by searching
-    * for a matched index. In most cases, this will
-    * just be the head node.
-    */
-    temp_collision_current = collision_body_upsert_index(*head, index);
-
-    /*
-    * If head is NULL, this must be the first allocated
-    * collision for current frame. Populate head with
-    * current so we have a head for the next pass.
-    */
-    if (*head == NULL)
-    {
-        *head = temp_collision_current;
-    }
-
-    /* 3. Get attack pointer (find or allocate). */
-
-    /* Have collision coordinates ? If not we'll need to allocate them. */
-    if (!temp_collision_current->coords)
-    {
-        temp_collision_current->coords = collision_allocate_coords(temp_collision_current->coords);
-    }
-
-    /* Return pointer to the coords structure. */
-    return temp_collision_current->coords;
-}
-
-/*
-* Caskey, Damon V.
-* 2021-08-22
-*
-* Find a collision node by index, or append a new node
-* with target index if no match is found. Returns pointer
-* to found or appended node.
-*/
-s_collision_body* collision_body_upsert_index(s_collision_body* head, int index)
-{
-    s_collision_body* result = NULL;
-
-    /* Run index search. */
-    result = collision_body_find_node_index(head, index);
-
-    /*
-    * If we couldn't find an index match, lets add
-    * a node and apply the index we wanted.
-    */
-    if (!result)
-    {
-        result = collision_body_append_node(head);
-        result->index = index;
-    }
-
-    return result;
-}
-
-/*
-* 2021-08-22
-* Caskey, Damon V
-*
-* Get pointer to body object for modification. Used when
-* loading a model and reading in body properties.
-*
-* 1. Receive pointer to head node of collision list. If
-* the head node is NULL a new collision list is allocated
-* and the head property value is populated with head node.
-*
-* 2. Search collision list for an body node with index 
-* matching received index property. New node allocated if 
-* not found. See collision_body_upsert_index().
-*
-* 3. Find or allocate body object on collision node.
-* Returns pointer to body object.
-*/
-s_body* collision_body_upsert_property(s_collision_body** head, int index)
-{
-    // printf("\n\t collision_body_upsert_property(%p, %d)", *head, index);
-
-    s_collision_body* temp_collision_current;
-
-    /*
-    * 1. First we need to know index.
-                *  -- temp_collision_index
-
-                * 2. Look for index and get pointer (found or allocated).
-
-                * Get the node we want to work on by searching
-                * for a matched index. In most cases, this will
-                * just be the head node.
-    */
-
-    temp_collision_current = collision_body_upsert_index(*head, index);
-
-    /*
-    * If head is NULL, this must be the first allocated
-    * collision for current frame. Populate head with
-    * current so we have a head for the next pass.
-    */
-
-    if (*head == NULL)
-    {
-        *head = temp_collision_current;
-    }
-
-    /* 3. Get body pointer (find or allocate). */
-
-    // printf("\n\t\t temp_collision_current->body (pre check): %p", temp_collision_current->body);
-
-    /* Have a body? if not we'll need to allocate it.*/
-    if (!temp_collision_current->body)
-    {
-        temp_collision_current->body = body_allocate_object();
-    }
-
-    // printf("\n\t\t result: %p", temp_collision_current->body);
-
-    /* Return pointer to the body structure. */
-    return temp_collision_current->body;
-}
-
-
-
-/*
-* Caskey, Damon V.
-* 2016-11-26
-*
-* Allocate collision coordinates, copy coords
-* data if present, and return pointer.
-*/
-s_hitbox *collision_allocate_coords(s_hitbox *coords)
-{
-    s_hitbox    *result;
-    size_t      alloc_size;
-
-    // Get amount of memory we'll need.
-    alloc_size = sizeof(*result);
-
-    // Allocate memory and get pointer.
-    result = malloc(alloc_size);
-
-    // 0 out valules.
-    memset(result, 0, sizeof(*result));
-
-    // If previous data is provided,
-    // copy into new allocation.
-    if(coords)
-    {
-        memcpy(result, coords, alloc_size);
-    }
-
-    // Return result.
-    return result;
+    printf("\n\n -- Collision collection (%p) dump complete... -- \n", collection);
 }
 
 /* 
@@ -8348,25 +11058,19 @@ s_hitbox *collision_allocate_coords(s_hitbox *coords)
 * 
 * Allocate an attack property structure and return pointer.
 */
-s_attack* attack_allocate_object()
-{
-    s_attack* result;
+s_attack* attack_allocate_object(void) {
+    s_attack* result = NULL;
 
-    /* Allocate memory and get the pointer. */
     result = malloc(sizeof(*result));
 
-    /* 
-    * Default values.
-    *
-    * -- Copy the universal empty attack structure. This
-    * takes care of most default values in one shot.
-    */
+    if (!result) {
+        borShutdown(1, E_OUT_OF_MEMORY);
+    }
+
     memcpy(result, &emptyattack, sizeof(*result));
 
-    /* -- Apply default hit sound effect (for legacy compatability). */
     result->hitsound = global_sample_list.beat;
-    
-    /* -- Apply default drop velocity. */
+
     result->dropv.x = default_model_dropv.x;
     result->dropv.y = default_model_dropv.y;
     result->dropv.z = default_model_dropv.z;
@@ -8382,8 +11086,7 @@ s_attack* attack_allocate_object()
 * pointers) as received attack object. Returns pointer to
 * new object.
 */
-s_attack* attack_clone_object(s_attack* source)
-{
+s_attack* attack_clone_object(s_attack* source) {
     s_attack* result = NULL;
 
     if (!source)
@@ -8392,6 +11095,9 @@ s_attack* attack_clone_object(s_attack* source)
     }
 
     result = attack_allocate_object();
+
+    /* Make a local copy of sub object pointers. */
+    s_recursive_effect *source_recursive = source->recursive;
 
     /* 
     * Attack has a ton of members. Rather than do everything 
@@ -8407,11 +11113,12 @@ s_attack* attack_clone_object(s_attack* source)
     * pointers.
     */
 
-    /* -- Recursive damage. */
-    if (source->recursive && source->recursive->mode)
-    {
-        result->recursive = malloc(sizeof(*result->recursive));
-        memcpy(result->recursive, source->recursive, sizeof(*result->recursive));
+    /* -- Clone recursive effect. */
+    result->recursive = NULL;
+
+    if (source_recursive) {
+        result->recursive = recursive_effect_allocate_object();
+        memcpy(result->recursive, source_recursive, sizeof(*result->recursive));
     }
 
     return result;
@@ -8427,8 +11134,7 @@ void attack_dump_object(s_attack* attack)
 {
     printf("\n\n -- Attack (%p) dump --", attack);
 
-    if (attack)
-    {
+    if (attack) {
         printf("\n\t ->attack_drop: %d", attack->attack_drop);
         printf("\n\t ->attack_force: %d", attack->attack_force);
         printf("\n\t ->attack_type: %d", attack->attack_type);
@@ -8441,7 +11147,7 @@ void attack_dump_object(s_attack* attack)
         printf("\n\t ->dropv.z: %f", attack->dropv.z);
         printf("\n\t ->flash.layer_adjust: %d", attack->flash.layer_adjust);
         printf("\n\t ->flash.layer_source: %d", attack->flash.layer_source);
-        printf("\n\t ->flash.model_hit: %d", attack->flash.model_block);
+        printf("\n\t ->flash.model_block: %d", attack->flash.model_block);
         printf("\n\t ->flash.model_hit: %d", attack->flash.model_hit);
         printf("\n\t ->flash.z_source: %d", attack->flash.z_source);
         printf("\n\t ->forcemap: %d", attack->forcemap);
@@ -8458,11 +11164,10 @@ void attack_dump_object(s_attack* attack)
         printf("\n\t ->no_block: %d", attack->no_block);
         printf("\n\t ->otg: %d", attack->otg);
         printf("\n\t ->pause_add: %d", attack->pause_add);
-        printf("\n\t ->recursive: %d", attack->recursive);
+        printf("\n\t ->recursive: %p", attack->recursive);
 
-        if (attack->recursive)
-        {
-            recursive_damage_dump_object(attack->recursive);
+        if (attack->recursive) {
+            recursive_effect_dump_object(attack->recursive);
         }
 
         printf("\n\t ->seal: %d", attack->seal);
@@ -8481,14 +11186,16 @@ void attack_dump_object(s_attack* attack)
 * 
 * Free attack properties from memory.
 */
-void attack_free_object(s_attack * target)
-{
-    if (target->recursive)
-    {
+void attack_free_object(s_attack* target) {
+    if (!target) {
+        return;
+    }
+
+    if (target->recursive) {
         free(target->recursive);
         target->recursive = NULL;
     }
-   
+
     free(target);
 }
 
@@ -8498,19 +11205,15 @@ void attack_free_object(s_attack * target)
 *
 * Allocate a body property structure and return pointer.
 */
-s_body* body_allocate_object()
-{
-    s_body* result;
+s_body* body_allocate_object(void) {
+    s_body* result = NULL;
 
-    /* Allocate memory and get the pointer. */
     result = malloc(sizeof(*result));
 
-    /*
-    * Default values.
-    *
-    * -- Copy the universal empty body structure. This
-    * takes care of most default values in one shot.
-    */
+    if (!result) {
+        borShutdown(1, E_OUT_OF_MEMORY);
+    }
+
     memcpy(result, &empty_body, sizeof(*result));
 
     return result;
@@ -8520,28 +11223,40 @@ s_body* body_allocate_object()
 * Caskey, Damon V.
 * 2021-08-08
 *
-* Allocate new body object with same values (but not same
-* pointers) as received body object. Returns pointer to
-* new object.
+* Allocate new body object with same values, but
+* without sharing owned nested pointers.
 */
-s_body* body_clone_object(s_body* source)
-{
+s_body* body_clone_object(s_body* source) {
     s_body* result = NULL;
 
-    if (!source)
-    {
-        return result;
+    if (!source) {
+        return NULL;
     }
 
     result = body_allocate_object();
 
     /*
-    * Rather than do everything piecemeal, we'll memcopy
-    * to get all the basic values, and then overwrite
-    * members individually as needed.
+    * Copy resident values first.
     */
-
     memcpy(result, source, sizeof(*result));
+
+    /*
+    * Do not share the source defense pointer.
+    *
+    * Body free owns and releases body->defense, so
+    * a shallow copy would create shared ownership and
+    * eventual use-after-free or double-free trouble.
+    */
+    result->defense = NULL;
+
+    if (source->defense) {
+        result->defense = defense_allocate_object();
+
+        memcpy(
+            result->defense,
+            source->defense,
+            sizeof(*result->defense) * (max_attack_types + 1));
+    }
 
     return result;
 }
@@ -8552,17 +11267,14 @@ s_body* body_clone_object(s_body* source)
 *
 * Send all body data to log for debugging.
 */
-void body_dump_object(s_body* body)
-{
+void body_dump_object(s_body* body) {
     printf("\n\n -- Body (%p) dump --", body);
 
-    if (body)
-    {        
-        printf("\n\t ->body_defense: %d", body->defense);
+    if (body) {        
+        printf("\n\t ->body_defense: %p", body->defense);
         printf("\n\t ->flash.layer_adjust: %d", body->flash.layer_adjust);
         printf("\n\t ->flash.layer_source: %d", body->flash.layer_source);
         printf("\n\t ->flash.z_source: %d", body->flash.z_source);
-
     }
 
     printf("\n\n -- Body (%p) dump complete... -- \n", body);
@@ -8574,10 +11286,12 @@ void body_dump_object(s_body* body)
 *
 * Free body properties from memory.
 */
-void body_free_object(s_body* target)
-{
-    if (target->defense)
-    {
+void body_free_object(s_body* target) {
+    if (!target) {
+        return;
+    }
+
+    if (target->defense) {
         defense_free_object(target->defense);
         target->defense = NULL;
     }
@@ -8586,20 +11300,209 @@ void body_free_object(s_body* target)
 }
 
 /*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Allocate a space property object and apply
+* default values.
+*/
+s_space* space_allocate_object(void) {
+    s_space* result = NULL;
+
+    result = malloc(sizeof(*result));
+
+    if (!result) {
+        borShutdown(1, E_OUT_OF_MEMORY);
+    }
+
+    memcpy(result, &empty_space, sizeof(*result));
+
+    return result;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Allocate a new space property object with the
+* same values as an existing space object.
+*/
+s_space* space_clone_object(s_space* source) {
+    s_space* result = NULL;
+
+    if (!source) {
+        return NULL;
+    }
+
+    result = space_allocate_object();
+
+    /*
+    * Space currently owns no nested allocations,
+    * so a structure copy is safe.
+    */
+    memcpy(result, source, sizeof(*result));
+
+    return result;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Send space property values to log for debugging.
+*/
+void space_dump_object(s_space* space) {
+    printf("\n\n -- Space (%p) dump --", space);
+
+    if (space) {
+        printf("\n\t ->push.x: %f", space->push.x);
+        printf("\n\t ->push.y: %f", space->push.y);
+        printf("\n\t ->push.z: %f", space->push.z);
+    }
+
+    printf("\n\n -- Space (%p) dump complete... -- \n", space);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Free a space property object.
+*/
+void space_free_object(s_space* target) {
+    if (!target) {
+        return;
+    }
+
+    free(target);
+}
+
+/*
+* Caskey, Damon V.
+* 2020-03-07
+*
+* Allocate and apply collision settings to target frame.
+*/
+void collision_body_initialize_frame_property(s_addframe_data* data, ptrdiff_t frame) {
+    
+    s_collision_collection* collision_clone = NULL;
+    size_t memory_size;
+
+    if (!data->collision_body) {
+        return;
+    }
+
+    /*
+    * If the animation does not have any collision
+    * body allocated yet, we need to allocate the
+    * frame pointer table for the animation. This
+    * will prepare us an array of empty pointers to
+    * s_collision_collection, one for each animation
+    * frame.  
+    */
+    if (!data->animation->collision_body) {
+        memory_size = data->framecount * sizeof(*data->animation->collision_body);
+
+        data->animation->collision_body = malloc(memory_size);
+
+        if (!data->animation->collision_body) {
+            borShutdown(1, E_OUT_OF_MEMORY);
+        }
+
+        memset(data->animation->collision_body, 0, memory_size);
+    }
+
+    /*
+    * Allocates a copy of the temporary source collision
+    * list - this clone is the "real" collision list. The
+    * temp is discarded by parent function after the frame 
+    * is added to the animation.
+    */
+    collision_clone = collision_collection_clone(data->collision_body, TRUE);
+    
+    /* Finalize collision coordinates for the clone. */
+    collision_prepare_coordinates_for_frame(collision_clone, data->model, data, FALSE);
+
+    /* Populate the animation frame with the pointer to the clone. */
+    data->animation->collision_body[frame] = collision_clone;
+
+    /*
+    * Preserve legacy vulnerability behavior. A frame is vulnerable
+    * when it contains at least one active body collision box.
+    */
+    data->animation->vulnerable[frame] =
+        collision_clone
+        && collision_clone->active_status != COLLISION_ACTIVE_STATUS_NONE;
+}
+
+/*
+* Caskey, Damon V.
+* 2020-03-07
+*
+* Allocate and apply collision settings to target frame.
+*/
+void collision_space_initialize_frame_property(s_addframe_data* data, ptrdiff_t frame) {
+    
+    s_collision_collection* collision_clone = NULL;
+    size_t memory_size;
+
+    if (!data->collision_space) {
+        return;
+    }
+
+    /*
+    * If the animation does not have any collision
+    * space allocated yet, we need to allocate the
+    * frame pointer table for the animation. This
+    * will prepare us an array of empty pointers to
+    * s_collision_collection, one for each animation
+    * frame.  
+    */
+    if (!data->animation->collision_space) {
+        memory_size = data->framecount * sizeof(*data->animation->collision_space);
+
+        data->animation->collision_space = malloc(memory_size);
+
+        if (!data->animation->collision_space) {
+            borShutdown(1, E_OUT_OF_MEMORY);
+        }
+
+        memset(data->animation->collision_space, 0, memory_size);
+    }
+
+    /*
+    * Allocates a copy of the temporary source collision
+    * list - this clone is the "real" collision list. The
+    * temp is discarded by parent function after the frame 
+    * is added to the animation.
+    */
+    collision_clone = collision_collection_clone(data->collision_space, TRUE);
+    
+    /* Finalize collision coordinates for the clone. */
+    collision_prepare_coordinates_for_frame(collision_clone, data->model, data, FALSE);
+
+    /* Populate the animation frame with the pointer to the clone. */
+    data->animation->collision_space[frame] = collision_clone;
+}
+
+/*
 * 2020-03-10
 * Caskey, Damon V
 *
-* allocate a recursive damage object and return
+* allocate a recursive effect object and return
 * its pointer.
 */
-s_damage_recursive* recursive_damage_allocate_object()
-{
-    s_damage_recursive* result;
+s_recursive_effect* recursive_effect_allocate_object(void) {
+    s_recursive_effect* result;
     size_t memory_size;
 
     memory_size = sizeof(*result);
-
     result = malloc(memory_size);
+
+    if (!result) {
+        borShutdown(1, (char *)E_OUT_OF_MEMORY);
+        return NULL;
+    }
 
     /*
     * 0 The property values, then set
@@ -8608,10 +11511,59 @@ s_damage_recursive* recursive_damage_allocate_object()
     memset(result, 0, memory_size);
 
     result->type = ATK_NONE;
-    result->next = NULL;
-    result->owner = NULL;
 
     return result;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-10
+*
+* Allocate the recursive effect collection used by
+* an entity. The collection remains allocated until
+* the entity dies.
+*/
+static s_recursive_effect* recursive_effect_allocate_collection(void) {
+    s_recursive_effect* result;
+    uint64_t recursive_index;
+
+    result = calloc(MAX_RECURSIVE_EFFECTS, sizeof(*result));
+
+    if (!result) {
+        borShutdown(1, (char*)E_OUT_OF_MEMORY);
+        return NULL;
+    }
+
+    /*
+    * calloc initializes type to 0, but ATK_NONE is -1.
+    * Initialize each inactive slot to the proper default.
+    */
+    for (recursive_index = 0;
+        recursive_index < MAX_RECURSIVE_EFFECTS;
+        recursive_index++) {
+
+        result[recursive_index].type = ATK_NONE;
+    }
+
+    return result;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-10
+*
+* Release all recursive effect state owned by
+* an entity.
+*/
+static void recursive_effect_free_collection(entity* target) {
+    if (!target) {
+        return;
+    }
+
+    free(target->recursive_effect_collection);
+
+    target->recursive_effect_collection = NULL;
+    target->recursive_effect_active = 0;
 }
 
 /*
@@ -8621,276 +11573,180 @@ s_damage_recursive* recursive_damage_allocate_object()
 * If attack has any recursive effects, apply
 * them to entity accordingly.
 */
-void recursive_damage_check_apply(entity* ent, entity* other, s_attack* attack)
-{
-    s_damage_recursive* previous;
-    s_damage_recursive* cursor;
+void recursive_effect_check_apply(entity* ent, entity* other, s_attack* attack) {
+    s_recursive_effect* recursive_effect;
+    uint64_t active_flag;
+    uint64_t index;
 
     /*
-    * If the recursive head pointer is
-    * null, there's no recursive, so exit.
+    * No target, attack, or recursive effect means
+    * there is nothing to apply.
     */
-    if (!attack->recursive)
-    {
+    if (!ent || !attack || !attack->recursive) {
+        return;
+    }
+
+    index = attack->recursive->index;
+
+    /*
+    * Protect the collection lookup and bit shift.
+    */
+    if (index >= MAX_RECURSIVE_EFFECTS) {
+        return;
+    }
+
+    active_flag = bitmask64_from_index(index);
+
+    if (!active_flag) {
         return;
     }
 
     /*
-    * Let's see if we have a allocated any elements
-    * for recursive damage already.
+    * Allocate the entity collection only when the
+    * first recursive effect is applied.
     */
-    if (ent->recursive_damage)
-    {
-        /*
-        * Iterate over linked list and try to find an index
-        * member matching index member from attack. If we
-        * find one, exit loop - we can use the target pointer.
-        *
-        * If we don't find a match, we'll need to create a new
-        * node in the list and its pointer instead.
-        */
+    if (!ent->recursive_effect_collection) {
+        ent->recursive_effect_collection = recursive_effect_allocate_collection();
 
-        cursor = ent->recursive_damage;
-
-        while (cursor != NULL)
-        {
-            previous = cursor;
-
-            /*
-            * Found index match, so we can use the cursor
-            * as is. Get out now.
-            */
-            if (cursor->index == attack->recursive->index)
-            {
-                break;
-            }
-
-            /* Move to next node in list (if any). */
-            cursor = cursor->next;
+        if (!ent->recursive_effect_collection) {
+            return;
         }
-
-        /* Add new node to list. */
-        if (!cursor)
-        {
-            /* Allocate the memoryand get pointer. */
-            cursor = recursive_damage_allocate_object();
-
-            /* Link previous node's next to our new node. */
-            previous->next = cursor;
-        }
-    }
-    else
-    {
-        /*
-        * Entity didn't have recursive damage at all.
-        * Let's allocate a head node.
-        */
-
-        cursor = recursive_damage_allocate_object();
-
-        /* Assign to entity. */
-        ent->recursive_damage = cursor;
     }
 
     /*
-    * Now we have a target recursive element to populate with
-    * attack's recursive values.
+    * Get and reset the indexed resident slot.
     */
+    recursive_effect = &ent->recursive_effect_collection[index];
 
-    cursor->meta_tag = attack->recursive->meta_tag;
-    cursor->meta_data = attack->recursive->meta_data;
-    cursor->mode = attack->recursive->mode;
-    cursor->index = attack->recursive->index;
-    cursor->time = _time + (attack->recursive->time * GAME_SPEED / 100);
-    cursor->force = attack->recursive->force;
-    cursor->rate = attack->recursive->rate;
+    memset(recursive_effect, 0, sizeof(*recursive_effect));
+    recursive_effect->type = ATK_NONE;
 
     /*
-    * If recursive type is none, that means
-    * use same type as original attack. Note
-    * that ATK_NONE is the default value of
-    * a newly allocated recursive node for
-    * legacy compatibility.
+    * Populate the resident effect.
     */
-    if (attack->recursive->type == ATK_NONE)
-    {
-        cursor->type = attack->attack_type;
-    }
-    else
-    {
-        cursor->type = attack->recursive->type;
+    const uint64_t time_multiplier = 1; // global_config.game_speed / 100;
+
+    recursive_effect->meta_tag = attack->recursive->meta_tag;
+    recursive_effect->mode = attack->recursive->mode;
+    recursive_effect->index = index;
+    recursive_effect->rate = attack->recursive->rate;
+    recursive_effect->force = attack->recursive->force;
+    recursive_effect->owner = other;
+    recursive_effect->time =
+        _time + (attack->recursive->time * time_multiplier);
+    recursive_effect->tick =
+        _time + (recursive_effect->rate * time_multiplier);
+
+    /*
+    * ATK_NONE means inherit the original attack type.
+    */
+    if (attack->recursive->type == ATK_NONE) {
+        recursive_effect->type = attack->attack_type;
+    } else {
+        recursive_effect->type = attack->recursive->type;
     }
 
-    cursor->type = attack->attack_type;
-    cursor->owner = other;
+    /*
+    * Mark the slot active only after its contents
+    * have been fully initialized.
+    */
+    ent->recursive_effect_active |= active_flag;
 }
-
 
 /*
 * Caskey, Damon V
 * 2020-03-12
 *
-* Send all recursive damage data to log for debugging.
+* Send all recursive effect data to log for debugging.
 */
-void recursive_damage_dump_object(s_damage_recursive* recursive)
-{
+void recursive_effect_dump_object(s_recursive_effect* recursive) {
     printf("\n\n -- Recursive (%p) dump --", recursive);
 
-    if (recursive)
-    {
+    if (recursive) {
         printf("\n\t ->force: %d", recursive->force);
-        printf("\n\t ->index: %d", recursive->index);
-        printf("\n\t ->meta_data: %p", recursive->meta_data);
-        printf("\n\t ->meta_tag: %d", recursive->meta_tag);
+        printf("\n\t ->index: %u", recursive->index);
+        //printf("\n\t ->meta_data: %p", recursive->meta_data);
+        printf("\n\t ->meta_tag: %" PRId64, (int64_t)recursive->meta_tag);
         printf("\n\t ->mode: %d", recursive->mode);
-        printf("\n\t ->next: %p", recursive->next);
         printf("\n\t ->owner: %p", recursive->owner);
-        printf("\n\t ->rate: %d", recursive->rate);
-        printf("\n\t ->tick: %d", recursive->tick);
-        printf("\n\t ->time: %d", recursive->time);
+        printf("\n\t ->rate: %" PRIu32, (uint32_t)recursive->rate);
+        printf("\n\t ->tick: %" PRIu32, (uint32_t)recursive->tick);
+        printf("\n\t ->time: %" PRIu32, (uint32_t)recursive->time);
         printf("\n\t ->type: %d", recursive->type);
     }
 
     printf("\n\n -- Recursive (%p) dump complete. -- \n", recursive);
 }
 
-
-/*
-* Caskey, Damon V.
-* 2019-01-18
-*
-* Free all members of a recursive damage list.
-*/
-void recursive_damage_free_list(s_damage_recursive* head)
-{
-    s_damage_recursive* cursor = NULL;
-    s_damage_recursive* next = NULL;
-
-    /*
-    * Starting from head node, iterate through
-    * all collision nodes and free them.
-    */
-    cursor = head;
-
-    while (cursor != NULL)
-    {
-        /*
-        * We still need the next node after we
-        * delete current one, so we'll store
-        * it in a temp var.
-        */
-        next = cursor->next;
-
-        /* Free the current node. */
-        recursive_damage_free_object(cursor);
-
-        /* Set cursor to next. */
-        cursor = next;
-    }
-}
-
-/*
-* Caskey, Damon V.
-* 2019-01-20
-*
-* Remove single node from a recursive damage linked list.
-*/
-void recursive_damage_free_node(s_damage_recursive** list, s_damage_recursive* node)
-{
-    s_damage_recursive* cursor;
-    s_damage_recursive* previous;
-
-    /* Initialize previous. */
-    previous = NULL;
-
-    /*
-    * Iterate each node of list. On each iteration, previous is
-    * set to cursor before cursor iterates.
-    */
-    for (cursor = *list; cursor != NULL; previous = cursor, cursor = cursor->next)
-    {
-        /* Are we at target element ? */
-        if (cursor == node)
-        {
-            /* If previous is NULL we're at the head. */
-            if (previous == NULL)
-            {
-                /* Move node from head's next to head. */
-                *list = cursor->next;
-            }
-            else
-            {
-                /*
-                * Move previous next to cursor next. This
-                * effectivly "skips" cursor in sequence.
-                */
-                previous->next = cursor->next;
-            }
-
-            /* Deallocate the node. */
-            recursive_damage_free_object(cursor);
-
-            return;
-        }
-    }
-}
-
 /*
 * Caskey, Damon V.
 * 2020-03-13
 *
-* Wrapper for deleting a recrusive object's data.
+* Wrapper for deleting a recursive object's data.
 */
-void recursive_damage_free_object(s_damage_recursive* target)
-{
+void recursive_effect_free_object(s_recursive_effect* target) {
     free(target);
 }
 
 /*
 * Caskey, Damon V.
-* 2021-08-24
-* 
-* Return recrisive mode flag constant from 
-* a string argument.
+* 2026-06-01
+*
+* Get recursive effect mode flag from text argument.
 */
-e_damage_recursive_logic recursive_damage_get_mode_flag_from_argument(char* value)
-{
-    e_damage_recursive_logic result = DAMAGE_RECURSIVE_MODE_NONE;
+static inline e_damage_recursive_logic recursive_effect_get_mode_flag_from_argument(const char* value) {
 
-    if (stricmp(value, "none") == 0)
-    {
-        result = DAMAGE_RECURSIVE_MODE_NONE;
-    }
-    else if (stricmp(value, "hp") == 0)
-    {
-        result = DAMAGE_RECURSIVE_MODE_HP;
-    }
-    else if (stricmp(value, "mp") == 0)
-    {
-        result = DAMAGE_RECURSIVE_MODE_MP;
-    }
-    else if (stricmp(value, "non-lethal") == 0)
-    {
-        result = DAMAGE_RECURSIVE_MODE_NON_LETHAL;
+    static const struct {
+        const char* name;
+        e_damage_recursive_logic flag;
+    } modes[] = {
+        { "none",       DAMAGE_RECURSIVE_MODE_NONE },
+        { "hp",         DAMAGE_RECURSIVE_MODE_HP },
+        { "mp",         DAMAGE_RECURSIVE_MODE_MP },
+        { "non-lethal", DAMAGE_RECURSIVE_MODE_NON_LETHAL }
+    };
+
+    const size_t num_modes = sizeof(modes) / sizeof(modes[0]);
+    size_t i;
+
+    /*
+    * Safety check. If no value provided, just return 0 (no flags).
+    */
+    if (!value) {
+        return DAMAGE_RECURSIVE_MODE_NONE;
     }
 
-    return result;    
+    /*
+    * Iterate through all possible modes and compare with input value.
+    * If a match is found, return the corresponding flag. O(n), but
+    * we're only doing this on load.
+    */
+    for (i = 0; i < num_modes; i++) {
+        if (stricmp(value, modes[i].name) == 0) {
+            return modes[i].flag;
+        }
+    }
+
+    /*
+    * If no match is found, return 0 (no flags).
+    */
+    return DAMAGE_RECURSIVE_MODE_NONE;
 }
 
 /*
-* Caskey, Damon V.
-* 2021-08-24
-*
-* Reads text arguments from recursive mode
-* command and outputs integer with appropriate
-* bits toggled.
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read recursive damage mode arguments directly from the
+  source line and combine their corresponding behavior flags.
 */
-e_damage_recursive_logic recursive_damage_get_mode_setup_from_arg_list(ArgList* arglist)
+e_damage_recursive_logic recursive_effect_get_mode_setup_from_command_line(
+    const char* command_line
+)
 {
+    const char* value;
+    s_command_argument_reader reader;
     e_damage_recursive_logic result = 0;
-
-    int i;
-    char* value;
 
     /*
     * Read all arguments left to right. We send each arg
@@ -8898,9 +11754,10 @@ e_damage_recursive_logic recursive_damage_get_mode_setup_from_arg_list(ArgList* 
     * bit to toggle.
     */
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
-        result |= recursive_damage_get_mode_flag_from_argument(value);
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
+        result |= recursive_effect_get_mode_flag_from_argument(value);
     }
 
     return result;
@@ -8916,8 +11773,7 @@ e_damage_recursive_logic recursive_damage_get_mode_setup_from_arg_list(ArgList* 
 * support of the very poorly conceived mode
 * flag originally coded by yours truly.
 */
-e_damage_recursive_logic recursive_damage_get_mode_setup_from_legacy_argument(e_damage_recursive_cmd_read value)
-{
+e_damage_recursive_logic recursive_effect_get_mode_setup_from_legacy_argument(e_damage_recursive_cmd_read value) {
     e_damage_recursive_logic result = DAMAGE_RECURSIVE_MODE_NONE;
 
     switch (value)
@@ -8951,64 +11807,123 @@ e_damage_recursive_logic recursive_damage_get_mode_setup_from_legacy_argument(e_
 * 2009-06-17
 * --2018-01-02 retooled from former common_dot.
 * --2019-01-16 Replace recursion array with linked list.
+* --2026-06-01 Restore resident array and add bitmask scan.
 *
-* Apply recursive damage (damage over time (dot)).
+* Apply recursive effect (damage over time (dot)).
 */
-void recursive_damage_update(entity* ent)
-{
-    s_attack attack = emptyattack;      // Attack structure.
-    s_defense* defense_object = NULL;   // Defense properties.
-    s_damage_recursive* cursor = NULL;  // Iteration cursor.
+void recursive_entity_effect_update(entity* acting_entity) {
+    s_attack attack;
+    const s_defense* defense_object = NULL;
+    s_recursive_effect* recursive_effect_collection;
+    s_recursive_effect* cursor = NULL;
+    s_recursive_effect snapshot;
+    uint64_t scan_mask;
+    int calculated_force;
 
-    /* Iterate target's recursive damage nodes. */
-    for (cursor = ent->recursive_damage; cursor != NULL; cursor = cursor->next)
-    {
+    if (!acting_entity) {
+        return;
+    }
+
+    /*
+    * No collection means this entity has never
+    * received a recursive effect.
+    */
+    recursive_effect_collection = acting_entity->recursive_effect_collection;
+
+    if (!recursive_effect_collection) {
         /*
-        * If time has expired, destroy node and exit
-        * this loop iteration.
+        * Keep mask and collection state synchronized
+        * if outside code ever corrupts the invariant.
         */
-        if (_time > cursor->time)
-        {
+        acting_entity->recursive_effect_active = 0;
+        return;
+    }
+
+    scan_mask = acting_entity->recursive_effect_active;
+
+    while (scan_mask) {
+        uint64_t index;
+        uint64_t active_flag;
+
+        index = bitmask64_get_lowest_index(scan_mask);
+        active_flag = bitmask64_from_index(index);
+
+        if (!active_flag) {
+            break;
+        }
+
+        scan_mask &= ~active_flag;
+
+        if (index >= MAX_RECURSIVE_EFFECTS) {
+            acting_entity->recursive_effect_active &= ~active_flag;
+            continue;
+        }
+
+        cursor = &recursive_effect_collection[index];
+
+        /*
+        * If time has expired, clear the slot and exit this
+        * loop iteration.
+        */
+        if (_time > cursor->time) {
+            acting_entity->recursive_effect_active &= ~active_flag;
+            memset(cursor, 0, sizeof(*cursor));
+            cursor->type = ATK_NONE;
+            continue;
+        }
+
+        /*
+        * If it is not yet time for a tick, exit this iteration
+        * of loop.
+        */
+        if (_time < cursor->tick) {
+            continue;
+        }
+
+        /*
+        * If target is not alive, exit this iteration of loop.
+        */
+        if (acting_entity->energy_state.health_current <= 0) {
+            continue;
+        }
+
+        /*
+        * Snapshot the recursive effect before we do anything
+        * that could invoke scripts, takedamage(), or other side
+        * effects that might clear or rewrite the resident slot.
+        */
+        snapshot = *cursor;
+
+        /*
+        * Reset next tick time on the resident slot. Use the
+        * snapshot rate so this tick is stable even if scripts
+        * later modify the slot.
+        */
+        cursor->tick = _time + (snapshot.rate * global_config.game_speed / 100);
+
+        /*
+        * Does this recursive effect affect MP?
+        */
+        if (snapshot.mode & DAMAGE_RECURSIVE_MODE_MP) {
+
             /*
-            * If this is the head and there are no other
-            * recursive damage nodes, we need to delete
-            * the head AND set it to NULL. Otherwise, we
-            * only delete the node.
+            * Recursive MP Damage Logic:
+            *
+            * Subtract recursive force from MP. If MP would
+            * end with negative value, set 0.
             */
-            if (cursor == ent->recursive_damage && cursor->next == NULL)
-            {
-                free(cursor);
-                ent->recursive_damage = NULL;
-            }
-            else
-            {
-                recursive_damage_free_node(&ent->recursive_damage, cursor);
-            }
+            acting_entity->energy_state.mp_current -= snapshot.force;
 
-            continue;
+            if (acting_entity->energy_state.mp_current < 0) {
+                acting_entity->energy_state.mp_current = 0;
+            }
         }
 
         /*
-        * If it is not yet time for a tick, exit
-        * this iteration of loop.
+        * Does this recursive effect affect HP?
         */
-        if (_time < cursor->tick)
-        {
-            continue;
-        }
+        if (snapshot.mode & DAMAGE_RECURSIVE_MODE_HP) {
 
-        /* If target is not alive, exit this iteration of loop. */
-        if (ent->energy_state.health_current <= 0)
-        {
-            continue;
-        }
-
-        /* Reset next tick time. */
-        cursor->tick = _time + (cursor->rate * GAME_SPEED / 100);
-
-        /* Does this recursive damage affect HP ? */
-        if (cursor->mode & DAMAGE_RECURSIVE_MODE_HP)
-        {
             /*
             * Recursive HP Damage Logic:
             *
@@ -9016,7 +11931,7 @@ void recursive_damage_update(entity* ent)
             * any time we want to damage a target, but because
             * it breaks grabs and would spam the HUD,
             * takedamage() is not tenable for every tick
-            * of a recursive damage effect. However, we DO want
+            * of a recursive effect effect. However, we DO want
             * the owner to get credit, grabs to be broken, HUD
             * to react, etc., if the target is KO'd.
             *
@@ -9025,107 +11940,239 @@ void recursive_damage_update(entity* ent)
             * the calculated force is sufficient to KO target, and
             * this recursive tick is allowed to KO, we will go ahead
             * and apply takedamage() using the original recursive
-            * force (takedamage() automatically calculates offense
-            * and defense). This way the engine will treat KO tick as
+            * force. takedamage() automatically calculates offense
+            * and defense. This way the engine will treat KO tick as
             * if it were a direct hit with all appropriate reactions
             * and credit. Otherwise, we'll just subtract the calculated
-            * force directly from target's HP for a 'silent' damage effect.
+            * force directly from target's HP for a silent damage effect.
             */
 
             /*
             * Populate local attack structure with recursive
             * damage values and apply any damage mitigation.
             */
-
-            attack.attack_type = cursor->type;
-            attack.attack_force = cursor->force;
+            attack = emptyattack;
+            attack.attack_type = snapshot.type;
+            attack.attack_force = snapshot.force;
             attack.dropv = default_model_dropv;
+            attack.meta_tag = snapshot.meta_tag;
+
+            defense_object = defense_find_current_object(acting_entity, NULL, attack.attack_type);
+            calculated_force = calculate_force_damage(acting_entity, snapshot.owner, &attack, defense_object, FALSE);
 
             /*
-            * Get force after defense. We're sending NULL as the body 
-            * object. This means the calculation will always use model 
-            * defense or global default.
+            * Force is sufficient to KO target. Do we have 
+            * permission to KO with this recursive effect?
             */
-            defense_object = defense_find_current_object(ent, NULL, attack.attack_type);
+            if (calculated_force >= acting_entity->energy_state.health_current) {
 
-            attack.attack_force = calculate_force_damage(ent, cursor->owner, &attack, defense_object);
+                /*
+                * We can KO with this recursive effect. 
+                */
 
-            /*
-            * Is calculated force enough to KO target?
-            * Is this recursive damage allowed to KO?
-            */
-            if (attack.attack_force >= ent->energy_state.health_current)
-            {
-                /* Is this recursive damage allowed to KO ? */
-                if (!(cursor->mode & DAMAGE_RECURSIVE_MODE_NON_LETHAL))
-                {
+                if (!(snapshot.mode & DAMAGE_RECURSIVE_MODE_NON_LETHAL)) {
+
                     /*
-                    * Does target have a takedamage structure? If so
-                    * we can use takedamage() for the finishing damage.
-                    * Otherwise it must be a none type or some other
-                    * exceptional entity like a projectile. In that case
-                    * we will just kill it.
+                    * Do we have a takedamage structure? If so
+                    * we can use takedamage() for the finishing 
+                    * damage. Otherwise we are a none type or some 
+                    * other exceptional entity without a takedamage
+                    * function assigned. Just kill ourself.
                     */
-                    if (ent->takedamage)
-                    {
-                        /*
-                        * Populate attack structure with our 
-                        * recursive damage values. Then we apply 
-                        * takedamage(). The takedamage logic will 
-                        * handle everything else.
-                        */
 
-                        ent->takedamage(cursor->owner, &attack, 0, defense_object);
+                    if (acting_entity->takedamage) {
+                        /* Pass raw force so takedamage applies normal calculation once. */
+                        attack.attack_force = snapshot.force;
+                        acting_entity->takedamage(acting_entity, snapshot.owner, &attack, 0, defense_object);
+                    } else {
+                        kill_entity(acting_entity, KILL_ENTITY_TRIGGER_RECURSIVE_EFFECT);
                     }
-                    else
-                    {
-                        kill_entity(ent, KILL_ENTITY_TRIGGER_RECURSIVE_DAMAGE);
-                    }
-                }
-                else
-                {
+
+                } else {
+
                     /*
-                    * Recursive damage is not allowed to KO.
+                    * Recursive effect is not allowed to KO.
                     * Just set target's HP to minimum value.
                     */
-                    ent->energy_state.health_current = 1;
 
-                    /* Execute the target's takedamage script. */
-                    execute_takedamage_script(ent, cursor->owner, &attack);
+                    attack.attack_force = calculated_force;
+                    acting_entity->energy_state.health_current = 1;
+                    execute_takedamage_script(acting_entity, snapshot.owner, &attack);
                 }
-            }
-            else
-            {
+
+            } else {
+
                 /*
                 * Calculated damage is insufficient to KO.
                 * Subtract directly from target's HP.
                 */
-                ent->energy_state.health_current -= attack.attack_force;
 
-                /* Execute the target's takedamage script. */
-                execute_takedamage_script(ent, cursor->owner, &attack);
+                attack.attack_force = calculated_force;
+                acting_entity->energy_state.health_current -= calculated_force;
+                execute_takedamage_script(acting_entity, snapshot.owner, &attack);
             }
         }
+        
+        /*
+        * Damage processing may have killed the entity and
+        * released or replaced its recursive effect collection.
+        * Never continue scanning the old allocation.
+        */
+        if (!acting_entity->exists ||
+            acting_entity->recursive_effect_collection != recursive_effect_collection) {
 
-        /* Does this recursive damage affect MP ? */
-        if (cursor->mode & DAMAGE_RECURSIVE_MODE_MP)
-        {
-            /* Recursive MP Damage Logic : 
-            *
-            * Could not be more simple. Subtract
-            * recursive force from MP. If MP would
-            * end with negative value, set 0.
-            */
-
-            ent->energy_state.mp_current -= cursor->force;
-
-            if (ent->energy_state.mp_current < 0)
-            {
-                ent->energy_state.mp_current = 0;
-            }
+            return;
         }
     }
 }
+
+/*
+* Caskey, Damon V.
+* 2026-08-06
+*
+* Convert subdivisions of a second to logical clock ticks without
+* overflowing the finite 32-bit delay representation.
+* DELAY_INFINITE remains a sentinel instead of entering
+* the conversion, and finite overflow clamps to
+* DELAY_FINITE_MAX instead of creating the sentinel.
+*/
+static uint64_t delay_subsecond_units_to_ticks(
+    const uint64_t value,
+    const uint64_t units_per_second
+) {
+    const uint64_t whole_seconds =
+        value / units_per_second;
+
+    const uint64_t remaining_units =
+        value % units_per_second;
+
+    const uint64_t tick_whole_units =
+        global_config.game_speed / units_per_second;
+
+    const uint64_t tick_remainder =
+        global_config.game_speed % units_per_second;
+
+    uint64_t result;
+    uint64_t remainder_ticks;
+
+    if(value & DELAY_FLAG_INFINITE) {
+        return value;
+    }
+
+    if(whole_seconds
+        && global_config.game_speed
+            > DELAY_FINITE_MAX / whole_seconds) {
+        return DELAY_FINITE_MAX;
+    }
+
+    result = whole_seconds * global_config.game_speed;
+
+    if(remaining_units
+        && tick_whole_units
+            > (DELAY_FINITE_MAX - result)
+                / remaining_units) {
+        return DELAY_FINITE_MAX;
+    }
+
+    result += remaining_units
+        * tick_whole_units;
+
+    /*
+    * Supported subdivisions are at most 1,000 units per
+    * second, so this product cannot overflow.
+    */
+    remainder_ticks = remaining_units
+        * tick_remainder
+        / units_per_second;
+
+    if(remainder_ticks > DELAY_FINITE_MAX - result) {
+        return DELAY_FINITE_MAX;
+    }
+
+    return result + remainder_ticks;
+}
+
+static uint64_t delay_centiseconds_to_ticks(const uint64_t centiseconds) {
+    return delay_subsecond_units_to_ticks(
+        centiseconds,
+        UINT64_C(100)
+    );
+}
+
+static uint64_t delay_milliseconds_to_ticks(const uint64_t milliseconds) {
+    return delay_subsecond_units_to_ticks(
+        milliseconds,
+        UINT64_C(1000)
+    );
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-06
+*
+* Convert whole time units to logical clock ticks. The
+* supplied seconds-per-unit multiplier supports seconds
+* and minutes while keeping every intermediate within the
+* finite delay range.
+*/
+static uint64_t delay_whole_units_to_ticks(
+    const uint64_t value,
+    const uint64_t seconds_per_unit
+) {
+    uint64_t seconds;
+
+    if(value & DELAY_FLAG_INFINITE) {
+        return value;
+    }
+
+    if(!value || !seconds_per_unit || !global_config.game_speed) {
+        return 0;
+    }
+
+    if(seconds_per_unit > DELAY_FINITE_MAX / value) {
+        return DELAY_FINITE_MAX;
+    }
+
+    seconds = value * seconds_per_unit;
+
+    if(global_config.game_speed > DELAY_FINITE_MAX / seconds) {
+        return DELAY_FINITE_MAX;
+    }
+
+    return seconds * global_config.game_speed;
+}
+
+/*
+* Convert an animation delay from its declared input unit
+* to logical clock ticks.
+*/
+static uint64_t delay_to_ticks(
+    const uint64_t delay,
+    const e_delay_unit mode
+) {
+    const e_delay_unit resolved_mode =
+        mode == DELAY_UNIT_GLOBAL
+            ? global_config.delay_unit
+            : mode;
+
+    switch(resolved_mode) {
+        case DELAY_UNIT_GLOBAL:
+            /* Defensive fallback for invalid internal configuration. */
+        case DELAY_UNIT_CENTISECOND:
+            return delay_centiseconds_to_ticks(delay);
+        case DELAY_UNIT_MILLISECOND:
+            return delay_milliseconds_to_ticks(delay);
+        case DELAY_UNIT_SECOND:
+            return delay_whole_units_to_ticks(delay, UINT64_C(1));
+        case DELAY_UNIT_MINUTE:
+            return delay_whole_units_to_ticks(delay, UINT64_C(60));
+        case DELAY_UNIT_DIRECT:
+        default:
+            return delay;
+    }
+}
+
+
 
 /*
 * Caskey, Damon V. (original author unknown, 
@@ -9141,21 +12188,13 @@ void recursive_damage_update(entity* ent)
 * property array with number of elements matched 
 * to number of desired frames.
 */
-int addframe(s_addframe_data* data)
-{
-    int     i;
-    size_t  size_col_on_frame,
-            size_col_on_frame_struct;
-
-    s_collision_entity  *collision_entity;
+int addframe(s_addframe_data* data) {
 
     ptrdiff_t currentframe;
-    if(data->framecount > 0)
-    {
+
+    if(data->framecount > 0) {
         alloc_frames(data->animation, data->framecount);
-    }
-    else
-    {
+    } else {
         data->framecount = -data->framecount;    // for alloc method, use a negative value
     }
 
@@ -9163,52 +12202,25 @@ int addframe(s_addframe_data* data)
     ++data->animation->numframes;
 
     data->animation->sprite[currentframe] = data->spriteindex;
-    data->animation->delay[currentframe] = data->delay * GAME_SPEED / 100;
-
-    // Allocate entity boxes.
-    if((data->entity_coords->width - data->entity_coords->x)
-        && (data->entity_coords->height - data->entity_coords->y))
-    {
-        if(!data->animation->collision_entity)
-        {
-            size_col_on_frame = data->framecount * sizeof(*data->animation->collision_entity);
-
-            data->animation->collision_entity = malloc(size_col_on_frame);
-            memset(data->animation->collision_entity, 0, size_col_on_frame);
-        }
-
-        size_col_on_frame_struct = sizeof(**data->animation->collision_entity);
-        data->animation->collision_entity[currentframe] = malloc(size_col_on_frame_struct);
-
-        data->animation->collision_entity[currentframe]->instance = collision_alloc_entity_list();
-
-        for(i=0; i<max_collisons; i++)
-        {
-            collision_entity = collision_alloc_entity_instance(data->ebox);
-            data->animation->collision_entity[currentframe]->instance[i] = collision_entity;
-
-            collision_entity->index = i;
-
-            // Coordinates.
-            if(!collision_entity->coords)
-            {
-                collision_entity->coords = collision_allocate_coords(data->entity_coords);
-            }
-        }
-    }
+    data->animation->delay[currentframe] = delay_to_ticks(
+        data->delay,
+        data->delay_mode
+    );
 
     /* Allocate collision. */
     collision_attack_initialize_frame_property(data, currentframe);
     collision_body_initialize_frame_property(data, currentframe);
+    collision_space_initialize_frame_property(data, currentframe);
     
     /* Child spawns. */
     child_spawn_initialize_frame_property(data, currentframe);
 
+    /* Frame sounds. */
+    frame_sound_initialize_frame_property(data, currentframe);
+
     // Drawmethod (graphic settings)
-    if(data->drawmethod->config & DRAWMETHOD_CONFIG_ENABLED)
-    {
-        if(!data->animation->drawmethods)
-        {
+    if(data->drawmethod->config & DRAWMETHOD_CONFIG_ENABLED) {
+        if(!data->animation->drawmethods) {
             data->animation->drawmethods = malloc(data->framecount * sizeof(*data->animation->drawmethods));
             memset(data->animation->drawmethods, 0, data->framecount * sizeof(*data->animation->drawmethods));
         }
@@ -9219,21 +12231,18 @@ int addframe(s_addframe_data* data)
     }
 
     // Idle flag.
-    if(data->idle && !data->animation->idle)
-    {
+    if(data->idle && !data->animation->idle) {
         data->animation->idle = malloc(data->framecount * sizeof(*data->animation->idle));
         memset(data->animation->idle, 0, data->framecount * sizeof(*data->animation->idle));
     }
-    if(data->animation->idle)
-    {
+
+    if(data->animation->idle) {
         data->animation->idle[currentframe] = data->idle;
     }
 
     // Movement
-    if(data->move)
-    {
-        if(!data->animation->move)
-        {
+    if(data->move) {
+        if(!data->animation->move) {
             data->animation->move = malloc(data->framecount * sizeof(*data->animation->move));
             memset(data->animation->move, 0, data->framecount * sizeof(*data->animation->move));
         }
@@ -9242,21 +12251,17 @@ int addframe(s_addframe_data* data)
     }
 
     // Shadow effects.
-    if(data->frameshadow >= 0 && !data->animation->shadow)
-    {
+    if(data->frameshadow >= 0 && !data->animation->shadow) {
         data->animation->shadow = malloc(data->framecount * sizeof(*data->animation->shadow));
         memset(data->animation->shadow, FRAME_SHADOW_NONE, data->framecount * sizeof(*data->animation->shadow));
     }
 
-    if(data->animation->shadow)
-    {
+    if(data->animation->shadow) {
         data->animation->shadow[currentframe] = data->frameshadow;    // shadow index for each frame
     }
 
-    if(data->shadow_coords[0] || data->shadow_coords[1])
-    {
-        if(!data->animation->shadow_coords)
-        {
+    if(data->shadow_coords[0] || data->shadow_coords[1]) {
+        if(!data->animation->shadow_coords) {
             data->animation->shadow_coords = malloc(data->framecount * sizeof(*data->animation->shadow_coords));
             memset(data->animation->shadow_coords, 0, data->framecount * sizeof(*data->animation->shadow_coords));
         }
@@ -9264,10 +12269,8 @@ int addframe(s_addframe_data* data)
     }    
 
     // Offset
-    if(data->offset->x || data->offset->y)
-    {
-        if(!data->animation->offset)
-        {
+    if(data->offset->x || data->offset->y) {
+        if(!data->animation->offset) {
             data->animation->offset = malloc(data->framecount * sizeof(*data->animation->offset));
             memset(data->animation->offset, 0, data->framecount * sizeof(*data->animation->offset));
         }
@@ -9276,25 +12279,12 @@ int addframe(s_addframe_data* data)
     }
 
     // Platform
-    if(data->platform[PLATFORM_HEIGHT]) //height
-    {
-        if(!data->animation->platform)
-        {
+    if(data->platform[PLATFORM_HEIGHT]) { //height
+        if(!data->animation->platform) {
             data->animation->platform = malloc(data->framecount * sizeof(*data->animation->platform));
             memset(data->animation->platform, 0, data->framecount * sizeof(*data->animation->platform));
         }
         memcpy(data->animation->platform[currentframe], data->platform, sizeof(*data->animation->platform));// Used so entity can be landed on
-    }
-
-    // Sound effect
-    if(data->soundtoplay >= 0)
-    {
-        if(!data->animation->soundtoplay)
-        {
-            data->animation->soundtoplay = malloc(data->framecount * sizeof(*data->animation->soundtoplay));
-            memset(data->animation->soundtoplay, SAMPLE_ID_NONE, data->framecount * sizeof(*data->animation->soundtoplay)); // default to SAMPLE_ID_NONE
-        }
-        data->animation->soundtoplay[currentframe] = data->soundtoplay;
     }
 
     return data->animation->numframes;
@@ -9373,7 +12363,7 @@ void prepare_cache_map(size_t size)
 void cache_model(char *name, char *path, int flag)
 {
     int len;
-    printf("Cacheing '%s' from %s\n", name, path);
+    printf("Caching '%s' from %s\n", name, path);
     prepare_cache_map(models_cached + 1);
     memset(&model_cache[models_cached], 0, sizeof(model_cache[models_cached]));
 
@@ -9388,6 +12378,8 @@ void cache_model(char *name, char *path, int flag)
     model_cache[models_cached].path[len] = 0;
 
     model_cache[models_cached].loadflag = flag;
+    model_cache[models_cached].load_script = alloc_script();
+    model_cache[models_cached].unload_script = alloc_script();
 
     _peek_model_name(models_cached);
     ++models_cached;
@@ -9401,6 +12393,12 @@ void free_modelcache()
         while(models_cached)
         {
             --models_cached;
+            Script_Clear(model_cache[models_cached].load_script, 2);
+            free(model_cache[models_cached].load_script);
+            model_cache[models_cached].load_script = NULL;
+            Script_Clear(model_cache[models_cached].unload_script, 2);
+            free(model_cache[models_cached].unload_script);
+            model_cache[models_cached].unload_script = NULL;
             free(model_cache[models_cached].name);
             model_cache[models_cached].name = NULL;
             free(model_cache[models_cached].path);
@@ -9412,7 +12410,7 @@ void free_modelcache()
 }
 
 
-int get_cached_model_index(char *name)
+int get_cached_model_index(const char *name)
 {
     int i;
     for(i = 0; i < models_cached; i++)
@@ -9440,7 +12438,7 @@ char *get_cached_model_path(char *name)
 
 static void _readbarstatus(char *, s_barstatus *);
 
-static int translate_attack_type(char *command)
+static int translate_attack_type(char* command, char* filename)
 {
     int atk_id = -1, tempInt;
 
@@ -9498,13 +12496,17 @@ static int translate_attack_type(char *command)
         atk_id  = ATK_LOSE;
         break;
     case CMD_MODEL_COLLISION_ETC:
-        tempInt = atoi(command + 6); // White Dragon: 6 is "ATTACK" string length
+        
+        tempInt = get_attack_type_from_string(command, filename);
+        
+        //tmpInt = atoi(command + 6); // White Dragon: 6 is "ATTACK" string length
 		
 		if(tempInt < MAX_ATKS - STA_ATKS + 1)
         {
             tempInt = MAX_ATKS - STA_ATKS + 1;
         }
-        atk_id = tempInt + STA_ATKS - 1;
+        atk_id = tempInt + STA_ATKS - 1;        
+
         break;
     default:
         break;
@@ -9514,9 +12516,10 @@ static int translate_attack_type(char *command)
 }
 
 //move here to ease animation name to id logic
-static int translate_ani_id(const char *value, s_model *newchar, s_anim *newanim)
+static animation_id_t translate_ani_id(const char *value, s_model *newchar, s_anim *newanim)
 {
-    int ani_id = -1, tempInt;
+    animation_id_t ani_id = ANIMATION_ID_INVALID;
+    int tempInt;
     //those are dummy values to simplify code
     static s_model mdl;
     static s_anim ani;
@@ -10263,11 +13266,6 @@ static int translate_ani_id(const char *value, s_model *newchar, s_anim *newanim
     {
         ani_id = ANI_JUMPSPECIAL;
     }
-    else if(starts_with_num(value, "freespecial"))
-    {
-        get_tail_number(tempInt, value, "freespecial");
-        ani_id = animspecials[tempInt - 1];
-    }
     else if(stricmp(value, "jumpattack") == 0)
     {
         ani_id = ANI_JUMPATTACK;
@@ -10962,12 +13960,12 @@ void lcmHandleCommandSmartbomb(ArgList *arglist, s_model *newchar, char *filenam
     if(newchar->type == TYPE_ITEM)
     {
         newchar->dofreeze = 0;								// Items don't animate
-        newchar->smartbomb->freezetime = atoi(GET_ARGP(3)) * GAME_SPEED;
+        newchar->smartbomb->freezetime = atoi(GET_ARGP(3)) * global_config.game_speed;
     }
     else
     {
         newchar->dofreeze = atoi(GET_ARGP(3));		// Are all animations frozen during special
-        newchar->smartbomb->freezetime = atoi(GET_ARGP(4)) * GAME_SPEED;
+        newchar->smartbomb->freezetime = atoi(GET_ARGP(4)) * global_config.game_speed;
     }
 }
 
@@ -11021,21 +14019,21 @@ e_entity_type get_type_from_string(const char* value)
 }
 
 /*
-* Caskey, Damon V.
-* 2022-06-14
-*
-* Get arguments for type and output final
-* bitmask so we can have a reusable function.
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read entity type arguments directly from the source line
+  and combine their corresponding type flags.
 */
-e_entity_type get_type_from_arglist(ArgList* arglist)
+e_entity_type get_type_from_command_line(const char* command_line)
 {
-    int i = 0;
-    char* value = "";
+    const char* value;
+    s_command_argument_reader reader;
+    e_entity_type result = TYPE_UNDECLARED;
 
-    e_entity_type result = TYPE_UNDELCARED;
+    command_argument_reader_initialize(&reader, command_line, 1);
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    while(command_argument_reader_next(&reader, &value)) {
         result |= get_type_from_string(value);
     }
 
@@ -11128,7 +14126,7 @@ e_weapon_loss_condition weapon_loss_condition_interpret_from_legacy_weaploss(e_w
 * Accept string input and return
 * matching constant. 
 */
-e_weapon_loss_condition get_weapon_loss_from_argument(char* value)
+e_weapon_loss_condition get_weapon_loss_from_argument(const char* value)
 {
     e_weapon_loss_condition result;
 
@@ -11188,16 +14186,22 @@ e_weapon_loss_condition get_weapon_loss_from_argument(char* value)
 * Populate weapon loss model property
 * from text arguments.
 */
-void lcmHandleCommandWeaponLossCondition(ArgList* arglist, s_model* newchar)
+void lcmHandleCommandWeaponLossCondition(
+    const char* command_line,
+    s_model* newchar
+)
 {
-    int i;
-    char* value;
+    const char* value;
+    s_command_argument_reader reader;
+
     newchar->weapon_properties.loss_condition = WEAPON_LOSS_CONDITION_NONE;
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
         newchar->weapon_properties.loss_condition |= get_weapon_loss_from_argument(value);
     }
+
 }
 
 /*
@@ -11208,7 +14212,11 @@ void lcmHandleCommandWeaponLossCondition(ArgList* arglist, s_model* newchar)
 * and output appropriate constant. If input 
 * is legacy integer, we just pass it on.
 */
-e_model_copy get_model_flag_from_argument(char* filename, char* command, char* value)
+e_model_copy get_model_flag_from_argument(
+    const char* filename,
+    const char* command,
+    const char* value
+)
 {
     e_model_copy result = MODEL_COPY_FLAG_NONE;
 
@@ -11280,16 +14288,24 @@ e_model_copy get_model_flag_from_legacy_int(int legacy_int)
 * Populate model flag property
 * from text arguments.
 */
-void lcmHandleCommandModelFlag(char* filename, char* command, ArgList* arglist, s_model* newchar)
+void lcmHandleCommandModelFlag(
+    char* filename,
+    char* command,
+    const char* command_line,
+    s_model* newchar
+)
 {
-    int i;
-    char* value;
+    const char* value;
+    s_command_argument_reader reader;
+
     newchar->model_flag = MODEL_COPY_FLAG_NONE;
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
         newchar->model_flag |= get_model_flag_from_argument(filename, command, value);
     }
+
 }
 
 /*
@@ -11723,16 +14739,22 @@ e_air_control find_air_control_from_string(const char* value)
 * Populate air control model property
 * from text arguments.
 */
-void lcmHandleCommandAirControl(const ArgList* arglist, s_model* newchar)
+void lcmHandleCommandAirControl(
+    const char* command_line,
+    s_model* newchar
+)
 {
-    int i;
-    char* value;
+    const char* value;
+    s_command_argument_reader reader;
+
     newchar->air_control = AIR_CONTROL_NONE;
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
         newchar->air_control |= find_air_control_from_string(value);
     }
+
 }
 
 /*
@@ -11816,22 +14838,23 @@ e_ko_colorset_config komap_type_get_value_from_argument(char* filename, char* co
 }
 
 /*
-* Caskey, Damon V.
-* 2022-06-14
-*
-* Get arguments for move constraint and 
-* output final bitmask so we can have a 
-* reusable function.
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read movement configuration arguments directly from the
+  source line and combine their corresponding behavior flags.
 */
-e_move_config_flags get_move_config_flags_from_arguments(ArgList* arglist)
+e_move_config_flags get_move_config_flags_from_command_line(
+    const char* command_line
+)
 {
-    int i = 0;
-    char* value = "";
-
+    const char* value;
+    s_command_argument_reader reader;
     e_move_config_flags result = MOVE_CONFIG_NONE;
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
         result |= find_move_config_flags_from_string(value);
     }
 
@@ -11898,16 +14921,19 @@ e_cheat_options find_cheat_options_from_string(const char* value)
 * Populate global config cheats 
 * property from text arguments.
 */
-void lcmHandleCommandGlobalConfigCheats(ArgList* arglist)
+void lcmHandleCommandGlobalConfigCheats(const char* command_line)
 {
-    int i;
-    char* value;
+    const char* value;
+    s_command_argument_reader reader;
+
     global_config.cheats = CHEAT_OPTIONS_NONE;
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
         global_config.cheats |= find_cheat_options_from_string(value);    
     }
+
 }
 
 /*
@@ -11964,24 +14990,26 @@ e_aimove get_aimove_constant_from_string(const char* value)
 }
 
 /*
-* Caskey, Damon V.
-* 2022-06-08
-* 
-* Get arguments for Aimove and output final 
-* bitmask. Replaces lcmHandleCommandAiMove 
-* so we can have a reusable function.
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read AI movement arguments directly from the source line
+  and combine them with the supplied default behavior flags.
 */
-e_aimove get_aimove_from_arguments(const ArgList *arglist, e_aimove default_value)
+e_aimove get_aimove_from_command_line(
+    const char* command_line,
+    e_aimove default_value
+)
 {    
-    int i = 0;
-    char* value = "";
-
+    const char* value;
+    s_command_argument_reader reader;
     e_aimove result = default_value;
-    
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
         result |= get_aimove_constant_from_string(value);
-    }    
+    }
 
     return result;
 }
@@ -12024,54 +15052,83 @@ void lcmHandleCommandAiattack(ArgList *arglist, s_model *newchar, int *aiattacks
     }*/
 }
 
-void lcmHandleCommandWeapons(ArgList *arglist, s_model *newchar)
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read weapon model names directly from the source line,
+  allocate an exact-sized list, and safely replace any list
+  owned by the model without modifying inherited storage.
+*/
+void lcmHandleCommandWeapons(
+    const char* command_line,
+    s_model* newchar
+)
 {
-    int weapon_index = 0;
-    char *value;
-    
-    for(weapon_index = 0; ; weapon_index++)
-    {
-        value = GET_ARGP(weapon_index + 1);
-        if(!value[0])
-        {
-            break;
+    const char* value;
+    s_command_argument_reader reader;
+    s_command_token token;
+    s_command_token_reader count_reader = {
+        .cursor = command_line
+    };
+    int* weapon_list;
+    size_t weapon_count = 0;
+    size_t weapon_index = 0;
+
+    /* Skip the command name before counting its values. */
+    command_token_reader_next(&count_reader, &token);
+
+    while(command_token_reader_next(&count_reader, &token)) {
+        if(weapon_count == INT_MAX) {
+            borShutdown(
+                1,
+                "Weapon list exceeds the supported integer count range.\n"
+            );
         }
+
+        weapon_count++;
     }
 
-    if(!weapon_index)
-    {
+    if(!weapon_count) {
         return;
     }
 
-    newchar->weapon_properties.weapon_count = weapon_index;
+    if(weapon_count > SIZE_MAX / sizeof(*weapon_list)) {
+        borShutdown(1, E_OUT_OF_MEMORY);
+    }
 
-    if(!newchar->weapon_properties.weapon_list)
-    {
-        newchar->weapon_properties.weapon_list = malloc(sizeof(*newchar->weapon_properties.weapon_list) * newchar->weapon_properties.weapon_count);
-        memset(newchar->weapon_properties.weapon_list, 0xFF, sizeof(*newchar->weapon_properties.weapon_list) * newchar->weapon_properties.weapon_count);
-        newchar->weapon_properties.weapon_state |= WEAPON_STATE_HAS_LIST;
+    weapon_list = malloc(sizeof(*weapon_list) * weapon_count);
+
+    if(!weapon_list) {
+        borShutdown(1, E_OUT_OF_MEMORY);
     }
 
     /*
     * Weapon list arguments left to right, until we
     * reach this model's number of weapons. If none,
-    * populate wiith "none" index. Otherwise we find
+    * populate with "none" index. Otherwise we find
     * a model index to populate with.
     */
 
-    for(weapon_index = 0; weapon_index < newchar->weapon_properties.weapon_count; weapon_index++)
-    {
-        value = GET_ARGP(weapon_index + 1);
+    command_argument_reader_initialize(&reader, command_line, 1);
 
-        if(stricmp(value, "none") != 0)
-        {
-            newchar->weapon_properties.weapon_list[weapon_index] = get_cached_model_index(value);
-        }
-        else
-        {
-            newchar->weapon_properties.weapon_list[weapon_index] = MODEL_INDEX_NONE;
-        }
+    while(command_argument_reader_next(&reader, &value)) {
+        weapon_list[weapon_index] = stricmp(value, "none") != 0
+            ? get_cached_model_index(value)
+            : MODEL_INDEX_NONE;
+
+        weapon_index++;
     }
+
+    if(hasFreetype(newchar, MF_WEAPONS)
+        && newchar->weapon_properties.weapon_list) {
+        free(newchar->weapon_properties.weapon_list);
+    }
+
+    newchar->weapon_properties.weapon_list = weapon_list;
+    newchar->weapon_properties.weapon_count = (int)weapon_count;
+    newchar->weapon_properties.weapon_state |= WEAPON_STATE_HAS_LIST;
+    newchar->freetypes |= MF_WEAPONS;
 }
 
 //fetch string between next @script and @end_script
@@ -12475,7 +15532,7 @@ size_t lcmScriptDeleteMain(char **buf)
                 len = i;
                 break;
             } else continue;
-            if (i <= 0) break;
+            //if (i <= 0) break;
         }
 
         len = len-pos;
@@ -12564,7 +15621,7 @@ s_model *init_model(const int cacheindex, const int unload)
     newchar->diesound           = SAMPLE_ID_NONE;
     newchar->nolife             = 0;			    // default show life = 1 (yes)
     newchar->shadow_config_flags = SHADOW_CONFIG_DEFAULT;
-    newchar->remove             = 1;			    // Flag set to weapons are removed upon hitting an opponent
+    newchar->remove_config     = REMOVE_CONFIG_HIT;	    // Flag set to projectiles are removed upon hitting an opponent
     newchar->throwdist          = default_model_jumpheight * 0.625f;
     newchar->aimove             = AIMOVE1_NONE;
     newchar->aiattack           = -1;
@@ -12619,7 +15676,7 @@ s_model *init_model(const int cacheindex, const int unload)
     /* 
     * Faction data. Faction type properties 
     * get defaults set downstream depending 
-    * on the the model's own type.
+    * on the model's own type.
     */
 
     newchar->faction = (s_faction){
@@ -12627,9 +15684,10 @@ s_model *init_model(const int cacheindex, const int unload)
         .damage_indirect = FACTION_GROUP_DEFAULT,
         .hostile = FACTION_GROUP_DEFAULT,
         .member = FACTION_GROUP_DEFAULT,
-        .type_damage_direct = TYPE_UNDELCARED,
-        .type_damage_indirect = TYPE_UNDELCARED,
-        .type_hostile = TYPE_UNDELCARED
+        .type_damage_direct = TYPE_UNDECLARED,
+        .type_damage_indirect = TYPE_UNDECLARED,
+        .type_hostile = TYPE_UNDECLARED,
+        .object_type = OBJECT_TYPE_FACTION
     };
 
     newchar->move_config_flags            = MOVE_CONFIG_NONE;
@@ -12648,9 +15706,27 @@ s_model *init_model(const int cacheindex, const int unload)
     newchar->stealth.hide               = 0;
     newchar->stealth.detect             = 0;
     newchar->attackthrottle				= 0.0f;
-    newchar->attackthrottletime			= noatk_duration * GAME_SPEED;
+    newchar->attackthrottletime			= noatk_duration * global_config.game_speed;
 
-    newchar->animation = calloc(max_animations, sizeof(*newchar->animation));
+    /*
+    * max_animations originates in data/models.txt. Check
+    * the per-model table multiplication before allocating.
+    */
+    if(max_animations <= 0
+        || (size_t)max_animations
+            > SIZE_MAX / sizeof(*newchar->animation)) {
+        borShutdown(
+            1,
+            "Invalid per-model animation table size (%d). "
+            "Check animation limits in data/models.txt.\n",
+            max_animations
+        );
+    }
+
+    newchar->animation = calloc(
+        (size_t)max_animations,
+        sizeof(*newchar->animation)
+    );
     if(!newchar->animation)
     {
         borShutdown(1, (char *)E_OUT_OF_MEMORY);
@@ -12690,7 +15766,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
     char* command = NULL;
     char* value = NULL;
     char* value2 = NULL;
-    char* value3 = NULL;
 
     char fnbuf[MAX_BUFFER_LEN] = { "" };
     char namebuf[MAX_BUFFER_LEN] = { "" };
@@ -12698,23 +15773,22 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
     ArgList arglist;
 
-    int ani_id = ANI_NONE;
-    int script_id = -1;
+    animation_id_t ani_id = ANI_NONE;
+    animation_id_t script_id = ANIMATION_ID_INVALID;
     int frm_id = -1;
+    bool at_cmd_mergeable = false;
     int i = 0;
-    int j = 0;
     int tempInt = 0;
     int framecount = 0;
     int frameset = 0;
     int peek = 0;
     int cacheindex = 0;
     int curframe = 0;
-    int delay = 0;
     int errorVal = 0;
     int shadow_set = 0;
     int idle = 0;
     int frameshadow = FRAME_SHADOW_NONE;    // FRAME_SHADOW_NONE will use default shadow for this entity, otherwise will use this value.
-    int soundtoplay = SAMPLE_ID_NONE;
+    int temp_frame_sound_index = 0;
     int aiattackset = 0;
     int maskindex = -1;
     int nopalette = 0;
@@ -12725,17 +15799,14 @@ s_model *load_cached_model(char *name, char *owner, char unload)
     size_t sbsize = 0;
     size_t scriptlen = 0;
 
+    uint64_t delay = 0;
+
+    e_delay_unit delay_mode = DELAY_UNIT_GLOBAL;
+
     ptrdiff_t pos = 0;
     ptrdiff_t index = 0;
 
     s_addframe_data add_frame_data; 
-
-    s_hitbox            ebox = {    .x      = 0,
-                                    .y      = 0,
-                                    .width  = 0,
-                                    .height = 0,
-                                    .z_background     = 0,
-                                    .z_foreground     = 0};
     
     s_axis_plane_vertical_int         offset = { .x = 0,
                                                  .y = 0 };
@@ -12751,32 +15822,47 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                                         .base = -1    //-1 = Disabled, 0+ base set
                                     };
 
-    s_collision_entity  ebox_con;
-    s_hitbox            entity_coords;
     s_drawmethod        drawmethod;
     s_drawmethod        dm;
 
+    s_frame_sound_collection* temp_frame_sound = NULL;
+
     /*
     * Caskey, Damon V.
-    * 2021-08-23
+    * 2026-06-28 (updated from 2021 node header)
     * 
-    * Temporary list heads. As we read in commands 
-    * for "mutiple X per frame" properties, functions
-    * build a linked list with these variables as 
-    * head node. When we add frame to model, the
-    * lists are cloned with relevant frame property 
-    * as head node. Then we destroy temporary list.
+    * Temporary collision collections. As we parse the
+    * model file, we will build a temporary collection 
+    * of collision data, then clone it into the model's
+    * target animation frame, and the discard the temporary
+    * collection.
+    * 
+    * Index tells us which collision index to target. Any 
+    * time we are updating a collision box, we pass the index 
+    * to the update functions. The parse for index must
+    * therefore appear before any other collision parsing
+    * in order, so it modifies the index before we call the 
+    * collision update functions.
     */
     int temp_collision_index = 0;
-    s_collision_attack* temp_collision_head = NULL;     // Attack boxes.
-    s_collision_body* temp_collision_body_head = NULL;  // Body boxes.
+    s_collision_collection* temp_collision_attack = NULL; 
+    s_collision_collection* temp_collision_body = NULL;  
+    s_collision_collection* temp_collision_space = NULL;
+
+    /*
+    * Temp pointer to make adding several collision
+    * coordinates in one command a little cleaner.
+    */
+    s_hitbox* temp_collision_coordinates = NULL; 
     
     int temp_child_spawn_index = 0;
     s_child_spawn* temp_child_spawn_head = NULL;         // Spawning sub entities.
 
-    char* shutdownmessage = NULL;
+    const char *shutdownmessage = NULL;
 
     unsigned* mapflag = NULL;  // in 24bit mode, we need to know whether a colourmap is a common map or a palette
+
+    char alert_buffer[256] = { 0 }; // So we can concatenate specifics *like range max/min* into alert messages.
 
     const char pre_text[] =   // this is the skeleton of frame function
     {
@@ -12794,7 +15880,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
     const char ifid_text[] =  // if expression to check animation id
     {
-        "    if(animhandle==%d)\n"
+        "    if(animhandle==%" PRId64 ")\n"
         "    {\n"
         "        return;\n"
         "    }\n"
@@ -12827,9 +15913,14 @@ s_model *load_cached_model(char *name, char *owner, char unload)
         ", "
     };
 
-    const char call_text[] =  //begin of function call
+    const char call_indent_text[] =  //begin of function call
     {
-        "            %s("
+        "            "
+    };
+
+    const char call_open_text[] =
+    {
+        "("
     };
 
     const char endcall_text[] =  //end of function call
@@ -12861,6 +15952,8 @@ s_model *load_cached_model(char *name, char *owner, char unload)
         borShutdown(1, "Fatal: No cache entry for '%s' within '%s'\n\n", name, owner);
     }
 
+    model_cache[cacheindex].lifecycle = MODEL_LIFECYCLE_LOADING;
+
     // Get the text file name of model.
     filename = model_cache[cacheindex].path;
     printf(" from %s \n", filename);
@@ -12888,8 +15981,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
     models_loaded++;
     addModel(newchar);
         
-    ebox_con = empty_entity_collision;
-
     drawmethod = plainmethod;  // better than memset it to 0
 
     newchar->hitwalltype = -1; // init to -1
@@ -12955,14 +16046,14 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newchar->nolife = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_MAKEINV:	// Mar 12, 2005 - If a value is supplied, corresponds to amount of time the player spawns invincible
-                newchar->makeinv = GET_FLOAT_ARG(1) * GAME_SPEED;
+                newchar->makeinv = GET_FLOAT_ARG(1) * global_config.game_speed;
                 if(GET_INT_ARG(2))
                 {
                     newchar->makeinv = -newchar->makeinv;
                 }
                 break;
             case CMD_MODEL_RISEINV:
-                newchar->riseinv = GET_FLOAT_ARG(1) * GAME_SPEED;
+                newchar->riseinv = GET_FLOAT_ARG(1) * global_config.game_speed;
                 if(GET_INT_ARG(2))
                 {
                     newchar->riseinv = -newchar->riseinv;
@@ -12981,7 +16072,16 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 break;
             case CMD_MODEL_SCORE:
-                newchar->score = GET_INT_ARG(1);
+                if(!command_argument_get_int64(GET_ARG(1), &newchar->score))
+                {
+                    borShutdown(
+                        1,
+                        "Invalid signed 64-bit score '%s' in %s, line %zu.\n",
+                        GET_ARG(1),
+                        filename,
+                        line
+                    );
+                }
                 newchar->multiple = GET_INT_ARG(2);			// New var multiple for force/scoring
                 break;
             case CMD_MODEL_SMARTBOMB:
@@ -12996,7 +16096,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 break;
             case CMD_MODEL_BLOCK_CONFIG:
 
-                newchar->block_config_flags = block_get_config_flags_from_arguments(&arglist);
+                newchar->block_config_flags = block_get_config_flags_from_command_line(buf + pos);
                 break;
 
             case CMD_MODEL_BLOCKBACK:
@@ -13158,45 +16258,45 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             
             /* Faction set up. */
             case CMD_MODEL_FACTION_GROUP_DAMAGE_DIRECT:
-                newchar->faction.damage_direct = faction_get_flags_from_arglist(&arglist);
+                newchar->faction.damage_direct = faction_get_flags_from_command_line(buf + pos);
                 break;
 
             case CMD_MODEL_FACTION_GROUP_DAMAGE_INDIRECT:
-                newchar->faction.damage_indirect = faction_get_flags_from_arglist(&arglist);
+                newchar->faction.damage_indirect = faction_get_flags_from_command_line(buf + pos);
                 break;
 
             case CMD_MODEL_FACTION_GROUP_HOSTILE:
-                newchar->faction.hostile = faction_get_flags_from_arglist(&arglist);
+                newchar->faction.hostile = faction_get_flags_from_command_line(buf + pos);
                 break;
 
             case CMD_MODEL_FACTION_GROUP_MEMBER:
-                newchar->faction.member = faction_get_flags_from_arglist(&arglist);
+                newchar->faction.member = faction_get_flags_from_command_line(buf + pos);
                 break;
 
             /* Legacy type based faction */
             case CMD_MODEL_FACTION_TYPE_HOSTILE:
             case CMD_MODEL_HOSTILE:
-                newchar->faction.type_hostile = get_type_from_arglist(&arglist);
+                newchar->faction.type_hostile = get_type_from_command_line(buf + pos);
                 break;
 
             case CMD_MODEL_FACTION_TYPE_DAMAGE_DIRECT:
             case CMD_MODEL_CANDAMAGE:
-                newchar->faction.type_damage_direct = get_type_from_arglist(&arglist);
+                newchar->faction.type_damage_direct = get_type_from_command_line(buf + pos);
                 break;
 
             case CMD_MODEL_FACTION_TYPE_DAMAGE_INDIRECT:
             case CMD_MODEL_PROJECTILEHIT:
-                newchar->faction.type_damage_indirect = get_type_from_arglist(&arglist);
+                newchar->faction.type_damage_indirect = get_type_from_command_line(buf + pos);
                 break;
 
             case CMD_MODEL_AIMOVE:
-                newchar->aimove = get_aimove_from_arguments(&arglist, AIMOVE1_NORMAL);
+                newchar->aimove = get_aimove_from_command_line(buf + pos, AIMOVE1_NORMAL);
                 break;
             case CMD_MODEL_AIATTACK:
                 lcmHandleCommandAiattack(&arglist, newchar, &aiattackset, filename);
                 break;
             case CMD_MODEL_MOVE_CONFIG:
-                newchar->move_config_flags = get_move_config_flags_from_arguments(&arglist);
+                newchar->move_config_flags = get_move_config_flags_from_command_line(buf + pos);
                 break;
             case CMD_MODEL_SUBJECT_TO_BASEMAP:
 
@@ -13331,7 +16431,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             case CMD_MODEL_MODELFLAG: // Legacy model copy flag.                             
                 
                 
-                lcmHandleCommandModelFlag(filename, command, &arglist, newchar);
+                lcmHandleCommandModelFlag(filename, command, buf + pos, newchar);
 
                 break;
                 // weapons
@@ -13345,7 +16445,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             
             case CMD_MODEL_WEAPON_LOSS_CONFIG:
                 
-                lcmHandleCommandWeaponLossCondition(&arglist, newchar);
+                lcmHandleCommandWeaponLossCondition(buf + pos, newchar);
                 break;
 
             case CMD_MODEL_WEAPON_LOSS_INDEX:
@@ -13371,7 +16471,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 break;
             case CMD_MODEL_WEAPONS:
-                lcmHandleCommandWeapons(&arglist, newchar);
+                lcmHandleCommandWeapons(buf + pos, newchar);
                 break;
             case CMD_MODEL_SHOOTNUM: 
                 newchar->weapon_properties.use_count = GET_INT_ARG(1);
@@ -13552,7 +16652,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
             case CMD_MODEL_DEATH_CONFIG:
 
-                newchar->death_config_flags = death_get_config_flags_from_arguments(&arglist, 1);
+                newchar->death_config_flags = death_get_config_flags_from_command_line(buf + pos, 1);
                 break;
 
             case CMD_MODEL_SPEED:
@@ -13612,49 +16712,49 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 * from 3.0 builds. See function for details.
                 */
 
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_LEGACY);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_LEGACY);
             break;    
             case CMD_MODEL_DEFENSE_BLOCK_DAMAGE_ADJUST:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_DAMAGE_ADJUST);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_DAMAGE_ADJUST);
                 break;
             case CMD_MODEL_DEFENSE_BLOCK_DAMAGE_MAX:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_DAMAGE_MAX);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_DAMAGE_MAX);
                 break;
             case CMD_MODEL_DEFENSE_BLOCK_DAMAGE_MIN:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_DAMAGE_MIN);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_DAMAGE_MIN);
                 break;
             case CMD_MODEL_DEFENSE_BLOCK_POWER:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_POWER);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_POWER);
                 break;
             case CMD_MODEL_DEFENSE_BLOCK_RATIO:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_RATIO);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_RATIO);
                 break;
             case CMD_MODEL_DEFENSE_BLOCK_THRESHOLD:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_THRESHOLD);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_THRESHOLD);
                 break;
             case CMD_MODEL_DEFENSE_BLOCK_TYPE:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_TYPE);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_BLOCK_TYPE);
                 break;
             case CMD_MODEL_DEFENSE_DAMAGE_ADJUST:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_DAMAGE_ADJUST);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_DAMAGE_ADJUST);
                 break;
             case CMD_MODEL_DEFENSE_DAMAGE_MAX:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_DAMAGE_MAX);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_DAMAGE_MAX);
                 break;
             case CMD_MODEL_DEFENSE_DAMAGE_MIN:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_DAMAGE_MIN);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_DAMAGE_MIN);
                 break;
             case CMD_MODEL_DEFENSE_DEATH_CONFIG:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_DEATH_CONFIG);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_DEATH_CONFIG);
                 break;
             case CMD_MODEL_DEFENSE_FACTOR:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_FACTOR);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_FACTOR);
                 break;
             case CMD_MODEL_DEFENSE_KNOCKDOWN:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_KNOCKDOWN);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_KNOCKDOWN);
                 break;
             case CMD_MODEL_DEFENSE_PAIN:
-                defense_setup_from_arg(filename, command, newchar->defense, &arglist, DEFENSE_PARAMETER_PAIN);
+                defense_setup_from_arg(filename, command, buf + pos, newchar->defense, &arglist, DEFENSE_PARAMETER_PAIN);
                 break;
             case CMD_MODEL_OFFENSE:
                 offense_setup_from_arg(filename, command, newchar->offense, &arglist, OFFENSE_PARAMETER_LEGACY);
@@ -13672,7 +16772,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 offense_setup_from_arg(filename, command, newchar->offense, &arglist, OFFENSE_PARAMETER_FACTOR);
                 break;
 
-            break;
             case CMD_MODEL_HEIGHT:
                 newchar->size.y = GET_INT_ARG(1);
                 break;
@@ -13682,7 +16781,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
             case CMD_MODEL_AIR_CONTROL:
                 
-                lcmHandleCommandAirControl(&arglist, newchar);
+                lcmHandleCommandAirControl(buf + pos, newchar);
                 break;
 
             case CMD_MODEL_JUMPMOVE:
@@ -13722,7 +16821,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 break;
             case CMD_MODEL_SHADOW_CONFIG:                
 
-                newchar->shadow_config_flags = shadow_get_config_flags_from_arguments(&arglist);
+                newchar->shadow_config_flags = shadow_get_config_flags_from_command_line(buf + pos);
 
                 break;
             case CMD_MODEL_GFXSHADOW:
@@ -13832,7 +16931,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 break;
 
             case CMD_MODEL_RUN_CONFIG:
-                newchar->run_config_flags = run_get_config_flags_from_arguments(&arglist, 1);
+                newchar->run_config_flags = run_get_config_flags_from_command_line(buf + pos, 1);
                 break;
             case CMD_MODEL_RUNNING:
                 // The speed at which the player runs
@@ -14007,7 +17106,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 tempInt = GET_INT_ARG(1);
 
-                newchar->pain_config_flags = pain_get_config_flags_from_arguments(&arglist);
+                newchar->pain_config_flags = pain_get_config_flags_from_command_line(buf + pos);
 
                 break;
 
@@ -14043,7 +17142,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newchar->throwframewait = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_DIESOUND:
-                newchar->diesound = sound_load_sample(GET_ARG(1), packfile, 1);
+                newchar->diesound = sound_load_sample(GET_ARG(1), packfile, 1, 0);
                 break;
             case CMD_MODEL_ICON:
                 value = GET_ARG(1);
@@ -14191,7 +17290,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newchar->attackthrottle = GET_FLOAT_ARG(1);
                 if(arglist.count >= 2)
                 {
-                    newchar->attackthrottletime = GET_FLOAT_ARG(2) * GAME_SPEED;
+                    newchar->attackthrottletime = GET_FLOAT_ARG(2) * global_config.game_speed;
                 }
                 break;
             case CMD_MODEL_RISETIME:
@@ -14205,7 +17304,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newchar->turndelay = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_LIFESPAN:
-                newchar->lifespan = GET_FLOAT_ARG(1) * GAME_SPEED;
+                newchar->lifespan = GET_FLOAT_ARG(1) * global_config.game_speed;
                 break;
             case CMD_MODEL_SUMMONKILL:
                 newchar->summonkill = GET_INT_ARG(1);
@@ -14275,114 +17374,62 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                     newchar->hud_popup->name_position.y = atoi(value);
                 }
                 break;
+            
             case CMD_MODEL_COM:
             {
-                // Section for custom freespecials starts here
-                int i, t;
-                int add_flag = 0;
-                alloc_specials(newchar);
-                newchar->special[newchar->specials_loaded].numkeys = 0;
-                for(i = 0, t = 1; i < MAX_SPECIAL_INPUTS - 3; i++, t++)
-                {
-                    value = GET_ARG(t);
-                    if(!value[0])
-                    {
-                        break;
-                    }
-                    if(stricmp(value, "u") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_MOVEUP;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_MOVEUP;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "d") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_MOVEDOWN;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_MOVEDOWN;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "f") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_FORWARD;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_FORWARD;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "b") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_BACKWARD;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_BACKWARD;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "a") == 0 || stricmp(value, "a1") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_ATTACK;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_ATTACK;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "a2") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_ATTACK2;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_ATTACK2;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "a3") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_ATTACK3;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_ATTACK3;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "a4") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_ATTACK4;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_ATTACK4;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "j") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_JUMP;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_JUMP;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "s") == 0 || stricmp(value, "k") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_SPECIAL;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_SPECIAL;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(starts_with_num(value, "freespecial"))
-                    {
-                        tempInt = atoi(value + 11);
-                        if(tempInt < 1)
-                        {
-                            tempInt = 1;
-                        }
-                        newchar->special[newchar->specials_loaded].anim = animspecials[tempInt - 1];
-                    }
-                    else if(stricmp(value, "+") == 0 && i >= 1)
-                    {
-                        add_flag = 1;
-                        i -= 2;
-                        continue;
-                    }
-                    else if(stricmp(value, "->") == 0 && i > 0)
-                    {
-                        // just for better reading
-                        --i;
-                        continue;
-                    }
-                    else
-                    {
-                        shutdownmessage = "Invalid freespecial command";
-                        goto lCleanup;
-                    }
-                    add_flag = 0;
-                    //printf("insert:%s in %d, numkeys:%d for special n.:%d\n",value,i,newchar->special[newchar->specials_loaded].numkeys,newchar->specials_loaded);
+                s_command_token_reader token_reader = {
+                    .cursor = buf + pos
+                };
+
+                s_command_token token;
+
+                /*
+                * Parse into a temporary command first. This prevents
+                * a malformed line from partially modifying the model.
+                */
+                s_com parsed_special = {0};
+
+                const char* parse_error;
+
+                int freespecial_number;
+
+                /*
+                * Consume and verify the command-name token.
+                */
+                if(!command_token_reader_next(&token_reader, &token) || !command_token_equals(&token, "com")) {
+                    shutdownmessage = "Invalid freespecial command name.\n";
+                    goto lCleanup;
                 }
-                newchar->special[newchar->specials_loaded].steps = i - 1; // max steps
+
+                /*
+                * Parse all sequence tokens through the destination
+                * freespecial animation.
+                */
+                parse_error = special_command_parse_sequence(
+                    &token_reader,
+                    &parsed_special,
+                    &freespecial_number,
+                    alert_buffer,
+                    sizeof(alert_buffer)
+                );
+
+                if(parse_error) {
+                    shutdownmessage = parse_error;
+                    goto lCleanup;
+                }
+
+                parsed_special.anim = animspecials[freespecial_number - 1];
+
+                if(!alloc_specials(newchar)) {
+                    shutdownmessage = E_OUT_OF_MEMORY;
+                    goto lCleanup;
+                }
+
+                newchar->special[newchar->specials_loaded] = parsed_special;
                 newchar->specials_loaded++;
             }
-            // End section for custom freespecials
             break;
+
             case CMD_MODEL_REMAP:
             {
                 // This command should not be used under 24bit mode, but for old mods, just give it a default palette
@@ -14448,7 +17495,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                     {
                         nopalette = 1;
 
-                        //printf("%s\n", "'None' option active. All sprites for this model will be loaded with independent color tables.");
+                        //printf("%s\n", "'None' option active. All sprites for this model will be loaded with independent color tables.");                     
                     }
                     else
                     {
@@ -14462,7 +17509,8 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                         if(load_palette(newchar->palette, value) == 0)
                         {
-                            //printf("%s%s\n", "Failed to load color table from file: ", value);
+                            printf("\n%s%s\n", "Failed to load color table from file: ", value);                            
+                            shutdownmessage = "Failed to load color table from file.";
                             goto lCleanup;
                         }
 
@@ -14484,7 +17532,8 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 if(load_palette(newchar->colourmap[newchar->maps_loaded], value) == 0)
                 {
-                    //printf("%s%s", "Failed to load color table from file: ", value);
+                    printf("\n%s%s\n", "Failed to load color table from file: ", value);
+                    shutdownmessage = "Failed to load color table from file.";
                     goto lCleanup;
                 }
 
@@ -14508,7 +17557,10 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newchar->alpha = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_REMOVE:
-                newchar->remove = GET_INT_ARG(1);
+				value = GET_ARG(1);
+
+                newchar->remove_config = get_remove_config_from_string(value);
+
                 break;
             case CMD_MODEL_SCRIPT:
                 //load the update script
@@ -14550,8 +17602,8 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             case CMD_MODEL_ONBLOCKZSCRIPT:
                 pos += lcmHandleCommandScripts(&arglist, buf + pos, newchar->scripts->onblockz_script, "onblockzscript", filename, 1, 0);
                 break;
-            case CMD_MODEL_ONBLOCKASCRIPT:
-                pos += lcmHandleCommandScripts(&arglist, buf + pos, newchar->scripts->onblocka_script, "onblockascript", filename, 1, 0);
+            case CMD_MODEL_ONBLOCKYSCRIPT:
+                pos += lcmHandleCommandScripts(&arglist, buf + pos, newchar->scripts->onblocky_script, "onblockyscript", filename, 1, 0);
                 break;
             case CMD_MODEL_ONMOVEXSCRIPT:
                 pos += lcmHandleCommandScripts(&arglist, buf + pos, newchar->scripts->onmovex_script, "onmovexscript", filename, 1, 0);
@@ -14559,8 +17611,8 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             case CMD_MODEL_ONMOVEZSCRIPT:
                 pos += lcmHandleCommandScripts(&arglist, buf + pos, newchar->scripts->onmovez_script, "onmovezscript", filename, 1, 0);
                 break;
-            case CMD_MODEL_ONMOVEASCRIPT:
-                pos += lcmHandleCommandScripts(&arglist, buf + pos, newchar->scripts->onmovea_script, "onmoveascript", filename, 1, 0);
+            case CMD_MODEL_ONMOVEYSCRIPT:
+                pos += lcmHandleCommandScripts(&arglist, buf + pos, newchar->scripts->onmovea_script, "onmoveyscript", filename, 1, 0);
                 break;
             case CMD_MODEL_ONDEATHSCRIPT:
                 pos += lcmHandleCommandScripts(&arglist, buf + pos, newchar->scripts->ondeath_script, "ondeathscript", filename, 1, 0);
@@ -14570,6 +17622,36 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 break;
             case CMD_MODEL_ONKILLSCRIPT:
                 pos += lcmHandleCommandScripts(&arglist, buf + pos, newchar->scripts->onkill_script, "onkillscript", filename, 1, 0);
+                break;
+            case CMD_MODEL_MODELLOADSCRIPT:
+                if(Script_IsInitialized(model_cache[cacheindex].load_script))
+                {
+                    Script_Clear(model_cache[cacheindex].load_script, 1);
+                }
+                pos += lcmHandleCommandScripts(
+                    &arglist,
+                    buf + pos,
+                    model_cache[cacheindex].load_script,
+                    "modelloadscript",
+                    filename,
+                    1,
+                    0
+                );
+                break;
+            case CMD_MODEL_MODELUNLOADSCRIPT:
+                if(Script_IsInitialized(model_cache[cacheindex].unload_script))
+                {
+                    Script_Clear(model_cache[cacheindex].unload_script, 1);
+                }
+                pos += lcmHandleCommandScripts(
+                    &arglist,
+                    buf + pos,
+                    model_cache[cacheindex].unload_script,
+                    "modelunloadscript",
+                    filename,
+                    1,
+                    0
+                );
                 break;
             case CMD_MODEL_DIDBLOCKSCRIPT:
                 pos += lcmHandleCommandScripts(&arglist, buf + pos, newchar->scripts->didblock_script, "didblockscript", filename, 1, 0);
@@ -14599,7 +17681,36 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 break;
             case CMD_MODEL_ANIM:
             {
+                bool freespecial_recognized;
+
+                int freespecial_number;
+
+                s_command_token animation_name_token;
+
+                const char* freespecial_error;
+
                 value = GET_ARG(1);
+
+                /*
+                * Parse numbered freespecial animations before any
+                * allocation or animation-table indexing takes place.
+                */
+                animation_name_token.text = value;
+                animation_name_token.length = strlen(value);
+
+                freespecial_error = command_token_get_freespecial_number(
+                    &animation_name_token,
+                    &freespecial_recognized,
+                    &freespecial_number,
+                    alert_buffer,
+                    sizeof(alert_buffer)
+                );
+
+                if(freespecial_error) {
+                    shutdownmessage = freespecial_error;
+                    goto lCleanup;
+                }
+
                 frameset = 0;
                 framecount = 0;
                 // Create new animation
@@ -14612,6 +17723,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->model_index = newchar->index;
                 // Reset vars
                 curframe = 0;
+                at_cmd_mergeable = false;
                 
                 /*
                 * Caskey, Damon V.
@@ -14619,11 +17731,17 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 * 
                 * Prepare temporary lists for input.
                 */
-                collision_attack_free_list(temp_collision_head);
-                collision_body_free_list(temp_collision_body_head);
-                temp_collision_head = NULL;
-                temp_collision_body_head = NULL;
+                collision_collection_free(temp_collision_attack);
+                collision_collection_free(temp_collision_body);
+                collision_collection_free(temp_collision_space);
+                temp_collision_attack = NULL;
+                temp_collision_body = NULL;
+                temp_collision_space = NULL;
                 temp_collision_index = 0;
+
+                frame_sound_collection_free(temp_frame_sound);
+                temp_frame_sound = NULL;
+                temp_frame_sound_index = 0;
 
                 child_spawn_free_list(temp_child_spawn_head);
                 temp_child_spawn_head = NULL;
@@ -14632,14 +17750,12 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 //printf("\n\n anim: %p", newanim);
                 //child_spawn_dump_list(temp_child_spawn_head);
 
-                memset(&ebox, 0, sizeof(ebox));
                 memset(&offset, 0, sizeof(offset));
                 memset(shadow_coords, 0, sizeof(shadow_coords));
                 memset(shadow_xz, 0, sizeof(shadow_xz));
                 memset(platform, 0, sizeof(platform));
 
                 shadow_set                      = 0;
-                ebox_con                        = empty_entity_collision;
                 drawmethod                      = plainmethod;
                 idle                            = 0;
                 move.base                       = -1;
@@ -14647,7 +17763,6 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 move.axis.y                     = 0;
                 move.axis.z                     = 0;
                 frameshadow                     = FRAME_SHADOW_NONE;
-                soundtoplay                     = SAMPLE_ID_NONE;
 
                 /*
                 * Other than Min X, default ranges are 
@@ -14701,7 +17816,14 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->quakeframe.framestart  = 0;
                 newanim->sync                   = FRAME_NONE;
 
-                if((ani_id = translate_ani_id(value, newchar, newanim)) < 0)
+                if(freespecial_recognized) {
+                    ani_id = animspecials[freespecial_number - 1];
+
+                } else {
+                    ani_id = translate_ani_id(value, newchar, newanim);
+                }
+
+                if(ani_id == ANIMATION_ID_INVALID)
                 {
                     shutdownmessage = "Invalid animation name!";
                     goto lCleanup;
@@ -14724,23 +17846,64 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->size.y = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_SYNC:
-                //if you want to remove default sync setting for idle or walk, use none
-                newanim->sync = translate_ani_id(GET_ARG(1), NULL, NULL);
-                break;
-            case CMD_MODEL_DELAY:
+            {
+                bool freespecial_recognized;
+
+                int freespecial_number;
+
+                animation_id_t sync_animation_id;
+
+                s_command_token animation_name_token;
+
+                const char* freespecial_error;
 
                 value = GET_ARG(1);
-                
-                if (stricmp(value, "infinite") == 0)
-                {
-                    delay = DELAY_INFINITE;
+
+                animation_name_token.text = value;
+                animation_name_token.length = strlen(value);
+
+                freespecial_error = command_token_get_freespecial_number(
+                    &animation_name_token,
+                    &freespecial_recognized,
+                    &freespecial_number,
+                    alert_buffer,
+                    sizeof(alert_buffer)
+                );
+
+                if(freespecial_error) {
+                    shutdownmessage = freespecial_error;
+                    goto lCleanup;
                 }
-                else
-                {
-                    delay = GET_INT_ARG(1);
+
+                /*
+                * "none" intentionally translates to FRAME_NONE and
+                * continues to disable the default synchronization.
+                */
+                sync_animation_id = freespecial_recognized
+                    ? animspecials[freespecial_number - 1]
+                    : translate_ani_id(value, NULL, NULL);
+
+                newanim->sync = sync_animation_id == ANIMATION_ID_INVALID
+                    ? FRAME_NONE
+                    : (int64_t)sync_animation_id;
+            }
+                break;
+            case CMD_MODEL_DELAY:
+            {
+                const char* delay_error = command_token_get_delay(
+                    GET_ARG(1),
+                    GET_ARG(2),
+                    &delay,
+                    &delay_mode
+                );
+
+                if(delay_error) {
+                    shutdownmessage = delay_error;
+                    goto lCleanup;
                 }
 
                 break;
+            }
             case CMD_MODEL_OFFSET:
                 offset.x = GET_INT_ARG(1);
                 offset.y = GET_INT_ARG(2);
@@ -14815,7 +17978,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->config = (CHILD_SPAWN_CONFIG_AUTOKILL_HIT | CHILD_SPAWN_CONFIG_BEHAVIOR_BOMB | CHILD_SPAWN_CONFIG_FACTION_DAMAGE_PARENT | CHILD_SPAWN_CONFIG_FACTION_HOSTILE_PARENT | CHILD_SPAWN_CONFIG_FACTION_INDIRECT_PARENT | CHILD_SPAWN_CONFIG_LAUNCH_TOSS | CHILD_SPAWN_CONFIG_MOVE_CONFIG_PARAMETER | CHILD_SPAWN_CONFIG_RELATIONSHIP_OWNER);
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->aimove = AIMOVE1_BOMB;
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->direction_adjust = DIRECTION_ADJUST_SAME;
-                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->move_config_flags = (MOVE_CONFIG_NO_ADJUST_BASE | MOVE_CONFIG_SUBJECT_TO_HOLE | MOVE_CONFIG_SUBJECT_TO_PLATFORM | MOVE_CONFIG_SUBJECT_TO_WALL | MOVE_CONFIG_SUBJECT_TO_MAX_Z | MOVE_CONFIG_SUBJECT_TO_MIN_Z | MOVE_CONFIG_SUBJECT_TO_PLATFORM);
+                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->move_config_flags = (MOVE_CONFIG_NO_ADJUST_BASE | MOVE_CONFIG_SUBJECT_TO_HOLE | MOVE_CONFIG_SUBJECT_TO_PLATFORM | MOVE_CONFIG_SUBJECT_TO_WALL | MOVE_CONFIG_SUBJECT_TO_MAX_Z | MOVE_CONFIG_SUBJECT_TO_MIN_Z);
                 
                 break;
 
@@ -14828,34 +17991,34 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->config = (CHILD_SPAWN_CONFIG_AUTOKILL_HIT | CHILD_SPAWN_CONFIG_BEHAVIOR_SHOT | CHILD_SPAWN_CONFIG_FACTION_DAMAGE_PARENT | CHILD_SPAWN_CONFIG_FACTION_HOSTILE_PARENT | CHILD_SPAWN_CONFIG_FACTION_INDIRECT_PARENT | CHILD_SPAWN_CONFIG_GRAVITY_OFF | CHILD_SPAWN_CONFIG_LAUNCH_THROW | CHILD_SPAWN_CONFIG_MOVE_CONFIG_PARAMETER | CHILD_SPAWN_CONFIG_RELATIONSHIP_OWNER);
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->aimove = AIMOVE1_ARROW;
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->direction_adjust = DIRECTION_ADJUST_SAME;
-                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->move_config_flags = (MOVE_CONFIG_NO_ADJUST_BASE | MOVE_CONFIG_SUBJECT_TO_HOLE | MOVE_CONFIG_SUBJECT_TO_PLATFORM | MOVE_CONFIG_SUBJECT_TO_WALL | MOVE_CONFIG_SUBJECT_TO_MAX_Z | MOVE_CONFIG_SUBJECT_TO_MIN_Z | MOVE_CONFIG_SUBJECT_TO_PLATFORM);
+                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->move_config_flags = (MOVE_CONFIG_NO_ADJUST_BASE | MOVE_CONFIG_SUBJECT_TO_HOLE | MOVE_CONFIG_SUBJECT_TO_PLATFORM | MOVE_CONFIG_SUBJECT_TO_WALL | MOVE_CONFIG_SUBJECT_TO_MAX_Z | MOVE_CONFIG_SUBJECT_TO_MIN_Z);
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->takedamage = arrow_takedamage;
 
                 break;
             
             case CMD_MODEL_CHILD_SPAWN_AIMOVE:
-                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->aimove = get_aimove_from_arguments(&arglist, AIMOVE1_NONE);
+                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->aimove = get_aimove_from_command_line(buf + pos, AIMOVE1_NONE);
                 break;
             case CMD_MODEL_CHILD_SPAWN_CANDAMAGE:
-                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->candamage = get_type_from_arglist(&arglist);
+                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->candamage = get_type_from_command_line(buf + pos);
                 break;
             case CMD_MODEL_CHILD_SPAWN_COLOR:
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->color = child_spawn_get_color_from_argument(filename, command, GET_ARG(1));
                 break;
             case CMD_MODEL_CHILD_SPAWN_CONFIG:
-                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->config = child_spawn_get_config_argument(&arglist, 0);
+                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->config = child_spawn_get_config_argument(buf + pos, 0);
                 break;
             case CMD_MODEL_CHILD_SPAWN_DIRECTION_ADJUST:
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->direction_adjust = direction_get_adjustment_from_argument(filename, command, GET_ARG(1));
                 break;
             case CMD_MODEL_CHILD_SPAWN_HOSTILE:
-                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->hostile = get_type_from_arglist(&arglist);
+                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->hostile = get_type_from_command_line(buf + pos);
                 break;
             case CMD_MODEL_CHILD_SPAWN_MODEL:
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->model_index = get_cached_model_index(GET_ARG(1));
                 break;
             case CMD_MODEL_CHILD_SPAWN_MOVE_CONSTRAINT:
-                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->move_config_flags = get_move_config_flags_from_arguments(&arglist);
+                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->move_config_flags = get_move_config_flags_from_command_line(buf + pos);
                 break;
             case CMD_MODEL_CHILD_SPAWN_OFFSET_X:
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->position.x = GET_INT_ARG(1);
@@ -14867,7 +18030,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->position.z = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_CHILD_SPAWN_PROJECTILEHIT:
-                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->projectilehit = get_type_from_arglist(&arglist);
+                child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->projectilehit = get_type_from_command_line(buf + pos);
                 break;
             case CMD_MODEL_CHILD_SPAWN_TAKEDAMAGE:
                 child_spawn_upsert_property(&temp_child_spawn_head, temp_child_spawn_index)->takedamage = takedamage_get_reference_from_argument(GET_ARG(1));
@@ -14885,19 +18048,29 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->attack_one = GET_INT_ARG(1);
                 break;
 
-                /* 2020-03-02
-                * Caskey, Damon V.
-                *
-                * This needs to come before any other collision
-                * read in command so we know which collision index 
-                * we want the collision commands to affect.
-                */
+            /* 2020-03-02
+            * Caskey, Damon V.
+            *
+            * This needs to come before any other collision
+            * parse command so we know which collision index 
+            * we want the collision commands to affect.
+            */
             case CMD_MODEL_COLLISION_INDEX:
-                temp_collision_index = GET_INT_ARG(1);
+                tempInt = GET_INT_ARG(1);
+
+                if(!collision_validate_slot_index(tempInt)) {
+                    snprintf(alert_buffer, sizeof(alert_buffer),
+                        "Collision index (%d) out of range (0 to %d).", tempInt, MAX_COLLISION_BOXES_PER_FRAME - 1);
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                temp_collision_index = tempInt;
                 break;
             case CMD_MODEL_COUNTERATTACK:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->counterattack = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->counterattack = GET_INT_ARG(1);
                 
                 break;
             case CMD_MODEL_THROWFRAME:
@@ -15233,114 +18406,623 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 break;
             case CMD_MODEL_CANCEL:
-            {
-                int i, t;
-                int add_flag = 0;
-                alloc_specials(newchar);
-                newanim->cancel = ANIMATION_CANCEL_ENABLED;
-                newchar->special[newchar->specials_loaded].numkeys = 0;
-                for(i = 0, t = 4; i < MAX_SPECIAL_INPUTS - 6; i++, t++)
                 {
-                    value = GET_ARG(t);
-                    if(!value[0])
-                    {
-                        break;
-                    }
-                    if(stricmp(value, "u") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_MOVEUP;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_MOVEUP;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "d") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_MOVEDOWN;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_MOVEDOWN;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "f") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_FORWARD;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_FORWARD;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "b") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_BACKWARD;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_BACKWARD;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "a") == 0 || stricmp(value, "a1") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_ATTACK;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_ATTACK;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "a2") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_ATTACK2;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_ATTACK2;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "a3") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_ATTACK3;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_ATTACK3;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "a4") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_ATTACK4;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_ATTACK4;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "j") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_JUMP;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_JUMP;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(stricmp(value, "s") == 0 || stricmp(value, "k") == 0)
-                    {
-                        if (!add_flag) newchar->special[newchar->specials_loaded].input[i] = FLAG_SPECIAL;
-                        else newchar->special[newchar->specials_loaded].input[i] |= FLAG_SPECIAL;
-                        ++newchar->special[newchar->specials_loaded].numkeys;
-                    }
-                    else if(starts_with_num(value, "freespecial"))
-                    {
-                        get_tail_number(tempInt, value, "freespecial");
-                        newchar->special[newchar->specials_loaded].anim = animspecials[tempInt - 1];
-                        newchar->special[newchar->specials_loaded].frame.min = GET_INT_ARG(1); // stores start frame
-                        newchar->special[newchar->specials_loaded].frame.max = GET_INT_ARG(2); // stores end frame
-                        newchar->special[newchar->specials_loaded].cancel = ani_id;                    // stores current anim
-                        newchar->special[newchar->specials_loaded].hits = GET_INT_ARG(3);// stores hits
-                    }
-                    else if(stricmp(value, "+") == 0 && i > 1)
-                    {
-                        add_flag = 1;
-                        i -= 2;
-                        continue;
-                    }
-                    else if(stricmp(value, "->") == 0 && i > 0)
-                    {
-                        // just for better reading
-                        --i;
-                        continue;
-                    }
-                    else
-                    {
-                        shutdownmessage = "Invalid cancel command!";
+                    s_command_token_reader token_reader = {
+                        .cursor = buf + pos
+                    };
+
+                    s_command_token token;
+
+                    /*
+                    * Parse into a temporary command first. This prevents
+                    * a malformed line from partially modifying the model.
+                    */
+                    s_com parsed_special = {0};
+
+                    const char* parse_error;
+
+                    int64_t frame_min;
+                    int64_t frame_max;
+                    int64_t required_hits;
+                    int freespecial_number;
+
+                    /*
+                    * Cancel belongs to the currently active animation.
+                    */
+                    if(!newanim || ani_id == ANIMATION_ID_INVALID) {
+                        shutdownmessage =
+                            "Cannot add cancel command: animation not specified.\n";
+
                         goto lCleanup;
                     }
-                    add_flag = 0;
+
+                    /*
+                    * Consume and verify the command-name token.
+                    */
+                    if(!command_token_reader_next(&token_reader, &token) || !command_token_equals(&token, "cancel")) {
+                        shutdownmessage = "Invalid cancel command name.\n";
+                        goto lCleanup;
+                    }
+
+                    /*
+                    * Fixed cancel parameters precede the input sequence.
+                    */
+                    if(!command_token_reader_next_int64(&token_reader, &frame_min)) {
+                        shutdownmessage =
+                            "Cancel command requires an integer start frame.\n";
+
+                        goto lCleanup;
+                    }
+
+                    if(!command_token_reader_next_int64(&token_reader, &frame_max)) {
+                        shutdownmessage =
+                            "Cancel command requires an integer end frame.\n";
+
+                        goto lCleanup;
+                    }
+
+                    if(!command_token_reader_next_int64(&token_reader, &required_hits)) {
+                        shutdownmessage =
+                            "Cancel command requires an integer hit count. "
+                            "0 means no hit requirement.\n";
+
+                        goto lCleanup;
+                    }
+
+                    if(required_hits < 0) {
+                        snprintf(
+                            alert_buffer,
+                            sizeof(alert_buffer),
+                            "Cancel command hit count (%" PRId64 ") cannot be negative.\n",
+                            required_hits
+                        );
+
+                        shutdownmessage = alert_buffer;
+                        goto lCleanup;
+                    }
+
+                    /*
+                    * Parse the variable-length input sequence. The
+                    * freespecial token terminates the sequence.
+                    */
+                    parse_error = special_command_parse_sequence(
+                        &token_reader,
+                        &parsed_special,
+                        &freespecial_number,
+                        alert_buffer,
+                        sizeof(alert_buffer)
+                    );
+
+                    if(parse_error) {
+                        shutdownmessage = parse_error;
+                        goto lCleanup;
+                    }
+
+                    /*
+                    * Complete cancel-specific command properties.
+                    */
+                    parsed_special.anim = animspecials[freespecial_number - 1];
+
+                    parsed_special.frame.min = frame_min;
+                    parsed_special.frame.max = frame_max;
+                    parsed_special.cancel = ani_id;
+                    parsed_special.hits = (uint64_t)required_hits;
+
+                    /*
+                    * Commit only after the complete command has parsed
+                    * and validated successfully.
+                    */
+                    if(!alloc_specials(newchar)) {
+                        shutdownmessage = E_OUT_OF_MEMORY;
+                        goto lCleanup;
+                    }
+
+                    newchar->special[newchar->specials_loaded] = parsed_special;
+                    newanim->cancel = ANIMATION_CANCEL_ENABLED;
+                    
+                    newchar->specials_loaded++;
                 }
-                newchar->special[newchar->specials_loaded].steps = i - 1; // max steps
-                newchar->specials_loaded++;
-            }
-            break;
-            case CMD_MODEL_SOUND:
-                soundtoplay = sound_load_sample(GET_ARG(1), packfile, 1);
                 break;
+
+            case CMD_MODEL_SOUND_INDEX:
+                tempInt = GET_INT_ARG(1);
+
+                if (!frame_sound_validate_slot_index(tempInt)) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Sound index (%d) out of range (0 to %d).",
+                        tempInt,
+                        MAX_FRAME_SOUNDS_PER_FRAME - 1
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                temp_frame_sound_index = tempInt;
+                break;
+            case CMD_MODEL_SOUND_CHANNEL_OFFSET:
+            {
+                s_command_token offset_token;
+                s_frame_sound_action* action;
+                uint64_t channel_offset;
+                int channel;
+
+                if (!frame_sound_parse_channel(GET_ARG(1), &channel)) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Sound channel '%s' invalid. Expected an integer from 0 to %u.",
+                        GET_ARG(1),
+                        SOUND_CHANNEL_COUNT_MAX - 1U
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                offset_token.text = GET_ARG(2);
+                offset_token.length = strlen(offset_token.text);
+
+                if (!command_token_get_uint64(
+                    &offset_token,
+                    &channel_offset
+                )) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Invalid sound channel offset '%s'. Expected an unsigned PCM frame.",
+                        offset_token.text
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                action = frame_sound_action_append(
+                    &temp_frame_sound,
+                    FRAME_SOUND_CHANNEL_ACTION_OFFSET
+                );
+                action->channel = channel;
+                action->offset = channel_offset;
+                break;
+            }
+            case CMD_MODEL_SOUND_CHANNEL_PAUSE:
+            case CMD_MODEL_SOUND_CHANNEL_RESUME:
+            case CMD_MODEL_SOUND_CHANNEL_STOP:
+            {
+                s_frame_sound_action* action;
+                e_frame_sound_action action_type;
+                int channel;
+
+                if (!frame_sound_parse_channel(GET_ARG(1), &channel)) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Sound channel '%s' invalid. Expected an integer from 0 to %u.",
+                        GET_ARG(1),
+                        SOUND_CHANNEL_COUNT_MAX - 1U
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                action_type = cmd == CMD_MODEL_SOUND_CHANNEL_PAUSE
+                    ? FRAME_SOUND_CHANNEL_ACTION_PAUSE
+                    : cmd == CMD_MODEL_SOUND_CHANNEL_RESUME
+                        ? FRAME_SOUND_CHANNEL_ACTION_RESUME
+                        : FRAME_SOUND_CHANNEL_ACTION_STOP;
+
+                action = frame_sound_action_append(
+                    &temp_frame_sound,
+                    action_type
+                );
+                action->channel = channel;
+                break;
+            }
+            case CMD_MODEL_SOUND_CHANNEL_PRIORITY:
+            {
+                s_command_token priority_token;
+                uint64_t priority;
+
+                priority_token.text = GET_ARG(1);
+                priority_token.length = strlen(priority_token.text);
+
+                if (!command_token_get_uint64(
+                    &priority_token,
+                    &priority
+                ) || priority > UINT_MAX) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Invalid sound channel priority '%s'. Expected an unsigned integer from 0 to %u.",
+                        priority_token.text,
+                        UINT_MAX
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                frame_sound_upsert_index(
+                    &temp_frame_sound,
+                    temp_frame_sound_index
+                )->priority = (unsigned int)priority;
+                break;
+            }
+            case CMD_MODEL_SOUND_CHANNEL_SET:
+            {
+                int channel;
+
+                value = GET_ARG(1);
+
+                if (stricmp(value, "auto") == 0) {
+                    channel = -1;
+                } else if (!frame_sound_parse_channel(value, &channel)) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Sound channel '%s' invalid. Expected 'auto' or an integer from 0 to %u.",
+                        value,
+                        SOUND_CHANNEL_COUNT_MAX - 1U
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                frame_sound_upsert_index(
+                    &temp_frame_sound,
+                    temp_frame_sound_index
+                )->channel = channel;
+                break;
+            }
+            case CMD_MODEL_SOUND_CHANCE:
+                tempInt = GET_INT_ARG(1);
+
+                if (tempInt < 0 || tempInt > 100) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Sound chance (%d) out of range (0 to 100).",
+                        tempInt
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                frame_sound_upsert_index(
+                    &temp_frame_sound,
+                    temp_frame_sound_index
+                )->chance = (unsigned)tempInt;
+                break;
+            case CMD_MODEL_SOUND_DELAY:
+            {
+                s_command_token delay_token;
+                uint64_t sound_delay;
+
+                delay_token.text = GET_ARG(1);
+                delay_token.length = strlen(delay_token.text);
+
+                if (!command_token_get_uint64(&delay_token, &sound_delay)) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Invalid sound delay '%s'. Expected an unsigned logical tick count.",
+                        delay_token.text
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                frame_sound_upsert_index(
+                    &temp_frame_sound,
+                    temp_frame_sound_index
+                )->delay = sound_delay;
+                break;
+            }
+            case CMD_MODEL_SOUND_GROUP:
+            {
+                const char* invalid_group;
+                sound_group_mask_t sound_group;
+
+                if (!sound_group_get_flags_from_arglist(
+                    &arglist,
+                    &sound_group,
+                    &invalid_group
+                )) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Sound group '%s' invalid. Expected none, all, all0, all1, a-z, or a1-z1.",
+                        invalid_group
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                frame_sound_upsert_index(
+                    &temp_frame_sound,
+                    temp_frame_sound_index
+                )->group = sound_group;
+                break;
+            }
+            case CMD_MODEL_SOUND_GROUP_OFFSET:
+            {
+                s_command_token offset_token;
+                s_frame_sound_action* action;
+                const char* invalid_group;
+                sound_group_mask_t sound_group;
+                uint64_t group_offset;
+                size_t offset_argument;
+
+                if (arglist.count < 3) {
+                    shutdownmessage =
+                        "Sound group offset requires one or more groups followed by an unsigned PCM frame.";
+                    goto lCleanup;
+                }
+
+                offset_argument = arglist.count - 1U;
+                offset_token.text = GET_ARG(offset_argument);
+                offset_token.length = strlen(offset_token.text);
+
+                if (!command_token_get_uint64(
+                    &offset_token,
+                    &group_offset
+                )) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Invalid sound group offset '%s'. Expected an unsigned PCM frame.",
+                        offset_token.text
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                if (!sound_group_get_flags_from_arglist_range(
+                    &arglist,
+                    1,
+                    offset_argument,
+                    &sound_group,
+                    &invalid_group
+                )) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Sound group '%s' invalid. Expected none, all, all0, all1, a-z, or a1-z1.",
+                        invalid_group
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                action = frame_sound_action_append(
+                    &temp_frame_sound,
+                    FRAME_SOUND_GROUP_ACTION_OFFSET
+                );
+                action->group = sound_group;
+                action->offset = group_offset;
+                break;
+            }
+            case CMD_MODEL_SOUND_GROUP_PAUSE:
+            case CMD_MODEL_SOUND_GROUP_RESUME:
+            case CMD_MODEL_SOUND_GROUP_STOP:
+            {
+                s_frame_sound_action* action;
+                e_frame_sound_action action_type;
+                const char* invalid_group;
+                sound_group_mask_t sound_group;
+
+                if (!sound_group_get_flags_from_arglist(
+                    &arglist,
+                    &sound_group,
+                    &invalid_group
+                )) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Sound group '%s' invalid. Expected none, all, all0, all1, a-z, or a1-z1.",
+                        invalid_group
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                action_type = cmd == CMD_MODEL_SOUND_GROUP_PAUSE
+                    ? FRAME_SOUND_GROUP_ACTION_PAUSE
+                    : cmd == CMD_MODEL_SOUND_GROUP_RESUME
+                        ? FRAME_SOUND_GROUP_ACTION_RESUME
+                        : FRAME_SOUND_GROUP_ACTION_STOP;
+
+                action = frame_sound_action_append(
+                    &temp_frame_sound,
+                    action_type
+                );
+                action->group = sound_group;
+                break;
+            }
+            case CMD_MODEL_SOUND_LOADING:
+            {
+                bool stream;
+
+                value = GET_ARG(1);
+
+                if (stricmp(value, "cache") == 0) {
+                    stream = false;
+                } else if (stricmp(value, "stream") == 0) {
+                    stream = true;
+                } else {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Sound loading mode '%s' invalid. Expected 'cache' or 'stream'.",
+                        value
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                frame_sound_upsert_index(
+                    &temp_frame_sound,
+                    temp_frame_sound_index
+                )->stream = stream;
+                break;
+            }
+            case CMD_MODEL_SOUND_LOOP:
+            {
+                s_command_token loop_token;
+                uint64_t loop;
+
+                loop_token.text = GET_ARG(1);
+                loop_token.length = strlen(loop_token.text);
+
+                if (!command_token_get_uint64(&loop_token, &loop)
+                    || loop > 1U) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Invalid sound loop '%s'. Expected 0 or 1.",
+                        loop_token.text
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                frame_sound_upsert_index(
+                    &temp_frame_sound,
+                    temp_frame_sound_index
+                )->loop = loop != 0;
+                break;
+            }
+            case CMD_MODEL_SOUND_LOOP_OFFSET:
+            {
+                s_command_token loop_offset_token;
+                uint64_t loop_offset;
+
+                loop_offset_token.text = GET_ARG(1);
+                loop_offset_token.length = strlen(loop_offset_token.text);
+
+                if (!command_token_get_uint64(
+                    &loop_offset_token,
+                    &loop_offset
+                )) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Invalid sound loop offset '%s'. Expected an unsigned PCM frame.",
+                        loop_offset_token.text
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                frame_sound_upsert_index(
+                    &temp_frame_sound,
+                    temp_frame_sound_index
+                )->loop_offset = loop_offset;
+                break;
+            }
+            case CMD_MODEL_SOUND_RANDOM:
+            {
+                const int random_min = GET_INT_ARG(1);
+                const int random_max = GET_INT_ARG(2);
+
+                if (!frame_sound_validate_slot_index(random_min)
+                    || !frame_sound_validate_slot_index(random_max)
+                    || random_min > random_max) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Sound random range (%d to %d) invalid. Expected an ascending range from 0 to %d.",
+                        random_min,
+                        random_max,
+                        MAX_FRAME_SOUNDS_PER_FRAME - 1
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                if (!temp_frame_sound) {
+                    temp_frame_sound = frame_sound_collection_allocate();
+                }
+
+                temp_frame_sound->random_status =
+                    frame_sound_get_slot_range_mask(random_min, random_max);
+                break;
+            }
+            case CMD_MODEL_SOUND_START_OFFSET:
+            {
+                s_command_token start_offset_token;
+                s_frame_sound* frame_sound;
+                uint64_t start_offset;
+
+                start_offset_token.text = GET_ARG(1);
+                start_offset_token.length = strlen(start_offset_token.text);
+
+                if (stricmp(start_offset_token.text, "auto") == 0) {
+                    frame_sound = frame_sound_upsert_index(
+                        &temp_frame_sound,
+                        temp_frame_sound_index
+                    );
+                    frame_sound->start_offset = 0;
+                    frame_sound->start_offset_supplied = false;
+                    break;
+                }
+
+                if (!command_token_get_uint64(
+                    &start_offset_token,
+                    &start_offset
+                )) {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Invalid sound start offset '%s'. Expected 'auto' or an unsigned PCM frame.",
+                        start_offset_token.text
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                frame_sound = frame_sound_upsert_index(
+                    &temp_frame_sound,
+                    temp_frame_sound_index
+                );
+                frame_sound->start_offset = start_offset;
+                frame_sound->start_offset_supplied = true;
+                break;
+            }
+            case CMD_MODEL_SOUND:
+            {
+                s_frame_sound* frame_sound = frame_sound_upsert_index(
+                    &temp_frame_sound,
+                    temp_frame_sound_index
+                );
+
+                value = GET_ARG(1);
+                if (stricmp(value, "none") == 0) {
+                    frame_sound_set_source(frame_sound, NULL);
+                } else {
+                    frame_sound_set_source(frame_sound, value);
+                }
+
+                temp_frame_sound->active_status |=
+                    frame_sound_get_slot_mask(temp_frame_sound_index);
+                break;
+            }
             case CMD_MODEL_HITFX:
 
                 value = GET_ARG(1);
@@ -15351,10 +19033,10 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 else
                 {
-                    tempInt = sound_load_sample(value, packfile, 1);
+                    tempInt = sound_load_sample(value, packfile, 1, 0);
                 }
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->hitsound = tempInt;
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->hitsound = tempInt;
 
                 tempInt = 0;
 
@@ -15383,7 +19065,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 else
                 {                    
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->flash.model_hit = tempInt;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->flash.model_hit = tempInt;
                 }
 
                 break;
@@ -15394,11 +19076,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 if (stricmp(value, "none") == 0)
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->flash.model_block = MODEL_INDEX_NONE;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->flash.model_block = MODEL_INDEX_NONE;
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->flash.model_block = get_cached_model_index(value);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->flash.model_block = get_cached_model_index(value);
                 }
 
                 break;
@@ -15409,11 +19091,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 if (stricmp(value, "none") == 0)
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->blocksound = SAMPLE_ID_NONE;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->blocksound = SAMPLE_ID_NONE;
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->blocksound = sound_load_sample(value, packfile, 1);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->blocksound = sound_load_sample(value, packfile, 1, 0);
                 }
 
                 break;
@@ -15422,7 +19104,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 
                 if(GET_INT_ARG(1))
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->next_hit_time = GAME_SPEED / 20;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->next_hit_time = global_config.game_speed / 20;
                 }
 
                 break;
@@ -15431,31 +19113,27 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 
                 if(GET_INT_ARG(1))
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->ignore_attack_id = 1;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->ignore_attack_id = 1;
                 }
                 
                 break;
 
             case CMD_MODEL_BBOX:   
 
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates = collision_body_upsert_coordinates_property(&temp_collision_body, temp_collision_index);
 
                 value = GET_ARG(1);
-                if (stricmp(value, "none") == 0)
-                {
-                    collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->x = 0;
-                    collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->y = 0;
-                    collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->width = 0;
-                    collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->height = 0;
+                if (stricmp(value, "none") == 0) {
 
+                    *temp_collision_coordinates = (s_hitbox){ 0 };
                     break;
                 }
 
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->x = GET_INT_ARG(1);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->y = GET_INT_ARG(2);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->width = GET_INT_ARG(3);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->height = GET_INT_ARG(4);
+                temp_collision_coordinates->x = GET_INT_ARG(1);
+                temp_collision_coordinates->y = GET_INT_ARG(2);
+                temp_collision_coordinates->width = GET_INT_ARG(3);
+                temp_collision_coordinates->height = GET_INT_ARG(4);
                 
                 /*
                 * 2023-01-13: If only the first Z depth provided, 
@@ -15467,111 +19145,97 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 tempInt = GET_INT_ARG(5);
 
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->z_background = tempInt;
+                temp_collision_coordinates->z_background = tempInt;
 
                 value = GET_ARG(6);
 
-                if (isNumeric(value))
-                {
+                if (isNumeric(value)) {
                     tempInt = GET_INT_ARG(6);
                 }                
 
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->z_foreground = tempInt;
+                temp_collision_coordinates->z_foreground = tempInt;
 
+                break;
+            case CMD_MODEL_BBOX_COORDINATES:
+                
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index);
+
+                temp_collision_coordinates = collision_body_upsert_coordinates_property(&temp_collision_body, temp_collision_index);
+
+                temp_collision_coordinates->x = GET_INT_ARG(1);
+                temp_collision_coordinates->y = GET_INT_ARG(2);
+                temp_collision_coordinates->width = GET_INT_ARG(3);
+                temp_collision_coordinates->height = GET_INT_ARG(4);
+                temp_collision_coordinates->z_background = GET_INT_ARG(5);
+                temp_collision_coordinates->z_foreground = GET_INT_ARG(6);
+                
                 break;
             case CMD_MODEL_BBOX_INDEX:
                 // Does nothing. Do not modify.
                 break;
             case CMD_MODEL_BBOX_EFFECT_HIT_FLASH_LAYER_ADJUST:
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index)->flash.layer_adjust = GET_INT_ARG(1);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index)->flash.layer_adjust = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_BBOX_EFFECT_HIT_FLASH_LAYER_SOURCE:
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index)->flash.layer_source = GET_INT_ARG(1);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index)->flash.layer_source = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_BBOX_EFFECT_HIT_FLASH_Z_SOURCE:
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index)->flash.z_source = GET_INT_ARG(1);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index)->flash.z_source = GET_INT_ARG(1);
                 break;
             case CMD_MODEL_BBOX_POSITION_X:   
 
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->x = GET_INT_ARG(1);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates = collision_body_upsert_coordinates_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates->x = GET_INT_ARG(1);
 
                 break;
             case CMD_MODEL_BBOX_POSITION_Y:
 
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->y = GET_INT_ARG(1);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates = collision_body_upsert_coordinates_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates->y = GET_INT_ARG(1);
 
                 break;
             case CMD_MODEL_BBOX_SIZE_X:
 
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->width = GET_INT_ARG(1);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates = collision_body_upsert_coordinates_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates->width = GET_INT_ARG(1);
 
                 break;
             case CMD_MODEL_BBOX_SIZE_Y:
 
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->height = GET_INT_ARG(1);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates = collision_body_upsert_coordinates_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates->height = GET_INT_ARG(1);
 
                 break;
             case CMD_MODEL_BBOX_SIZE_Z_1:
             case CMD_MODEL_BBOX_SIZE_Z_BACKGROUND:
 
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->z_background = GET_INT_ARG(1);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates = collision_body_upsert_coordinates_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates->z_background = GET_INT_ARG(1);
 
                 break;
             case CMD_MODEL_BBOX_SIZE_Z_2:
             case CMD_MODEL_BBOX_SIZE_Z_FOREGROUND:
 
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->z_foreground = GET_INT_ARG(1);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates = collision_body_upsert_coordinates_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates->z_foreground = GET_INT_ARG(1);
 
                 break;
             case CMD_MODEL_BBOXZ:
 
-                collision_body_upsert_property(&temp_collision_body_head, temp_collision_index);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->z_background = GET_INT_ARG(1);
-                collision_body_upsert_coordinates_property(&temp_collision_body_head, temp_collision_index)->z_foreground = GET_INT_ARG(2);
+                collision_body_upsert_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates = collision_body_upsert_coordinates_property(&temp_collision_body, temp_collision_index);
+                temp_collision_coordinates->z_background = GET_INT_ARG(1);
+                temp_collision_coordinates->z_foreground = GET_INT_ARG(2);
 
-                break;
-            case CMD_MODEL_EBOX:
-                ebox.x = GET_INT_ARG(1);
-                ebox.y = GET_INT_ARG(2);
-                ebox.width = GET_INT_ARG(3);
-                ebox.height = GET_INT_ARG(4);
-                ebox.z_background = GET_INT_ARG(5);
-                ebox.z_foreground = GET_INT_ARG(6);
-                break;
-            case CMD_MODEL_EBOX_INDEX:
-                // Nothing yet - for future support of multiple boxes.
-                break;
-            case CMD_MODEL_EBOX_POSITION_X:
-                ebox.x = GET_INT_ARG(1);
-                break;
-            case CMD_MODEL_EBOX_POSITION_Y:
-                ebox.y = GET_INT_ARG(1);
-                break;
-            case CMD_MODEL_EBOX_SIZE_X:
-                ebox.width = GET_INT_ARG(1);
-                break;
-            case CMD_MODEL_EBOX_SIZE_Y:
-                ebox.height = GET_INT_ARG(1);
-                break;
-            case CMD_MODEL_EBOX_SIZE_Z_1:
-                ebox.z_background = GET_INT_ARG(1);
-                break;
-            case CMD_MODEL_EBOX_SIZE_Z_2:
-                ebox.z_foreground = GET_INT_ARG(1);
-                break;
-            case CMD_MODEL_EBOXZ:
-                ebox.z_background = GET_INT_ARG(1);
-                ebox.z_foreground = GET_INT_ARG(2);
                 break;
             case CMD_MODEL_PLATFORM:
                 newchar->hasPlatforms = 1;
-                //for(i=0;(GET_ARG(i+1)[0]; i++);
                 for(i = 0; i < arglist.count && arglist.args[i] && arglist.args[i][0]; i++);
                 if(i < 8)
                 {
@@ -15729,49 +19393,64 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             // Broken down attack commands.
             case CMD_MODEL_COLLISION_BLOCK_COST:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->guardcost = GET_INT_ARG(1);               
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->guardcost = GET_INT_ARG(1);               
                 
                 break;
 
             case CMD_MODEL_COLLISION_BLOCK_PENETRATE:
                 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->no_block = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->no_block = GET_INT_ARG(1);
 
+                break;
+
+            case CMD_MODEL_COLLISION_COORDINATES:
+                
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index);
+
+                temp_collision_coordinates = collision_attack_upsert_coordinates_property(&temp_collision_attack, temp_collision_index);
+
+                temp_collision_coordinates->x = GET_INT_ARG(1);
+                temp_collision_coordinates->y = GET_INT_ARG(2);
+                temp_collision_coordinates->width = GET_INT_ARG(3);
+                temp_collision_coordinates->height = GET_INT_ARG(4);
+                temp_collision_coordinates->z_background = GET_INT_ARG(5);
+                temp_collision_coordinates->z_foreground = GET_INT_ARG(6);
+                
                 break;
 
             case CMD_MODEL_COLLISION_COUNTER:
                 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->counterattack = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->counterattack = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_DAMAGE_FORCE:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_force = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_force = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_DAMAGE_LAND_FORCE:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->damage_on_landing.attack_force = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->damage_on_landing.attack_force = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_DAMAGE_LAND_MODE:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->blast = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->blast = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_DAMAGE_LETHAL_DISABLE:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->no_kill = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->no_kill = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_DAMAGE_STEAL:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->steal = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->steal = GET_INT_ARG(1);
 
                 break;
 
@@ -15779,32 +19458,9 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
 				value = GET_ARG(1);
 
-                if (stricmp(value, "blast") == 0)
-                {
-                    tempInt = ATK_BLAST;
-                }
-				else if (stricmp(value, "burn") == 0)
-				{
-                    tempInt = ATK_BURN;
-                }
-				else if(stricmp(value, "freeze") == 0)
-				{
-                    tempInt = ATK_FREEZE;
-				}
-				else if (stricmp(value, "shock") == 0)
-				{
-                    tempInt = ATK_SHOCK;
-				}
-				else if (stricmp(value, "steal") == 0)
-				{
-                    tempInt = ATK_STEAL;
-				}
-				else
-				{
-                    tempInt = GET_INT_ARG(1);
-				}
-
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = tempInt;
+                tempInt = get_attack_type_from_string(value, filename);
+                
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = tempInt;
 
                 tempInt = 0;
 
@@ -15812,13 +19468,26 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
             case CMD_MODEL_COLLISION_DAMAGE_RECURSIVE_FORCE:
           
-                collision_attack_upsert_recursive_property(&temp_collision_head, temp_collision_index)->force = GET_INT_ARG(1);                    
+                collision_attack_upsert_recursive_property(&temp_collision_attack, temp_collision_index)->force = GET_INT_ARG(1);                    
 
                 break;
 
             case CMD_MODEL_COLLISION_DAMAGE_RECURSIVE_INDEX:
                 
-                collision_attack_upsert_recursive_property(&temp_collision_head, temp_collision_index)->index = GET_INT_ARG(1);
+                tempInt = GET_INT_ARG(1);
+
+                if(tempInt < 0 || tempInt >= MAX_RECURSIVE_EFFECTS) {
+
+                    snprintf(alert_buffer, sizeof(alert_buffer), "Recursive index (%d) out of range (0 - %d).",
+                        tempInt, MAX_RECURSIVE_EFFECTS - 1);
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                collision_attack_upsert_recursive_property(&temp_collision_attack, temp_collision_index)->index = tempInt;
+
+                tempInt = 0;
 
                 break;
 
@@ -15830,7 +19499,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 *
                 * For legacy support of mode, we have to handle
                 * integer values differently because like a bonehead,
-                * I didn�t originally set them up with bitwise
+                * I didn't originally set them up with bitwise
                 * logic in mind.
                 */
 
@@ -15845,7 +19514,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                     tempInt = GET_INT_ARG(1);
 
-                    tempInt  = recursive_damage_get_mode_setup_from_legacy_argument(tempInt);                    
+                    tempInt  = recursive_effect_get_mode_setup_from_legacy_argument(tempInt);                    
                 }
                 else
                 {
@@ -15853,12 +19522,12 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                     * Toggle bits based on items provided in argument list.
                     */
 
-                    tempInt = recursive_damage_get_mode_setup_from_arg_list(&arglist);
+                    tempInt = recursive_effect_get_mode_setup_from_command_line(buf + pos);
                 }
 
 
                 /* Send resulting bitwise integer to mode value. */
-                collision_attack_upsert_recursive_property(&temp_collision_head, temp_collision_index)->mode = tempInt;
+                collision_attack_upsert_recursive_property(&temp_collision_attack, temp_collision_index)->mode = tempInt;
                     
                 tempInt = 0;
 
@@ -15866,7 +19535,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
 			case CMD_MODEL_COLLISION_DAMAGE_RECURSIVE_TAG:
                 
-                collision_attack_upsert_recursive_property(&temp_collision_head, temp_collision_index)->meta_tag = GET_INT_ARG(1);
+                collision_attack_upsert_recursive_property(&temp_collision_attack, temp_collision_index)->meta_tag = GET_INT_ARG(1);
 
 				break;
 
@@ -15874,36 +19543,9 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 value = GET_ARG(1);
 
-                if (stricmp(value, "same") == 0)
-                {
-                    tempInt = ATK_NONE;
-                }
-                else if (stricmp(value, "blast") == 0)
-                {
-                    tempInt = ATK_BLAST;
-                }
-                else if (stricmp(value, "burn") == 0)
-                {
-                    tempInt = ATK_BURN;
-                }
-                else if (stricmp(value, "freeze") == 0)
-                {
-                    tempInt = ATK_FREEZE;
-                }
-                else if (stricmp(value, "shock") == 0)
-                {
-                    tempInt = ATK_SHOCK;
-                }
-                else if (stricmp(value, "steal") == 0)
-                {
-                    tempInt = ATK_STEAL;
-                }
-                else
-                {
-                    tempInt = GET_INT_ARG(1);
-                }
+                tempInt = get_attack_type_from_string(value, filename);                
 
-                collision_attack_upsert_recursive_property(&temp_collision_head, temp_collision_index)->type = tempInt;
+                collision_attack_upsert_recursive_property(&temp_collision_attack, temp_collision_index)->type = tempInt;
 
                 tempInt = 0;
 
@@ -15911,37 +19553,61 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
             case CMD_MODEL_COLLISION_DAMAGE_RECURSIVE_TIME_RATE:
                 
-                collision_attack_upsert_recursive_property(&temp_collision_head, temp_collision_index)->rate = GET_INT_ARG(1);
+                tempInt = GET_INT_ARG(1);
+
+                if (tempInt < 0) {
+                    snprintf(alert_buffer, sizeof(alert_buffer),
+                        "Recursive rate (%d) cannot be negative.", tempInt);
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                collision_attack_upsert_recursive_property(&temp_collision_attack, temp_collision_index)->rate = tempInt;
+
+                tempInt = 0;
 
                 break;
 
             case CMD_MODEL_COLLISION_DAMAGE_RECURSIVE_TIME_EXPIRE:
                 
-                collision_attack_upsert_recursive_property(&temp_collision_head, temp_collision_index)->time = GET_INT_ARG(1);
-                
+                tempInt = GET_INT_ARG(1);
+
+                if (tempInt < 0) {
+                    snprintf(alert_buffer, sizeof(alert_buffer),
+                        "Recursive time expire (%d) cannot be negative.", tempInt);
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
+                }
+
+                collision_attack_upsert_recursive_property(&temp_collision_attack, temp_collision_index)->time = tempInt;
+
+                tempInt = 0;
+
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_FALL_FORCE:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_drop = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_drop = GET_INT_ARG(1);
                 
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_FALL_VELOCITY_X:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->dropv.x = GET_FLOAT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->dropv.x = GET_FLOAT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_FALL_VELOCITY_Y:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->dropv.y = GET_FLOAT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->dropv.y = GET_FLOAT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_FALL_VELOCITY_Z:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->dropv.z = GET_FLOAT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->dropv.z = GET_FLOAT_ARG(1);
 
                 break;
 
@@ -15949,7 +19615,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 tempInt = direction_get_adjustment_from_argument(filename, command, GET_ARG(1));
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->force_direction = tempInt;
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->force_direction = tempInt;
 
                 tempInt = 0;
                 				
@@ -15961,11 +19627,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 if(stricmp(value, "none") == 0 || value == 0)
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->flash.model_block = MODEL_INDEX_NONE;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->flash.model_block = MODEL_INDEX_NONE;
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->flash.model_block = get_cached_model_index(value);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->flash.model_block = get_cached_model_index(value);
                 }
 
                 break;
@@ -15976,11 +19642,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 if(stricmp(value, "none") == 0)
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->blocksound = SAMPLE_ID_NONE;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->blocksound = SAMPLE_ID_NONE;
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->blocksound = sound_load_sample(value, packfile, 1);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->blocksound = sound_load_sample(value, packfile, 1, 0);
                 }
 
                 break;
@@ -15991,35 +19657,35 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 if(stricmp(value, "none") == 0 || value == 0)
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->flash.model_hit = MODEL_INDEX_NONE;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->flash.model_hit = MODEL_INDEX_NONE;
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->flash.model_hit = get_cached_model_index(value);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->flash.model_hit = get_cached_model_index(value);
                 }
                 break;
 
             case CMD_MODEL_COLLISION_EFFECT_HIT_FLASH_DISABLE:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->no_flash = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->no_flash = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_EFFECT_HIT_FLASH_LAYER_ADJUST:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->flash.layer_adjust = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->flash.layer_adjust = GET_INT_ARG(1);
 
                 break;
            
             case CMD_MODEL_COLLISION_EFFECT_HIT_FLASH_LAYER_SOURCE:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->flash.layer_source = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->flash.layer_source = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_EFFECT_HIT_FLASH_Z_SOURCE:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->flash.z_source = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->flash.z_source = GET_INT_ARG(1);
 
                 break;
 
@@ -16033,10 +19699,10 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 else
                 {
-                    tempInt = sound_load_sample(value, packfile, 1);
+                    tempInt = sound_load_sample(value, packfile, 1, 0);
                 }
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->hitsound = tempInt;
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->hitsound = tempInt;
 
                 tempInt = 0;
                 
@@ -16044,7 +19710,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
             case CMD_MODEL_COLLISION_GROUND:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->otg = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->otg = GET_INT_ARG(1);
                 
                 break;
 
@@ -16052,9 +19718,9 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 /*
                 * Translate text value into a pre-defined forcemap constant.
-                * Wen applying a pre-defined forcemap, we�ll look at the model
+                * When applying a pre-defined forcemap, we'll look at the model
                 * and try to find its appropriate index. For example, if the
-                * pre-defined BURN is used, forcemap will apply the model�s
+                * pre-defined BURN is used, forcemap will apply the model's
                 * designated burn. This allows use of effect maps without the
                 * need to match all model palettes up (i.e. all having their
                 * second palette a burn palette).
@@ -16089,123 +19755,129 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                     tempInt = GET_INT_ARG(1);
                 }                
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->forcemap = tempInt;
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->forcemap = tempInt;
                 
                 break;
 
             case CMD_MODEL_COLLISION_MAP_TIME:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->maptime = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->maptime = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_POSITION_X:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->x = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates = collision_attack_upsert_coordinates_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates->x = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_POSITION_Y:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->y = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates = collision_attack_upsert_coordinates_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates->y = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_FREEZE_MODE:
                 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->freeze = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->freeze = GET_INT_ARG(1);
                 
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_FREEZE_TIME:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->freezetime = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->freezetime = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_INVINCIBLE_TIME:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->next_hit_time = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->next_hit_time = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_REPOSITION_DISTANCE:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->grab_distance = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->grab_distance = GET_INT_ARG(1);
                                 
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_REPOSITION_MODE:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->grab = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->grab = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_PAIN_SKIP:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->no_pain = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->no_pain = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_REACTION_PAUSE_TIME:
                 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->pause_add = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->pause_add = GET_INT_ARG(1);
                 
                 break;
 
             case CMD_MODEL_COLLISION_SEAL_COST:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->seal = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->seal = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_SEAL_TIME:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->sealtime = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->sealtime = GET_INT_ARG(1);
 
                 break;
             
             case CMD_MODEL_COLLISION_SIZE_X:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->width = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates = collision_attack_upsert_coordinates_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates->width = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_SIZE_Y:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->height = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates = collision_attack_upsert_coordinates_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates->height = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_SIZE_Z_1:
             case CMD_MODEL_COLLISION_SIZE_Z_BACKGROUND:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->z_background = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates = collision_attack_upsert_coordinates_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates->z_background = GET_INT_ARG(1);
 
                 break;
 
             case CMD_MODEL_COLLISION_SIZE_Z_2:
             case CMD_MODEL_COLLISION_SIZE_Z_FOREGROUND:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->z_foreground = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates = collision_attack_upsert_coordinates_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates->z_foreground = GET_INT_ARG(1);
                                 
                 break;
 
             case CMD_MODEL_COLLISION_STAYDOWN_RISE:
                 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->staydown.rise = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->staydown.rise = GET_INT_ARG(1);
                                 
                 break;
 
             case CMD_MODEL_COLLISION_STAYDOWN_RISEATTACK:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->staydown.riseattack = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->staydown.riseattack = GET_INT_ARG(1);
 
                 break;
 
@@ -16236,148 +19908,150 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 // 2020-03-08, 
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index);
-
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates = collision_attack_upsert_coordinates_property(&temp_collision_attack, temp_collision_index);
+                
+                /*
+                * "none" deactivates attack on this and subsequent frames.
+                * The attack loading system interprets 0 for all coordinates 
+                * as no attack and will not load to memory.
+                */
                 value = GET_ARG(1);
-                if (stricmp(value, "none") == 0)
-                {
-                    collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->x = 0;
-                    collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->y = 0;
-                    collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->width = 0;
-                    collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->height = 0;
+                if (stricmp(value, "none") == 0) {
+                    
+                    *temp_collision_coordinates = (s_hitbox){0};
 
                     break;
-                }
-               
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->x = GET_INT_ARG(1);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->y = GET_INT_ARG(2);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->width = GET_INT_ARG(3);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->height = GET_INT_ARG(4);
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_force = GET_INT_ARG(5);
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_drop = GET_INT_ARG(6);
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->no_block = GET_INT_ARG(7);
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->no_flash = GET_INT_ARG(8);
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->pause_add = GET_INT_ARG(9);
+                }               
 
-                // -- Not a typo - legacy Z sets identical value to back/fore.
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->z_background = GET_INT_ARG(10);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->z_foreground = GET_INT_ARG(10);
-               
-                       
+                temp_collision_coordinates->x = GET_INT_ARG(1);
+                temp_collision_coordinates->y = GET_INT_ARG(2);
+                temp_collision_coordinates->width = GET_INT_ARG(3);
+                temp_collision_coordinates->height = GET_INT_ARG(4);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_force = GET_INT_ARG(5);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_drop = GET_INT_ARG(6);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->no_block = GET_INT_ARG(7);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->no_flash = GET_INT_ARG(8);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->pause_add = GET_INT_ARG(9);
+
+                // -- Not a typo - legacy Z sets identical value to back/fore depth.
+                temp_collision_coordinates->z_background = GET_INT_ARG(10);
+                temp_collision_coordinates->z_foreground = GET_INT_ARG(10);                      
 
                 switch(cmd)
                 {
                 case CMD_MODEL_COLLISION:
                 case CMD_MODEL_COLLISION1:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_NORMAL;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_NORMAL;
 
                     break;
 
                 case CMD_MODEL_COLLISION2:
                     
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_NORMAL2;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_NORMAL2;
                     
                     break;
 
                 case CMD_MODEL_COLLISION3:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_NORMAL3;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_NORMAL3;
                                         
                     break;
 
                 case CMD_MODEL_COLLISION4:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_NORMAL4;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_NORMAL4;
 
                     break;
 
                 case CMD_MODEL_COLLISION5:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_NORMAL5;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_NORMAL5;
 
                     break;
 
                 case CMD_MODEL_COLLISION6:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_NORMAL6;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_NORMAL6;
 
                     break;
 
                 case CMD_MODEL_COLLISION7:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_NORMAL7;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_NORMAL7;
 
                     break;
 
                 case CMD_MODEL_COLLISION8:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_NORMAL8;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_NORMAL8;
 
                     break;
 
                 case CMD_MODEL_COLLISION9:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_NORMAL9;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_NORMAL9;
 
                     break;
 
                 case CMD_MODEL_COLLISION10:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_NORMAL10;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_NORMAL10;
                                         
                     break;
 
                 case CMD_MODEL_SHOCK:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_SHOCK;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_SHOCK;
 
                     break;
 
                 case CMD_MODEL_BURN:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_BURN;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_BURN;
 
                     break;
 
                 case CMD_MODEL_STEAL:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->steal = 1;
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_STEAL;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->steal = 1;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_STEAL;
 
                     break;
 
                 case CMD_MODEL_FREEZE:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_FREEZE;
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->freeze = 1;
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->freezetime = GET_FLOAT_ARG(6) * GAME_SPEED;
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->forcemap = MAP_TYPE_FREEZE;
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_drop = 0;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_FREEZE;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->freeze = 1;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->freezetime = GET_FLOAT_ARG(6) * global_config.game_speed;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->forcemap = MAP_TYPE_FREEZE;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_drop = 0;
 
                     break;
 
                 case CMD_MODEL_ITEMBOX:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_ITEM;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_ITEM;
 
                     break;
 
                 case CMD_MODEL_LOSE:
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_LOSE;
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_drop = 0;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_LOSE;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_drop = 0;
 
                     break;
 
                 default:
-                    tempInt = atoi(command + 6);
-                    if(tempInt < MAX_ATKS - STA_ATKS + 1)
-                    {
-                        tempInt = MAX_ATKS - STA_ATKS + 1;
-                    }
 
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = tempInt + STA_ATKS - 1;
+                    //value = GET_ARG(1);
+
+                    tempInt = get_attack_type_from_string(command, filename);
+
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = tempInt;
+
+                    break;
                 }
                 break;
 
@@ -16390,9 +20064,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             case CMD_MODEL_COLLISIONZ:
             case CMD_MODEL_HITZ:
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->z_background = GET_INT_ARG(1);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->z_foreground = GET_INT_ARG(2);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index);
+
+                temp_collision_coordinates = collision_attack_upsert_coordinates_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates->z_background = GET_INT_ARG(1);
+                temp_collision_coordinates->z_foreground = GET_INT_ARG(2);
 
                 break;
 
@@ -16400,26 +20076,27 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 // 2020-03-08, 
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->x = GET_INT_ARG(1);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->y = GET_INT_ARG(2);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->width = GET_INT_ARG(3);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->height = GET_INT_ARG(4);
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_force = GET_INT_ARG(5);
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->no_block = GET_INT_ARG(6);
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->no_flash = GET_INT_ARG(7);
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->pause_add = GET_INT_ARG(8);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates = collision_attack_upsert_coordinates_property(&temp_collision_attack, temp_collision_index);
+                temp_collision_coordinates->x = GET_INT_ARG(1);
+                temp_collision_coordinates->y = GET_INT_ARG(2);
+                temp_collision_coordinates->width = GET_INT_ARG(3);
+                temp_collision_coordinates->height = GET_INT_ARG(4);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_force = GET_INT_ARG(5);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->no_block = GET_INT_ARG(6);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->no_flash = GET_INT_ARG(7);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->pause_add = GET_INT_ARG(8);
 
-                // -- Not a typo - legacy Z sets identical value to back/fore.
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->z_background = GET_INT_ARG(9);
-                collision_attack_upsert_coordinates_property(&temp_collision_head, temp_collision_index)->z_foreground = GET_INT_ARG(9);
+                // -- Not a typo - legacy Z sets identical value to back/fore depth.
+                temp_collision_coordinates->z_background = GET_INT_ARG(9);
+                temp_collision_coordinates->z_foreground = GET_INT_ARG(9);
 
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_drop = 1;
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_type = ATK_BLAST;
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->blast = 1;
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->dropv.x = default_model_dropv.x * 2.083f;
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->dropv.y = default_model_dropv.y;
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->dropv.z = default_model_dropv.z;
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_drop = 1;
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_type = ATK_BLAST;
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->blast = 1;
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->dropv.x = default_model_dropv.x * 2.083f;
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->dropv.y = default_model_dropv.y;
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->dropv.z = default_model_dropv.z;
                 
                 break;
 
@@ -16433,30 +20110,30 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->dropv.y = GET_FLOAT_ARG(1);
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->dropv.x = GET_FLOAT_ARG(2);
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->dropv.z = GET_FLOAT_ARG(3);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->dropv.y = GET_FLOAT_ARG(1);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->dropv.x = GET_FLOAT_ARG(2);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->dropv.z = GET_FLOAT_ARG(3);
                 }
                 
                 break;
 
             case CMD_MODEL_OTG:
                 // Over The Ground hit.
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->otg = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->otg = GET_INT_ARG(1);
                 
                 break;
 
             case CMD_MODEL_JUGGLECOST:
                 
                 // if cost >= opponents jugglepoints , we can juggle
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->jugglecost = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->jugglecost = GET_INT_ARG(1);
                 
                 break;
 
             case CMD_MODEL_GUARDCOST:
                 
                 // if cost >= opponents guardpoints , opponent will play guardcrush anim
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->guardcost = GET_INT_ARG(1);
+                collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->guardcost = GET_INT_ARG(1);
                 
                 break;
 
@@ -16466,14 +20143,14 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 if (!newanim && newchar->smartbomb)
                 {
                     newchar->smartbomb->freeze = 1;
-                    newchar->smartbomb->freezetime = GET_FLOAT_ARG(1) * GAME_SPEED;
+                    newchar->smartbomb->freezetime = GET_FLOAT_ARG(1) * global_config.game_speed;
                     newchar->smartbomb->attack_drop = 0;
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->freeze = 1;
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->freezetime = GET_FLOAT_ARG(1) * GAME_SPEED;
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->attack_drop = 0;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->freeze = 1;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->freezetime = GET_FLOAT_ARG(1) * global_config.game_speed;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->attack_drop = 0;
                 }
                                 
                 break;
@@ -16488,8 +20165,8 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->grab = GET_INT_ARG(1);
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->grab_distance = GET_FLOAT_ARG(2);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->grab = GET_INT_ARG(1);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->grab_distance = GET_FLOAT_ARG(2);
                 }
 
                 break;
@@ -16503,7 +20180,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->no_pain = GET_INT_ARG(1);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->no_pain = GET_INT_ARG(1);
                 }
 
                 break;
@@ -16517,7 +20194,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->no_kill = GET_INT_ARG(1);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->no_kill = GET_INT_ARG(1);
                 }
                 
                 break;
@@ -16533,7 +20210,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->force_direction = tempInt;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->force_direction = tempInt;
                 }               
 
                 tempInt = 0;
@@ -16547,13 +20224,13 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 {
                     newchar->smartbomb->damage_on_landing.attack_force = GET_INT_ARG(1);
                     newchar->smartbomb->blast = GET_INT_ARG(2);
-                    newchar->smartbomb->damage_on_landing.attack_type = translate_attack_type(GET_ARG(3));
+                    newchar->smartbomb->damage_on_landing.attack_type = translate_attack_type(GET_ARG(3), filename);
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->damage_on_landing.attack_force = GET_INT_ARG(1);
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->blast = GET_INT_ARG(2);
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->damage_on_landing.attack_type = translate_attack_type(GET_ARG(3));
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->damage_on_landing.attack_force = GET_INT_ARG(1);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->blast = GET_INT_ARG(2);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->damage_on_landing.attack_type = translate_attack_type(GET_ARG(3), filename);
                 }
                                 
                 break;
@@ -16563,13 +20240,13 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 // Disable special moves for specified time.
                 if (!newanim && newchar->smartbomb)
                 {
-                    newchar->smartbomb->sealtime = GET_INT_ARG(1) * GAME_SPEED;
+                    newchar->smartbomb->sealtime = GET_INT_ARG(1) * (global_config.game_speed / 100);
                     newchar->smartbomb->seal = GET_INT_ARG(2);
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->sealtime = GET_INT_ARG(1) * GAME_SPEED;
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->seal = GET_INT_ARG(2);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->sealtime = GET_INT_ARG(1) * (global_config.game_speed / 100);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->seal = GET_INT_ARG(2);
                 }
                               
                 break;
@@ -16584,65 +20261,19 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->staydown.rise = GET_INT_ARG(1);
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->staydown.riseattack = GET_INT_ARG(2);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->staydown.rise = GET_INT_ARG(1);
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->staydown.riseattack = GET_INT_ARG(2);
                 }
-
-                break;
-
-            case CMD_MODEL_DOT:
-
-                collision_attack_upsert_property(&temp_collision_head, temp_collision_index);
-
-                collision_attack_upsert_recursive_property(&temp_collision_head, temp_collision_index)->index  = GET_INT_ARG(1);  //Index.
-                collision_attack_upsert_recursive_property(&temp_collision_head, temp_collision_index)->time   = GET_INT_ARG(2);  //Time to expiration.
-                		
-                /*
-                * Caskey, Damon V.
-                * 2021-08-24
-                *
-                * For legacy support of mode, we have to handle
-                * integer values differently because like a bonehead,
-                * I didn�t originally set them up with bitwise
-                * logic in mind.
-                */
-
-                value = GET_ARG(1);
-
-                if (isNumeric(value))
-                {
-                    /*
-                    * Numeric is legacy. Interpret the number as
-                    * a list of modes.
-                    */
-
-                    tempInt = GET_INT_ARG(1);
-
-                    tempInt = recursive_damage_get_mode_setup_from_legacy_argument(tempInt);
-                }
-                else
-                {
-                    /*
-                    * Toggle bits based on items provided in argument list.
-                    */
-
-                    tempInt = recursive_damage_get_mode_setup_from_arg_list(&arglist);
-                }
-
-                /* Send resulting bitwise integer to mode value. */
-                collision_attack_upsert_recursive_property(&temp_collision_head, temp_collision_index)->mode = tempInt;
-
-                tempInt = 0;
 
                 break;
 
             case CMD_MODEL_FORCEMAP:
-                
+
                 /*
                 * Translate text value into a pre-defined forcemap constant.
-                * Wen applying a pre-defined forcemap, we�ll look at the model
+                * When applying a pre-defined forcemap, we'll look at the model
                 * and try to find its appropriate index. For example, if the
-                * pre-defined BURN is used, forcemap will apply the model�s
+                * pre-defined BURN is used, forcemap will apply the model's
                 * designated burn. This allows use of effect maps without the
                 * need to match all model palettes up (i.e. all having their
                 * second palette a burn palette).
@@ -16682,12 +20313,12 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 if (!newanim && newchar->smartbomb)
                 {
                     newchar->smartbomb->forcemap = tempInt;
-                    newchar->smartbomb->maptime = GET_FLOAT_ARG(2) * GAME_SPEED;
+                    newchar->smartbomb->maptime = GET_FLOAT_ARG(2) * (global_config.game_speed / 100);
                 }
                 else
                 {
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->forcemap = tempInt;
-                    collision_attack_upsert_property(&temp_collision_head, temp_collision_index)->maptime = GET_FLOAT_ARG(2) * GAME_SPEED;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->forcemap = tempInt;
+                    collision_attack_upsert_property(&temp_collision_attack, temp_collision_index)->maptime = GET_FLOAT_ARG(2) * (global_config.game_speed / 100);
                 }
 
                 break;
@@ -16710,32 +20341,27 @@ s_model *load_cached_model(char *name, char *owner, char unload)
             case CMD_MODEL_FSHADOW:
 
                 value = GET_ARG(1);
-                if (stricmp(value, "none") == 0)
-                {
+                if (stricmp(value, "none") == 0) {
                     tempInt = FRAME_SHADOW_NONE;
-                }
-                else
-                {
+                
+                } else {
                     tempInt = GET_INT_ARG(1);
                 }
                 frameshadow = tempInt;
                 break;
             case CMD_MODEL_RANGE:
-                if(!newanim)
-                {
+                if(!newanim) {
                     shutdownmessage = "Cannot set range: no animation!";
                     goto lCleanup;
                 }
                 newanim->range.x.min = GET_INT_ARG(1);
                 newanim->range.x.max = GET_INT_ARG(2);
-                if(newanim->range.x.min == newanim->range.x.max)
-                {
+                if(newanim->range.x.min == newanim->range.x.max) {
                     newanim->range.x.min--;
                 }
                 break;
             case CMD_MODEL_RANGEZ:
-                if(!newanim)
-                {
+                if(!newanim) {
                     shutdownmessage = "Cannot set rangez: no animation!";
                     goto lCleanup;
                 }
@@ -16743,8 +20369,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->range.z.max = GET_INT_ARG(2);
                 break;
             case CMD_MODEL_RANGEA:
-                if(!newanim)
-                {
+                if(!newanim) {
                     shutdownmessage = "Cannot set rangea: no animation!";
                     goto lCleanup;
                 }
@@ -16752,8 +20377,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 newanim->range.y.max = GET_INT_ARG(2);
                 break;
             case CMD_MODEL_RANGEB:
-                if(!newanim)
-                {
+                if(!newanim) {
                     shutdownmessage = "Cannot set rangeb: no animation!";
                     goto lCleanup;
                 }
@@ -16765,38 +20389,48 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 break;
             case CMD_MODEL_FRAME:
             {
+                s_command_token frame_token;
+                s_command_token_reader frame_reader;
+
                 // Command title for log. Details will be added blow accordingly.
                 //printf("\t\t\tFrame: ");
 
-                if(!newanim)
-                {
+                if(!newanim) {
                     shutdownmessage = "Cannot add frame: animation not specified!";
                     goto lCleanup;
                 }                
 
                 peek = 0;
-                if(frameset && framecount >= 0)
-                {
+                if(frameset && framecount >= 0) {
                     framecount = -framecount;
                 }
-                while(!frameset)
-                {
-                    value3 = findarg(buf + pos + peek, 0);
-                    if(stricmp(value3, "frame") == 0)
-                    {
-                        framecount++;
+
+                while(!frameset) {
+                    frame_reader.cursor = buf + pos + peek;
+
+                    if(command_token_reader_next(
+                            &frame_reader,
+                            &frame_token
+                        )) {
+                        if(command_token_equals(&frame_token, "frame")) {
+                            framecount++;
+                        }
+
+                        if(command_token_equals(&frame_token, "anim")) {
+                            frameset = 1;
+                        }
                     }
-                    if((stricmp(value3, "anim") == 0) || (pos + peek >= size))
-                    {
+
+                    if(pos + peek >= size) {
                         frameset = 1;
                     }
+                    
                     // Go to next line
-                    while(buf[pos + peek] && buf[pos + peek] != '\n' && buf[pos + peek] != '\r')
-                    {
+                    while(buf[pos + peek] && buf[pos + peek] != '\n' && buf[pos + peek] != '\r') {
                         ++peek;
                     }
-                    while(buf[pos + peek] == '\n' || buf[pos + peek] == '\r')
-                    {
+
+                    while(buf[pos + peek] == '\n' || buf[pos + peek] == '\r') {
                         ++peek;
                     }
                 }
@@ -16807,25 +20441,24 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 //printf("\tSprite Path: %s\n", value);
 
                 index = stricmp(value, "none") == 0 ? -1 : loadsprite(value, offset.x, offset.y, nopalette ? PIXEL_x8 : PIXEL_8); //don't use palette for the sprite since it will one palette from the entity's remap list in 24bit mode
-                if(index >= 0)
-                {
+                
+                if(index >= 0) {
+
                     // If the model does not have a designated palette
-                    // yet and the author did not specify palette none
+                    // yet and the creator did not specify palette none
                     // or global palette, then we will use this frame's
                     // sprite to load a color table. Effectively the first
                     // frame of a model becomes its palette base.
-                    if(pixelformat == PIXEL_x8 && !nopalette)
-                    {
+                    if(pixelformat == PIXEL_x8 && !nopalette) {
+
                         // No master color table assigned yet?
-                        if(newchar->palette == NULL)
-                        {
+                        if(newchar->palette == NULL) {
                             //printf("\t\t\tAuto Palette - 'Palette' not defined. Attempting to load color table from this frame: ");
 
                             // Allocate memory for color table.
                             newchar->palette = malloc(PAL_BYTES);
                             //
-                            if(loadimagepalette(value, packfile, newchar->palette) == 0)
-                            {
+                            if(loadimagepalette(value, packfile, newchar->palette) == 0) {
                                 //printf("\t\t\t%s%s\n", "Failed to load color table from image: ", value);
                                 goto lCleanup;
                             }
@@ -16834,29 +20467,19 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                         //printf("\t\t\t%s\n", "Success. Loaded color selection 0 from frame.");
 
                         // Assign the color table to sprite.
-                        if(!nopalette)
-                        {
+                        if(!nopalette) {
                             sprite_map[index].node->sprite->palette = newchar->palette;
                             sprite_map[index].node->sprite->pixelformat = pixelformat;
                         }
                     }
 
-                    if(maskindex >= 0)
-                    {
+                    if(maskindex >= 0) {
                         sprite_map[index].node->sprite->mask = sprite_map[maskindex].node->sprite;
                         maskindex = -1;
                     }
-                }
-                
-                entity_coords.x      = ebox.x - offset.x;
-                entity_coords.y      = ebox.y - offset.y;
-                entity_coords.width  = ebox.width + entity_coords.x;
-                entity_coords.height = ebox.height + entity_coords.y;
-                entity_coords.z_background     = ebox.z_background;
-                entity_coords.z_foreground     = ebox.z_foreground;                                
+                }                           
                
-                if(platform[PLATFORM_X] == PLATFORM_DEFAULT_X) // old style
-                {
+                if(platform[PLATFORM_X] == PLATFORM_DEFAULT_X) { // old style
                     platform_con[PLATFORM_X] = 0;
                     platform_con[PLATFORM_Z] = 3;
                     platform_con[PLATFORM_UPPERLEFT] = platform[PLATFORM_UPPERLEFT] - offset.x;
@@ -16864,9 +20487,8 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                     platform_con[PLATFORM_UPPERRIGHT] = platform[PLATFORM_UPPERRIGHT] - offset.x;
                     platform_con[PLATFORM_LOWERRIGHT] = platform[PLATFORM_LOWERRIGHT] - offset.x;
                     platform_con[PLATFORM_DEPTH] = platform[PLATFORM_DEPTH] + 3;
-                }
-                else // wall style
-                {
+                
+                } else { // wall style
                     platform_con[PLATFORM_X] = platform[PLATFORM_X] - offset.x;
                     platform_con[PLATFORM_Z] = platform[PLATFORM_Z] - offset.y;
                     platform_con[PLATFORM_UPPERLEFT] = platform[PLATFORM_UPPERLEFT];
@@ -16876,50 +20498,47 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                     platform_con[PLATFORM_DEPTH] = platform[PLATFORM_DEPTH];
                 }
                 platform_con[PLATFORM_HEIGHT] = platform[PLATFORM_HEIGHT];
-                if(shadow_set)
-                {
+                
+                if(shadow_set) {
                     shadow_coords[0] = shadow_xz[0] - offset.x;
                     shadow_coords[1] = shadow_xz[1] - offset.y;
-                }
-                else
-                {
+                
+                } else {
                     shadow_coords[0] = shadow_coords[1] = 0;
                 }
 
-                if(drawmethod.config & DRAWMETHOD_CONFIG_ENABLED)
-                {
+                if(drawmethod.config & DRAWMETHOD_CONFIG_ENABLED) {
                     dm = drawmethod;
-                    if(dm.clipw)
-                    {
+                    if(dm.clipw) {
                         dm.clipx -= offset.x;
                         dm.clipy -= offset.y;
                     }
-                }
-                else
-                {
+                
+                } else {
                     dm.config &= ~DRAWMETHOD_CONFIG_ENABLED;
                 }
+
+                frame_sound_load_collection(temp_frame_sound, packfile);
 
                 add_frame_data.animation = newanim;
                 add_frame_data.spriteindex = index;
                 add_frame_data.framecount = framecount;
                 add_frame_data.delay = delay;
+                add_frame_data.delay_mode = delay_mode;
                 add_frame_data.idle = idle;
-                add_frame_data.ebox = &ebox_con;
                 add_frame_data.move = &move;
                 add_frame_data.platform = platform_con;
                 add_frame_data.frameshadow = frameshadow;
                 add_frame_data.shadow_coords = shadow_coords;
-                add_frame_data.soundtoplay = soundtoplay;
+                add_frame_data.sound = temp_frame_sound;
                 add_frame_data.drawmethod = &dm;
                 add_frame_data.offset = &offset;
-                add_frame_data.entity_coords = &entity_coords;
                 
                 add_frame_data.model = newchar;                
 
                 /*
                 * Delete nodes from frame object lists
-                * that don't have valid data (i.e no 
+                * that don't have valid data (i.e. no 
                 * coordinates defined at all or the 
                 * coordinates X/Y/H/W are all 0).
                 * 
@@ -16929,16 +20548,17 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 * of keeping the read in values frame to frame
                 * even after a collision box is closed.
                 */
-                //collision_attack_remove_undefined_coordinates(&temp_collision_head);
-                //collision_body_remove_undefined_coordinates(&temp_collision_body_head);
+                //collision_attack_remove_undefined_coordinates(&temp_collision_attack);
+                //collision_body_remove_undefined_coordinates(&temp_collision_body);
                                 
                 /*
                 * Multiple per frame object heads may have 
                 * changed, so this needs to be right before 
                 * addframe function.
                 */
-                add_frame_data.collision = temp_collision_head;
-                add_frame_data.collision_body = temp_collision_body_head;
+                add_frame_data.collision_attack = temp_collision_attack;
+                add_frame_data.collision_body = temp_collision_body;
+                add_frame_data.collision_space = temp_collision_space;
                 add_frame_data.child_spawn = temp_child_spawn_head;
 
                 /* 
@@ -16955,12 +20575,16 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                                 
                 temp_collision_index = 0;
 
+                frame_sound_collection_free(temp_frame_sound);
+                temp_frame_sound = NULL;
+                temp_frame_sound_index = 0;
+
                 child_spawn_free_list(temp_child_spawn_head);
                 temp_child_spawn_head = NULL;
                 temp_child_spawn_index = 0;
 
-                soundtoplay = SAMPLE_ID_NONE;
                 frm_id = -1;
+                at_cmd_mergeable = false;
             }
             break;
             case CMD_MODEL_ALPHAMASK:
@@ -17135,13 +20759,15 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 
                 break;
             case CMD_MODEL_AT_SCRIPT:
+                at_cmd_mergeable = false;
+
                 if(!scriptbuf[0])  // if empty, paste the main function text here
                 {
                     buffer_append(&scriptbuf, pre_text, 0xffffff, &sbsize, &scriptlen);
                 }
                 scriptbuf[scriptlen - strclen(sur_text)] = 0; // cut last chars
                 scriptlen = strlen(scriptbuf);
-                if(ani_id >= 0)
+                if(ani_id != ANIMATION_ID_INVALID)
                 {
                     if(script_id != ani_id)  // if expression 1
                     {
@@ -17166,15 +20792,21 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 buffer_append(&scriptbuf, buf + pos - len, len, &sbsize, &scriptlen);
                 pos += strclen("@end_script");
 
-                if(ani_id >= 0)
+                if(ani_id != ANIMATION_ID_INVALID)
                 {
                     buffer_append(&scriptbuf, endifid_text, 0xffffff, &sbsize, &scriptlen);// put back last  chars
                 }
                 buffer_append(&scriptbuf, sur_text, 0xffffff, &sbsize, &scriptlen);// put back last  chars
                 break;
             case CMD_MODEL_AT_CMD:
+            {
+                s_command_token command_token;
+                s_command_token_reader command_token_reader;
+                bool command_emitted = false;
+                bool first_command_argument;
+
                 //translate @cmd into script function call
-                if(ani_id < 0)
+                if(ani_id == ANIMATION_ID_INVALID)
                 {
                     shutdownmessage = "command '@cmd' must follow an animation!";
                     goto lCleanup;
@@ -17187,15 +20819,20 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 scriptlen = strlen(scriptbuf);
                 if(script_id != ani_id)  // if expression 1
                 {
+                    at_cmd_mergeable = false;
                     sprintf(namebuf, ifid_text, newanim->index);
                     buffer_append(&scriptbuf, namebuf, 0xffffff, &sbsize, &scriptlen);
                     script_id = ani_id;
                 }
-                j = 1;
-                value = GET_ARG(j);
                 scriptbuf[scriptlen - strclen(endifid_text)] = 0; // cut last chars
                 scriptlen = strlen(scriptbuf);
-                if(value && value[0])
+                command_token_reader = (s_command_token_reader){
+                    .cursor = buf + pos
+                };
+
+                /* Skip @cmd, then read the function name. */
+                if(command_token_reader_next(&command_token_reader, &command_token)
+                    && command_token_reader_next(&command_token_reader, &command_token))
                 {
                     /*
                      //no_cmd_compatible will try to optimize if(frame==n)
@@ -17223,36 +20860,86 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                      //       f();
                      //    }
                      */
-                    if(!no_cmd_compatible || frm_id != curframe)
+                    /*
+                    - Caskey, Damon V.
+                    - 2026-08-12
+                    -
+                    - Merge same-frame @cmd calls only when the
+                      previous generated section is an eligible
+                      @cmd block with the exact expected suffix.
+                      Otherwise, open a new frame condition without
+                      removing any existing script text.
+                    */
+                    const size_t frame_close_length = strclen(endif_text);
+                    const size_t frame_return_length = strclen(endif_return_text);
+
+                    bool merge_previous_command =
+                        no_cmd_compatible
+                        && at_cmd_mergeable
+                        && frm_id == curframe;
+
+                    if(merge_previous_command)
+                    {
+                        merge_previous_command = buffer_remove_suffix_pair(
+                            scriptbuf,
+                            &scriptlen,
+                            endif_return_text,
+                            frame_return_length,
+                            endif_text,
+                            frame_close_length
+                        );
+                    }
+
+                    if(!merge_previous_command)
                     {
                         sprintf(namebuf, if_text, curframe);//only execute in current frame
                         buffer_append(&scriptbuf, namebuf, 0xffffff, &sbsize, &scriptlen);
                         frm_id = curframe;
                     }
-                    else //no_cmd_compatible==1
-                    {
-                        scriptbuf[scriptlen - strclen(endif_text)] = 0; // cut last chars
-                        scriptlen = strlen(scriptbuf);
-                        scriptbuf[scriptlen - strclen(endif_return_text)] = 0; // cut last chars
-                        scriptlen = strlen(scriptbuf);
-                    }
-                    sprintf(namebuf, call_text, value);
-                    buffer_append(&scriptbuf, namebuf, 0xffffff, &sbsize, &scriptlen);
+                    buffer_append(&scriptbuf, call_indent_text, 0xffffff, &sbsize, &scriptlen);
+                    buffer_append(
+                        &scriptbuf,
+                        command_token.text,
+                        command_token.length,
+                        &sbsize,
+                        &scriptlen
+                    );
+                    buffer_append(&scriptbuf, call_open_text, 0xffffff, &sbsize, &scriptlen);
 
-                    do  //argument and comma
+                    first_command_argument = true;
+                    while(command_token_reader_next(
+                        &command_token_reader,
+                        &command_token
+                    ))
                     {
-                        j++;
-                        value = GET_ARG(j);
-                        if(value && value[0])
+                        if(!first_command_argument)
                         {
-                            if(j != 2)
-                            {
-                                buffer_append(&scriptbuf, comma_text, 0xffffff, &sbsize, &scriptlen);
-                            }
-                            buffer_append(&scriptbuf, value, 0xffffff, &sbsize, &scriptlen);
+                            buffer_append(&scriptbuf, comma_text, 0xffffff, &sbsize, &scriptlen);
                         }
+                        buffer_append(
+                            &scriptbuf,
+                            command_token.text,
+                            command_token.length,
+                            &sbsize,
+                            &scriptlen
+                        );
+                        first_command_argument = false;
                     }
-                    while(value && value[0]);
+
+                    command_emitted = true;
+                }
+
+                if(command_token_reader.unterminated_quote)
+                {
+                    snprintf(
+                        alert_buffer,
+                        sizeof(alert_buffer),
+                        "Command '@cmd' has an unterminated %c quote.\n",
+                        command_token_reader.unterminated_quote
+                    );
+
+                    shutdownmessage = alert_buffer;
+                    goto lCleanup;
                 }
 
                 buffer_append(&scriptbuf, endcall_text, 0xffffff, &sbsize, &scriptlen);
@@ -17263,7 +20950,9 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 buffer_append(&scriptbuf, endif_text, 0xffffff, &sbsize, &scriptlen);//end of if
                 buffer_append(&scriptbuf, endifid_text, 0xffffff, &sbsize, &scriptlen); // put back last  chars
                 buffer_append(&scriptbuf, sur_text, 0xffffff, &sbsize, &scriptlen); // put back last  chars
+                at_cmd_mergeable = no_cmd_compatible && command_emitted;
                 break;
+            }
             default:
                 if(command && command[0])
                 {
@@ -17349,30 +21038,45 @@ s_model *load_cached_model(char *name, char *owner, char unload)
     //temporary patch for conflicting moves
     if(newchar->animation[ANI_FREESPECIAL] && !is_set(newchar, ANI_FREESPECIAL))
     {
-        alloc_specials(newchar);
-        newchar->special[newchar->specials_loaded].input[0] = FLAG_FORWARD;
-        newchar->special[newchar->specials_loaded].input[1] = FLAG_FORWARD;
-        newchar->special[newchar->specials_loaded].input[2] = FLAG_ATTACK;
+        if(!alloc_specials(newchar))
+        {
+            shutdownmessage = E_OUT_OF_MEMORY;
+            goto lCleanup;
+        }
+
+        newchar->special[newchar->specials_loaded].input[0].press = FLAG_FORWARD;
+        newchar->special[newchar->specials_loaded].input[1].press = FLAG_FORWARD;
+        newchar->special[newchar->specials_loaded].input[2].press = FLAG_ATTACK;
         newchar->special[newchar->specials_loaded].anim = ANI_FREESPECIAL;
         newchar->special[newchar->specials_loaded].steps = 3;
         newchar->specials_loaded++;
     }
     if(newchar->animation[ANI_FREESPECIAL2] && !is_set(newchar, ANI_FREESPECIAL2))
     {
-        alloc_specials(newchar);
-        newchar->special[newchar->specials_loaded].input[0] = FLAG_MOVEDOWN;
-        newchar->special[newchar->specials_loaded].input[1] = FLAG_MOVEDOWN;
-        newchar->special[newchar->specials_loaded].input[2] = FLAG_ATTACK;
+        if(!alloc_specials(newchar))
+        {
+            shutdownmessage = E_OUT_OF_MEMORY;
+            goto lCleanup;
+        }
+
+        newchar->special[newchar->specials_loaded].input[0].press = FLAG_MOVEDOWN;
+        newchar->special[newchar->specials_loaded].input[1].press = FLAG_MOVEDOWN;
+        newchar->special[newchar->specials_loaded].input[2].press = FLAG_ATTACK;
         newchar->special[newchar->specials_loaded].anim = ANI_FREESPECIAL2;
         newchar->special[newchar->specials_loaded].steps = 3;
         newchar->specials_loaded++;
     }
     if(newchar->animation[ANI_FREESPECIAL3] && !is_set(newchar, ANI_FREESPECIAL3))
     {
-        alloc_specials(newchar);
-        newchar->special[newchar->specials_loaded].input[0] = FLAG_MOVEUP;
-        newchar->special[newchar->specials_loaded].input[1] = FLAG_MOVEUP;
-        newchar->special[newchar->specials_loaded].input[2] = FLAG_ATTACK;
+        if(!alloc_specials(newchar))
+        {
+            shutdownmessage = E_OUT_OF_MEMORY;
+            goto lCleanup;
+        }
+
+        newchar->special[newchar->specials_loaded].input[0].press = FLAG_MOVEUP;
+        newchar->special[newchar->specials_loaded].input[1].press = FLAG_MOVEUP;
+        newchar->special[newchar->specials_loaded].input[2].press = FLAG_ATTACK;
         newchar->special[newchar->specials_loaded].anim = ANI_FREESPECIAL3;
         newchar->special[newchar->specials_loaded].steps = 3;
         newchar->specials_loaded++;
@@ -17384,11 +21088,11 @@ s_model *load_cached_model(char *name, char *owner, char unload)
         {
             if(newchar->animation[ANI_RISEATTACK])
             {
-                newchar->risetime.rise = GAME_SPEED / 2;
+                newchar->risetime.rise = global_config.game_speed / 2;
             }
             else
             {
-                newchar->risetime.rise = GAME_SPEED;
+                newchar->risetime.rise = global_config.game_speed;
             }
         }
         else if(newchar->type == TYPE_ENEMY || newchar->type == TYPE_NPC)
@@ -17397,7 +21101,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
         }
     }
 
-    if(newchar->faction.type_hostile == TYPE_UNDELCARED) // not been initialized, so initialize it
+    if(newchar->faction.type_hostile == TYPE_UNDECLARED) // not been initialized, so initialize it
     {
         switch (newchar->type)
         {
@@ -17413,13 +21117,13 @@ s_model *load_cached_model(char *name, char *owner, char unload)
         case TYPE_TRAP:
             newchar->faction.type_hostile = TYPE_ENEMY | TYPE_PLAYER;
         case TYPE_OBSTACLE:
-            newchar->faction.type_hostile = TYPE_UNDELCARED;
+            newchar->faction.type_hostile = TYPE_UNDECLARED;
             break;
 		case TYPE_PROJECTILE:
 			// We want a clean slate so the projectile 
 			// spawn functions will copy owner settings 
 			// by default.
-			newchar->faction.type_hostile = TYPE_UNDELCARED;
+			newchar->faction.type_hostile = TYPE_UNDECLARED;
 			break;
         case TYPE_SHOT:  // only target enemies
             newchar->faction.type_hostile = TYPE_ENEMY ;
@@ -17430,7 +21134,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
         }
     }
 
-    if(newchar->faction.type_damage_direct == TYPE_UNDELCARED) // not been initialized, so initialize it
+    if(newchar->faction.type_damage_direct == TYPE_UNDECLARED) // not been initialized, so initialize it
     {
         switch (newchar->type)
         {
@@ -17456,7 +21160,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 			// We want a clean slate so the projectile 
 			// spawn functions will copy owner settings 
 			// by default.
-			newchar->faction.type_damage_direct = TYPE_UNDELCARED;
+			newchar->faction.type_damage_direct = TYPE_UNDECLARED;
 			break;
         case TYPE_SHOT:
             newchar->faction.type_damage_direct = TYPE_ENEMY | TYPE_PLAYER | TYPE_OBSTACLE;
@@ -17470,7 +21174,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
         }
     }
 
-    if(newchar->faction.type_damage_indirect == TYPE_UNDELCARED) // not been initialized, so initialize it
+    if(newchar->faction.type_damage_indirect == TYPE_UNDECLARED) // not been initialized, so initialize it
     {
         switch (newchar->type)
         {
@@ -17492,7 +21196,7 @@ s_model *load_cached_model(char *name, char *owner, char unload)
 			// We want a clean slate so the projectile 
 			// spawn functions will copy owner settings 
 			// by default.
-			newchar->faction.type_damage_indirect = TYPE_UNDELCARED;
+			newchar->faction.type_damage_indirect = TYPE_UNDECLARED;
 			break;
         case TYPE_SHOT: // hmm, don't really needed
             newchar->faction.type_damage_indirect = TYPE_ENEMY | TYPE_PLAYER | TYPE_OBSTACLE;
@@ -17549,8 +21253,35 @@ lCleanup:
         mapflag = NULL;
     }
 
+    /*
+    * Free parser scratch collision collections.
+    *
+    * These collections are temporary carry-forward state
+    * used while reading model commands. Real animation
+    * frames receive cloned collections when frames are
+    * added, so the parser scratch collections should not
+    * survive model loading.
+    */
+    collision_collection_free(temp_collision_attack);
+    temp_collision_attack = NULL;
+
+    collision_collection_free(temp_collision_body);
+    temp_collision_body = NULL;
+
+    collision_collection_free(temp_collision_space);
+    temp_collision_space = NULL;
+
+    frame_sound_collection_free(temp_frame_sound);
+    temp_frame_sound = NULL;
+
+    child_spawn_free_list(temp_child_spawn_head);
+    temp_child_spawn_head = NULL;
+
     if(!shutdownmessage)
     {
+        model_cache[cacheindex].lifecycle = MODEL_LIFECYCLE_LOAD_EVENT;
+        execute_model_load_scripts(newchar);
+        model_cache[cacheindex].lifecycle = MODEL_LIFECYCLE_LOADED;
         printf(" ...done!\n");
         return newchar;
     }
@@ -17653,10 +21384,82 @@ int load_script_setting()
     return 1;
 }
 
+/*
+* Convert one models.txt limit to an int without signed
+* overflow or partial numeric conversion.
+*/
+static bool model_constant_get_unsigned_int(const char* text, int* result)
+{
+    s_command_token token;
+    uint64_t parsed_value;
+
+    assert(text);
+    assert(result);
+
+    token.text = text;
+    token.length = strlen(text);
+
+    if(!command_token_get_uint64(&token, &parsed_value)
+        || parsed_value > (uint64_t)INT_MAX) {
+        return false;
+    }
+
+    *result = (int)parsed_value;
+
+    return true;
+}
+
+/*
+* Allocate a models.txt-driven table only after checking
+* its multiplication. Allocation failure is fatal because
+* model loading cannot safely continue with a missing table.
+*/
+static void* model_constant_array_allocate(
+    const size_t element_count,
+    const size_t element_size,
+    const char* table_name,
+    const char* filename
+) {
+    void* result;
+
+    assert(table_name);
+    assert(filename);
+
+    if(element_count == 0
+        || element_size == 0
+        || element_count > SIZE_MAX / element_size) {
+        borShutdown(
+            1,
+            "Invalid allocation size for %s while loading %s.\n",
+            table_name,
+            filename
+        );
+
+        return NULL;
+    }
+
+    result = malloc(element_count * element_size);
+
+    if(!result) {
+        borShutdown(
+            1,
+            "Unable to allocate %zu entries for %s while loading %s.\n",
+            element_count,
+            table_name,
+            filename
+        );
+
+        return NULL;
+    }
+
+    return result;
+}
+
 void load_model_constants()
 {
     char filename[MAX_BUFFER_LEN] = "data/models.txt";
     int i;
+    int64_t calculated_max_animations;
     char *buf;
     size_t size;
     ptrdiff_t pos;
@@ -17782,6 +21585,12 @@ void load_model_constants()
         free(animdowns);
         animdowns = NULL;
     }
+    if(ai_attack_choices)
+    {
+        free(ai_attack_choices);
+        ai_attack_choices = NULL;
+        ai_attack_choice_capacity = 0;
+    }
 
     // Read file
     if(buffer_pakfile(filename, &buf, &size) != 1)
@@ -17864,7 +21673,21 @@ void load_model_constants()
                 break;
             case CMD_MODELSTXT_MAXFREESPECIALS:
                 // max freespecials
-                max_freespecials = GET_INT_ARG(1);
+                if(!model_constant_get_unsigned_int(
+                    GET_ARG(1),
+                    &max_freespecials
+                )) {
+                    borShutdown(
+                        1,
+                        "Invalid maxfreespecials value '%s' in %s, line %d. "
+                        "Expected an unsigned integer no greater than %d.\n",
+                        GET_ARG(1),
+                        filename,
+                        line,
+                        INT_MAX
+                    );
+                }
+
                 if(max_freespecials < MAX_SPECIALS)
                 {
                     max_freespecials = MAX_SPECIALS;
@@ -17890,38 +21713,60 @@ void load_model_constants()
         pos += getNewLineStart(buf + pos);
     }
 
-    // calculate max animations
-    max_animations += (max_attack_types - MAX_ATKS) * 12 +// multply by 11: fall/die/pain/backpain/backfalls/backdies/rise/backrise/blockpain/backblockpain/riseattack/backriseattck
-                      (max_follows - MAX_FOLLOWS) +
-                      (max_freespecials - MAX_SPECIALS) +
-                      (max_attacks - MAX_ATTACKS) +
-                      (max_idles - MAX_IDLES) +
-                      (max_walks - MAX_WALKS) +
-                      (max_ups - MAX_UPS) +
-                      (max_downs - MAX_DOWNS) +
-                      (max_backwalks - MAX_BACKWALKS);
+    /*
+    * Calculate in a wider type before assigning the int
+    * animation identifiers used throughout the engine.
+    */
+    calculated_max_animations =
+        (int64_t)MAX_ANIS
+        + ((int64_t)max_attack_types - MAX_ATKS) * INT64_C(12)
+        + ((int64_t)max_follows - MAX_FOLLOWS)
+        + ((int64_t)max_freespecials - MAX_SPECIALS)
+        + ((int64_t)max_attacks - MAX_ATTACKS)
+        + ((int64_t)max_idles - MAX_IDLES)
+        + ((int64_t)max_walks - MAX_WALKS)
+        + ((int64_t)max_ups - MAX_UPS)
+        + ((int64_t)max_downs - MAX_DOWNS)
+        + ((int64_t)max_backwalks - MAX_BACKWALKS);
+
+    if(calculated_max_animations < MAX_ANIS
+        || calculated_max_animations > INT_MAX) {
+        borShutdown(
+            1,
+            "Configured model animation limits require %" PRId64
+            " animation identifiers, but the supported maximum is %d "
+            "while loading %s.\n",
+            calculated_max_animations,
+            INT_MAX,
+            filename
+        );
+    }
+
+    max_animations = (int)calculated_max_animations;
 
     // alloc indexed animation ids
-    animdowns = malloc(sizeof(*animdowns) * max_downs);
-    animups = malloc(sizeof(*animups) * max_ups);
-    animbackwalks = malloc(sizeof(*animbackwalks) * max_backwalks);
-    animwalks = malloc(sizeof(*animwalks) * max_walks);
-    animidles = malloc(sizeof(*animidles) * max_idles);
-    animpains = malloc(sizeof(*animpains) * max_attack_types);
-    animbackpains = malloc(sizeof(*animbackpains) * max_attack_types);
-    animdies = malloc(sizeof(*animdies) * max_attack_types);
-    animbackdies = malloc(sizeof(*animbackdies) * max_attack_types);
-    animfalls = malloc(sizeof(*animfalls) * max_attack_types);
-    animbackfalls = malloc(sizeof(*animbackfalls) * max_attack_types);
-    animrises = malloc(sizeof(*animrises) * max_attack_types);
-    animbackrises = malloc(sizeof(*animbackrises) * max_attack_types);
-    animriseattacks = malloc(sizeof(*animriseattacks) * max_attack_types);
-    animbackriseattacks = malloc(sizeof(*animbackriseattacks) * max_attack_types);
-    animblkpains = malloc(sizeof(*animblkpains) * max_attack_types);
-    animbackblkpains = malloc(sizeof(*animbackblkpains) * max_attack_types);
-    animattacks = malloc(sizeof(*animattacks) * max_attacks);
-    animfollows = malloc(sizeof(*animfollows) * max_follows);
-    animspecials = malloc(sizeof(*animspecials) * max_freespecials);
+    animdowns = model_constant_array_allocate((size_t)max_downs, sizeof(*animdowns), "down animation identifiers", filename);
+    animups = model_constant_array_allocate((size_t)max_ups, sizeof(*animups), "up animation identifiers", filename);
+    animbackwalks = model_constant_array_allocate((size_t)max_backwalks, sizeof(*animbackwalks), "backwalk animation identifiers", filename);
+    animwalks = model_constant_array_allocate((size_t)max_walks, sizeof(*animwalks), "walk animation identifiers", filename);
+    animidles = model_constant_array_allocate((size_t)max_idles, sizeof(*animidles), "idle animation identifiers", filename);
+    animpains = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animpains), "pain animation identifiers", filename);
+    animbackpains = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animbackpains), "back-pain animation identifiers", filename);
+    animdies = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animdies), "death animation identifiers", filename);
+    animbackdies = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animbackdies), "back-death animation identifiers", filename);
+    animfalls = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animfalls), "fall animation identifiers", filename);
+    animbackfalls = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animbackfalls), "back-fall animation identifiers", filename);
+    animrises = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animrises), "rise animation identifiers", filename);
+    animbackrises = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animbackrises), "back-rise animation identifiers", filename);
+    animriseattacks = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animriseattacks), "rise-attack animation identifiers", filename);
+    animbackriseattacks = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animbackriseattacks), "back-rise-attack animation identifiers", filename);
+    animblkpains = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animblkpains), "block-pain animation identifiers", filename);
+    animbackblkpains = model_constant_array_allocate((size_t)max_attack_types, sizeof(*animbackblkpains), "back-block-pain animation identifiers", filename);
+    animattacks = model_constant_array_allocate((size_t)max_attacks, sizeof(*animattacks), "attack animation identifiers", filename);
+    animfollows = model_constant_array_allocate((size_t)max_follows, sizeof(*animfollows), "follow animation identifiers", filename);
+    animspecials = model_constant_array_allocate((size_t)max_freespecials, sizeof(*animspecials), "freespecial animation identifiers", filename);
+    ai_attack_choice_capacity = (size_t)max_animations;
+    ai_attack_choices = model_constant_array_allocate(ai_attack_choice_capacity, sizeof(*ai_attack_choices), "AI attack-choice table", filename);
 
     // copy default values and new animation ids
     memcpy(animdowns, downs, sizeof(*animdowns)*MAX_DOWNS);
@@ -17967,6 +21812,7 @@ void load_model_constants()
     memcpy(animpains,    pains,          sizeof(*animpains)*MAX_ATKS);
     for(i = MAX_ATKS; i < max_attack_types; i++)
     {
+        //printf("\nInitializing animpains[%d]: setting to new anim ID %d", i, maxanim);
         animpains[i] = maxanim++;
     }
     memcpy(animbackpains,    backpains,          sizeof(*animbackpains)*MAX_ATKS);
@@ -18052,11 +21898,19 @@ int load_models()
     char* value = NULL;
     int tempInt = 0;
 
+    const char* delay_mode_error;
+
     free_modelcache();
+
+    /*
+    * Reset load-only configuration before reading models.txt
+    * so a reload cannot retain a setting that was removed.
+    */
+    global_config.delay_unit = DELAY_UNIT_CENTISECOND;
 
     if(isLoadingScreenTypeBg(loadingbg[0].set))
     {
-        // New alternative background path for PSP
+        // New alternative background path.
         if(custBkgrds != NULL)
         {
             strcpy(tmpBuff, custBkgrds);
@@ -18116,10 +21970,10 @@ int load_models()
                 break;
             case CMD_MODELSTXT_SPDIRECTION:
                 // Select Player Direction for select player screen
-                spdirection[0] =  GET_INT_ARG(1);
-                spdirection[1] =  GET_INT_ARG(2);
-                spdirection[2] =  GET_INT_ARG(3);
-                spdirection[3] =  GET_INT_ARG(4);
+                spdirection[0] =  direction_get_direction_from_argument(filename, command, GET_ARG(1));
+                spdirection[1] =  direction_get_direction_from_argument(filename, command, GET_ARG(2));
+                spdirection[2] =  direction_get_direction_from_argument(filename, command, GET_ARG(3));
+                spdirection[3] =  direction_get_direction_from_argument(filename, command, GET_ARG(4));
                 break;
             case CMD_MODELSTXT_AUTOLAND:
                 // New flag to determine if a player auto lands when thrown by another player (2 completely disables the ability to land)
@@ -18213,6 +22067,24 @@ int load_models()
                 // Number of points needed to earn a 1-up
                 credscore =  GET_INT_ARG(1);
                 break;
+            case CMD_MODELSTXT_GLOBAL_CONFIG_DELAY_UNIT:
+                delay_mode_error = delay_unit_from_text(
+                    GET_ARG(1),
+                    false,
+                    &global_config.delay_unit
+                );
+
+                if(delay_mode_error) {
+                    borShutdown(
+                        1,
+                        "%s Invalid value '%s' in %s, line %d.\n",
+                        delay_mode_error,
+                        GET_ARG(1),
+                        filename,
+                        line
+                    );
+                }
+                break;
             case CMD_MODELSTXT_VERSUSDAMAGE:
                 // Number of points needed to earn a credit
                 versusdamage =  GET_INT_ARG(1);
@@ -18234,7 +22106,7 @@ int load_models()
                 break;
             case CMD_MODELSTXT_GLOBAL_CONFIG_CHEATS:
 
-                lcmHandleCommandGlobalConfigCheats(&arglist);
+                lcmHandleCommandGlobalConfigCheats(buf + pos);
                 break;
             case CMD_MODELSTXT_GLOBAL_CONFIG_FLASH_LAYER_ADJUST:
                 global_config.flash.layer_adjust = GET_INT_ARG(1);
@@ -18244,6 +22116,16 @@ int load_models()
                 break;
             case CMD_MODELSTXT_GLOBAL_CONFIG_FLASH_Z_SOURCE:
                 global_config.flash.z_source = GET_INT_ARG(1);
+                break;
+            case CMD_MODELSTXT_GLOBAL_CONFIG_GAME_SPEED:
+
+                tempInt = GET_INT_ARG(1);
+                if (tempInt < 1) {
+                    printf("\nCommand %s %d in %s, line %d value(%d) out of bounds, using default %d.\n", command, tempInt, filename, line, tempInt, GAME_SPEED_DEFAULT);
+                    tempInt = 1;
+                }
+                
+                global_config.game_speed = tempInt;
                 break;
             case CMD_MODELSTXT_GRABDISTANCE:
                 default_model_grabdistance =  GET_FLOAT_ARG(1);
@@ -19780,9 +23662,25 @@ lCleanup:
         free(buf);
     }
 
-    if(!savelevel)
+    if(!savelevel || savelevel_count != (size_t)num_difficulties)
     {
-        savelevel = calloc(num_difficulties, sizeof(*savelevel));
+        clear_saved_allowselect_arguments();
+        free(savelevel_allowselect_args);
+        free(savelevel);
+
+        savelevel_count = (size_t)num_difficulties;
+        savelevel = calloc(savelevel_count, sizeof(*savelevel));
+        savelevel_allowselect_args = calloc(
+            savelevel_count,
+            sizeof(*savelevel_allowselect_args)
+        );
+    }
+    else if(!savelevel_allowselect_args)
+    {
+        savelevel_allowselect_args = calloc(
+            savelevel_count,
+            sizeof(*savelevel_allowselect_args)
+        );
     }
 
     if(errormessage)
@@ -19838,6 +23736,8 @@ void free_level(s_level *lv)
     //offload scripts
     Script_Clear(&(lv->update_script), 2);
     Script_Clear(&(lv->updated_script), 2);
+    Script_Clear(&(lv->update_logic_script), 2);
+    Script_Clear(&(lv->updated_logic_script), 2);
     Script_Clear(&(lv->key_script), 2);
     Script_Clear(&(lv->level_script), 2);
     Script_Clear(&(lv->endlevel_script), 2);
@@ -19912,6 +23812,32 @@ void free_level(s_level *lv)
     lv = NULL;
 }
 
+/*
+* Caskey, Damon V.
+* 2026-08-09
+*
+* Accept model pointer and check if it 
+* is the model of an active player. If so, 
+* return true; otherwise, return false.
+*/
+static bool model_is_active_player(const s_model *model) {
+    int i;
+
+    if(!model || !model->name) {
+        return false;
+    }
+
+    for(i = 0; i < MAX_PLAYERS; i++) {
+        if(player[i].lives > 0
+            && player[i].name[0]
+            && stricmp(player[i].name, model->name) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 
 void unload_level()
 {
@@ -19943,6 +23869,16 @@ void unload_level()
             {
                 break;
             }
+
+            // Players carry their model choice into the next level. Keep the
+            // corresponding model and sprites resident while the player is
+            // alive, even when the model was loaded with an unload flag.
+            if(model_is_active_player(temp))
+            {
+                temp = getNextModel();
+                continue;
+            }
+
             if((temp->unload & 2))
             {
                 cache_model_sprites(temp, 0);
@@ -19979,7 +23915,11 @@ void unload_level()
     level_completed = 0;
     level_completed_defeating_boss = 0;
     tospeedup = 0;    // Reset so it sets to normal speed for the next level
-    for (i = 0; i < MAX_PLAYERS; i++) reached[i] = 0; // TYPE_ENDLEVEL values reset after level completed //4player
+    
+    for (i = 0; i < MAX_PLAYERS; i++){ 
+        reached[i] = false; // TYPE_ENDLEVEL values reset after level completed //4player
+    }
+    
     showtimeover = 0;
     _pause = 0;
     endgame = 0;
@@ -20798,6 +24738,8 @@ void load_level(char *filename)
             break;
         case CMD_LEVEL_UPDATESCRIPT:
         case CMD_LEVEL_UPDATEDSCRIPT:
+        case CMD_LEVEL_UPDATELOGICSCRIPT:
+        case CMD_LEVEL_UPDATEDLOGICSCRIPT:
         case CMD_LEVEL_KEYSCRIPT:
         case CMD_LEVEL_LEVELSCRIPT:
         case CMD_LEVEL_ENDLEVELSCRIPT:
@@ -20810,6 +24752,14 @@ void load_level(char *filename)
             case CMD_LEVEL_UPDATEDSCRIPT:
                 tempscript = &(level->updated_script);
                 scriptname = "levelupdatedscript";
+                break;
+            case CMD_LEVEL_UPDATELOGICSCRIPT:
+                tempscript = &(level->update_logic_script);
+                scriptname = "levelupdatelogicscript";
+                break;
+            case CMD_LEVEL_UPDATEDLOGICSCRIPT:
+                tempscript = &(level->updated_logic_script);
+                scriptname = "levelupdatedlogicscript";
                 break;
             case CMD_LEVEL_KEYSCRIPT:
                 tempscript = &(level->key_script);
@@ -20964,37 +24914,37 @@ void load_level(char *filename)
 
         case CMD_LEVEL_FACTION_GROUP_DAMAGE_DIRECT:
 
-            next.faction.damage_direct = faction_get_flags_from_arglist(&arglist);
+            next.faction.damage_direct = faction_get_flags_from_command_line(buf + pos);
             break;
 
         case CMD_LEVEL_FACTION_GROUP_DAMAGE_INDIRECT:
 
-            next.faction.damage_indirect = faction_get_flags_from_arglist(&arglist);
+            next.faction.damage_indirect = faction_get_flags_from_command_line(buf + pos);
             break;
 
         case CMD_LEVEL_FACTION_GROUP_HOSTILE:
 
-            next.faction.hostile = faction_get_flags_from_arglist(&arglist);
+            next.faction.hostile = faction_get_flags_from_command_line(buf + pos);
             break;
 
         case CMD_LEVEL_FACTION_GROUP_MEMBER:
 
-            next.faction.member = faction_get_flags_from_arglist(&arglist);
+            next.faction.member = faction_get_flags_from_command_line(buf + pos);
             break;
 
         case CMD_LEVEL_FACTION_TYPE_DAMAGE_DIRECT:
 
-            next.faction.type_damage_direct = get_type_from_arglist(&arglist);
+            next.faction.type_damage_direct = get_type_from_command_line(buf + pos);
             break;
 
         case CMD_LEVEL_FACTION_TYPE_DAMAGE_INDIRECT:
 
-            next.faction.type_damage_indirect = get_type_from_arglist(&arglist);
+            next.faction.type_damage_indirect = get_type_from_command_line(buf + pos);
             break;
 
         case CMD_LEVEL_FACTION_TYPE_HOSTILE:
 
-            next.faction.type_hostile = get_type_from_arglist(&arglist);
+            next.faction.type_hostile = get_type_from_command_line(buf + pos);
             break;
 
         case CMD_LEVEL_FLIP:
@@ -21021,10 +24971,15 @@ void load_level(char *filename)
             break;
         case CMD_LEVEL_SCORE:
             // So score can be overriden in the levels .txt file
-            next.score = GET_INT_ARG(1);
-            if(next.score == -1)
+            if(!command_argument_get_int64(GET_ARG(1), &next.score))
             {
-                next.score = 0;    // So negative values cannot be added
+                borShutdown(
+                    1,
+                    "Invalid signed 64-bit score '%s' in %s, line %d.\n",
+                    GET_ARG(1),
+                    filename,
+                    line
+                );
             }
             next.multiple = GET_INT_ARG(2);
             if(next.multiple == -1)
@@ -21356,7 +25311,7 @@ void load_level(char *filename)
         music(musicPath, 1, musicOffset);
     }
 
-    timeleft = level->settime * COUNTER_SPEED;    // Feb 24, 2005 - This line moved here to set custom time
+    timeleft = level->settime * global_config.counter_speed;    // Feb 24, 2005 - This line moved here to set custom time
     level->width = level->numpanels * panel_width;
 
     if(level->width < videomodes.hRes)
@@ -21606,7 +25561,7 @@ void pausemenu()
     int pauselector = 0;
     int quit = 0;
     int controlp = 0, i;
-    int newkeys;
+    key_mask_t newkeys;
     s_set_entry *set = levelsets + current_set;
     s_screen *pausebuffer = allocscreen(videomodes.hRes, videomodes.vRes, PIXEL_32);
 
@@ -21702,25 +25657,27 @@ unsigned getFPS(void)
 
 }
 
-void updatestatus()
-{
+void updatestatus() {
 
-    int dt;
-    int i;
+    uint64_t display_time;
+    uint64_t go_phase;
+    uint64_t i;
     s_model *model = NULL;
     s_set_entry *set = levelsets + current_set;
 
-    for(i = 0; i < set->maxplayers; i++)
-    {
-        if(player[i].ent)
-        {
-            ;
-        }
-        else if(player[i].joining && player[i].name[0])
-        {
+    for(i = 0; i < set->maxplayers; i++) {
+        
+        /*
+        * If the player is already in the game, do nothing. 
+        */        
+        if(player[i].ent) {    
+            continue;        
+        } 
+        
+        if(player[i].joining && player[i].name[0]) {
             model = findmodel(player[i].name);
-            if((player[i].playkeys & FLAG_ANYBUTTON || skipselect[i][0]) && !freezeall && !nojoin)    // Can't join while animations are frozen
-            {
+         
+            if((player[i].playkeys & FLAG_ANYBUTTON || skipselect[i][0]) && !freezeall && !nojoin) {   // Can't join while animations are frozen
                 player[i].lives = PLAYER_LIVES;            // to address new lives settings
                 player[i].joining = 0;
                 player[i].hasplayed = 1;
@@ -21733,38 +25690,47 @@ void updatestatus()
 
                 player[i].disablekeys = player[i].playkeys = player[i].newkeys = player[i].releasekeys = 0;
 
-                if(!nodropen)
-                {
+                if(!nodropen) {
                     drop_all_enemies();    //27-12-2004  If drop enemies is on, drop all enemies
                 }
 
-                if(!level->noreset)
-                {
-                    timeleft = level->settime * COUNTER_SPEED;    // Feb 24, 2005 - This line moved here to set custom time
+                if(!level->noreset) {
+                    timeleft = level->settime * global_config.counter_speed;    // Feb 24, 2005 - This line moved here to set custom time
                 }
 
-            }
-            else if(player[i].playkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT))
-            {
+            }  else if(player[i].playkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT)) {
+
+                /* PLayer model selection. */
+
                 model = ((player[i].playkeys & FLAG_MOVELEFT) ? prevplayermodeln : nextplayermodeln)(model, i);
                 strcpy(player[i].name, model->name);
 
                 player[i].colourmap = (colourselect && (set->nosame & 2)) ? nextcolourmapn(model, -1, i) : 0;
 
                 player[i].playkeys = 0;
-            }
-            // don't like a characters color try a new one!
-            else if(player[i].playkeys & (FLAG_MOVEUP | FLAG_MOVEDOWN) && colourselect)
-            {
+            
+            } else if(player[i].playkeys & (FLAG_MOVEUP | FLAG_MOVEDOWN) && colourselect) {
+
+                /* Player color seleciton. */
+
                 player[i].colourmap = ((player[i].playkeys & FLAG_MOVEUP) ? nextcolourmapn : prevcolourmapn)(model, player[i].colourmap, i);
 
                 player[i].playkeys = 0;
             }
-        }
-        else if( !nojoin && (player[i].credits || credits || (!player[i].hasplayed && noshare)) )
-        {
-            if(player[i].playkeys & FLAG_START)
-            {
+            
+            /*
+            * Player already joining. No reason to process 
+            * any downstream logic in the scan.
+            */
+            continue;
+        } 
+        
+        /*
+        * Begin joining when the player has access to a credit.
+        */
+        if( !nojoin && (player[i].credits || credits || (!player[i].hasplayed && noshare))) {
+            
+            if(player[i].playkeys & FLAG_START) {
                 player[i].lives = 0;
                 model = skipselect[i][0] ? findmodel(skipselect[i]) : nextplayermodeln(NULL, i);
                 strncpy(player[i].name, model->name, MAX_NAME_LEN);
@@ -21774,97 +25740,111 @@ void updatestatus()
                 player[i].joining = 1;
                 player[i].disablekeys = player[i].playkeys = player[i].newkeys = player[i].releasekeys = 0;
 
-                if(!level->noreset)
-                {
-                    timeleft = level->settime * COUNTER_SPEED;    // Feb 24, 2005 - This line moved here to set custom time
+                if(!level->noreset) {
+                    timeleft = level->settime * global_config.counter_speed;    // Feb 24, 2005 - This line moved here to set custom time
                 }
 
-                if(!player[i].hasplayed && noshare)
-                {
+                /*
+                * Player joining active game for first time
+                * and no credit sharing enabled. Start them
+                * with default number of continues before
+                * we deduct a credit from the player or global 
+                * pool.
+                */
+                if(!player[i].hasplayed && noshare) {
                     player[i].credits = CONTINUES;
                 }
 
-                if(!(global_config.cheats & CHEAT_OPTIONS_CREDITS_ACTIVE))
-                {
-                    if(noshare)
-                    {
-                        --player[i].credits;
-                    }
-                    else
-                    {
+                /*
+                * Subtract a credit from the player or global 
+                * pool if cheats are not enabled.
+                */
+                if(!(global_config.cheats & CHEAT_OPTIONS_CREDITS_ACTIVE))  {
+                    
+                    /*
+                    * If credit sharing, deduct from the global 
+                    * pool, otherwise deduct from the player. 
+                    */
+                    if(noshare) {
+                        --player[i].credits;                    
+                    } else {
                         --credits;
                     }
-                    if(set->continuescore == 1)
-                    {
+
+                    /*
+                    * If continuescore is set to 1, reset the
+                    * player's score to 0, otherwise if set to 2,
+                    * increment the player's score by 1.
+                    */
+                    if(set->continuescore == 1) {
                         player[i].score = 0;
                     }
-                    if(set->continuescore == 2)
-                    {
-                        player[i].score = player[i].score + 1;
+
+                    if(set->continuescore == 2) {
+                        if(player[i].score < UINT64_MAX) {
+                            player[i].score++;
+                        }
                     }
                 }
             }
         }
-    }// end of for
-
-    dt = timeleft / COUNTER_SPEED;
-    if(dt >= 99)
-    {
-        dt      = 99;
-        oldtime = 99;
-    }
-    if(dt <= 0)
-    {
-        dt      = 0;
-        oldtime = 99;
     }
 
-    if (is_total_timeover) timetoshow = 0;
-    else timetoshow = dt;
-
-    if(timetoshow < oldtime || oldtime == 0)
+    /* Get display time from time remaining and cap to 0 - 99 */
+    display_time = (timeleft / global_config.counter_speed);
+    
+    if(display_time >= 99) {
+        display_time      = 99;
+        oldtime = 99;
+    }
+    if(display_time <= 0)
     {
+        display_time      = 0;
+        oldtime = 99;
+    }
+
+    if (is_total_timeover){
+        timetoshow = 0;
+    } else {
+        timetoshow = display_time;
+    }
+
+    if(timetoshow < oldtime || oldtime == 0) {
         execute_timetick_script(timetoshow, go_time);
         oldtime = timetoshow;
     }
 
-    if(dt > 0 && !is_total_timeover)
-    {
+    if(display_time > 0 && !is_total_timeover) {
         showtimeover = 0;
     }
 
-    if(go_time > _time)
-    {
-        dt = (go_time - _time) % GAME_SPEED;
+    
 
-        if(dt < GAME_SPEED / 2)
-        {
+    if(go_time > _time) {
+        go_phase = (go_time - _time) % global_config.game_speed;
+
+        if(go_phase < global_config.game_speed / 2) {
             global_config.showgo = 1;
             screen_status |= IN_SCREEN_SHOW_GO_ARROW; //Kratus (04-2022) Added the "showgo" event accessible by script
             
-            if(gosound == 0 )
-            {
+            if(gosound == 0 ) {
 
-                if(global_sample_list.go >= 0)
-                {
+                if(global_sample_list.go >= 0) {
                     sound_play_sample(global_sample_list.go, 0, savedata.effectvol, savedata.effectvol, 100);    // 26-12-2004 Play go sample as arrow flashes
                 }
 
                 gosound = 1;                // 26-12-2004 Sets sample as already played - stops sample repeating too much
             }
-        }
-        else
-        {
+        
+        } else {
             global_config.showgo = gosound = 0;    //26-12-2004 Resets go sample after loop so it can be played again next time
             screen_status &= ~IN_SCREEN_SHOW_GO_ARROW; //Kratus (04-2022) Added the "showgo" event accessible by script
         }
-    }
-    else
-    {
+    
+    } else {
         global_config.showgo = 0;
         screen_status &= ~IN_SCREEN_SHOW_GO_ARROW; //Kratus (04-2022) Added the "showgo" event accessible by script
     }
-
 }
 
 
@@ -22038,65 +26018,422 @@ void draw_properties_entity(entity *entity, int offset_z, int color, s_drawmetho
     #undef OFFSET_LAYER
 }
 
-// Caskey, Damon V.
-// 2016-11-16
-//
-// Convert entity's world position to screen
-// position and draw a box.
-void draw_box_on_entity(entity *entity, int pos_x, int pos_y, int pos_z, int size_w, int size_h, int offset_z, int color, s_drawmethod *drawmethod)
-{
-    s_axis_plane_vertical_int   screen_offset;  // Base location calculated from screen offsets.
-    s_axis_plane_vertical_int   base_pos;       // Entity position with screen offsets applied.
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Screen-space debug box coordinates.
+*/
+typedef struct s_debug_draw_box {
+    s_axis_principal_int        position;
+    s_axis_plane_vertical_int   size;
+} s_debug_draw_box;
 
-    typedef struct
-    {
-        s_axis_principal_int        position;
-        s_axis_plane_vertical_int   size;
-    } draw_coords;
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Convert an entity-relative box into screen-space
+* draw coordinates.
+*/
+static void debug_box_get_screen_coordinates(entity* const target_entity,
+    const int pos_x,
+    const int pos_y,
+    const int pos_z,
+    const int size_w,
+    const int size_h,
+    const int offset_z,
+    s_debug_draw_box* const box) {
 
-    draw_coords box;
-    int far_x = 0;
-    int far_y = 0;
+    s_axis_plane_vertical_int screen_offset;
+    s_axis_plane_vertical_int base_pos;
 
-    // Get our base offsets from screen vs. location.
-    screen_offset.x = screenx - ((entity->modeldata.quake_config & QUAKE_CONFIG_DISABLE_SELF) ? 0 : gfx_x_offset);
-    screen_offset.y = screeny - ((entity->modeldata.quake_config & QUAKE_CONFIG_DISABLE_SELF) ? 0 : gfx_y_offset);
-
-    // Get entity position with screen offsets.
-    base_pos.x = entity->position.x - screen_offset.x;
-    base_pos.y = (entity->position.z - offset_z) - entity->position.y - screen_offset.y;
-
-    // Now apply drawing coords to position.
-    box.size.x = size_w - pos_x;
-
-    // Don't forget to accommodate for
-    // entity direction.
-    if(entity->direction == DIRECTION_RIGHT)
-    {
-        box.position.x = base_pos.x + pos_x;
-    }
-    else
-    {
-        box.position.x = base_pos.x - (box.size.x + pos_x);
+    /*
+    * Guard against invalid targets. The caller should
+    * already validate these, but keep this helper safe.
+    */
+    if (!target_entity || !box) {
+        return;
     }
 
-    box.position.y = base_pos.y + pos_y;
-    box.size.y = (base_pos.y + size_h) - box.position.y;
+    /*
+    * Get our base offsets from screen vs. world location.
+    */
+    screen_offset.x = screenx - ((target_entity->modeldata.quake_config & QUAKE_CONFIG_DISABLE_SELF) ? 0 : gfx_x_offset);
+    screen_offset.y = screeny - ((target_entity->modeldata.quake_config & QUAKE_CONFIG_DISABLE_SELF) ? 0 : gfx_y_offset);
 
-    box.position.z = pos_z + offset_z;
+    /*
+    * Convert entity world position to screen position.
+    */
+    base_pos.x = target_entity->position.x - screen_offset.x;
+    base_pos.y = (target_entity->position.z - offset_z) - target_entity->position.y - screen_offset.y;
 
+    /*
+    * Apply box coordinates.
+    */
+    box->size.x = size_w - pos_x;
+
+    /*
+    * Accommodate entity direction.
+    */
+    if (target_entity->direction == DIRECTION_RIGHT) {
+        box->position.x = base_pos.x + pos_x;
+    }
+    else {
+        box->position.x = base_pos.x - (box->size.x + pos_x);
+    }
+
+    box->position.y = base_pos.y + pos_y;
+    box->size.y = (base_pos.y + size_h) - box->position.y;
+    box->position.z = pos_z + offset_z;
+}
+
+/*
+* Convert an entity-relative box into screen-space coordinates,
+* then apply visual-only perspective offset while preserving
+* the requested draw layer.
+*/
+static void debug_box_get_screen_coordinates_at_layer(entity* const target_entity,
+    const int pos_x,
+    const int pos_y,
+    const int draw_layer,
+    const int size_w,
+    const int size_h,
+    const int visual_offset_x,
+    const int visual_offset_y,
+    s_debug_draw_box* const box) {
+
+    if (!box) {
+        return;
+    }
+
+    debug_box_get_screen_coordinates(
+        target_entity,
+        pos_x,
+        pos_y,
+        draw_layer,
+        size_w,
+        size_h,
+        0,
+        box);
+
+    box->position.x += visual_offset_x;
+    box->position.y += visual_offset_y;
+    box->position.z = draw_layer;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Draw a filled transparent debug box with a hard
+* one-pixel border in the same color.
+*/
+static void debug_box_draw_filled_with_border(const s_debug_draw_box* const box, const int color, s_drawmethod* const drawmethod) {
+    int far_x;
+    int far_y;
+
+    if (!box) {
+        return;
+    }
+
+    /*
+    * Draw the transparent fill first.
+    */
+    spriteq_add_box(
+        box->position.x,
+        box->position.y,
+        box->size.x,
+        box->size.y,
+        box->position.z,
+        color,
+        drawmethod);
+
+    /*
+    * Then draw a hard outline over the fill.
+    */
+    far_x = box->position.x + (box->size.x - 1);
+    far_y = box->position.y + box->size.y;
+
+    spriteq_add_line(box->position.x, box->position.y, far_x, box->position.y, box->position.z, color, NULL); /* Top. */
+    spriteq_add_line(box->position.x, far_y, far_x, far_y, box->position.z, color, NULL);                     /* Bottom. */
+    spriteq_add_line(box->position.x, box->position.y, box->position.x, far_y, box->position.z, color, NULL); /* Left. */
+    spriteq_add_line(far_x, box->position.y, far_x, far_y, box->position.z, color, NULL);                     /* Right. */
+}
+
+/*
+* Caskey, Damon V.
+* 2016-11-16
+*
+* Convert an entity-relative box to screen-space and
+* draw it as a transparent rectangle with a hard border.
+*/
+void draw_box_on_entity(entity* entity, int pos_x, int pos_y, int pos_z, int size_w, int size_h, int offset_z, int color, s_drawmethod* drawmethod) {
+    s_debug_draw_box box = { 0 };
+
+    debug_box_get_screen_coordinates(
+        entity,
+        pos_x,
+        pos_y,
+        pos_z,
+        size_w,
+        size_h,
+        offset_z,
+        &box);
+
+    debug_box_draw_filled_with_border(&box, color, drawmethod);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-06
+*
+* Draw a wireframe rectangle from prepared debug box coordinates.
+*/
+static void debug_box_draw_wireframe(const s_debug_draw_box* const box, const int color, s_drawmethod* const drawmethod) {
+    int left;
+    int right;
+    int top;
+    int bottom;
+    int layer;
+
+    if (!box) {
+        return;
+    }
+
+    left    = box->position.x;
+    top     = box->position.y;
+    right   = box->position.x + box->size.x - 1;
+    bottom  = box->position.y + box->size.y - 1;
+    layer   = box->position.z;
+
+    spriteq_add_line(left,  top,    right, top,    layer, color, drawmethod);
+    spriteq_add_line(right, top,    right, bottom, layer, color, drawmethod);
+    spriteq_add_line(right, bottom, left,  bottom, layer, color, drawmethod);
+    spriteq_add_line(left,  bottom, left,  top,    layer, color, drawmethod);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Draw a collision hitbox as a simple perspective cube.
+*
+* The entity's own Z position is the visual and draw-layer
+* anchor. Higher draw-layer values are closer to the screen.
+*
+* Background Z is drawn behind the entity's Z layer.
+* Foreground Z is drawn in front of the entity's Z layer.
+*
+* The screen-space perspective offset is intentionally
+* illustrative. It keeps the true X/Y extent centered around
+* the entity's Z position while making the depth readable.
+*
+* 2026-07-02: Disabled until debug menu option implemented.
+*/
+static void draw_collision_cube_on_entity(entity* const target_entity,
+    const s_hitbox* const coords,
+    const int color,
+    s_drawmethod* const drawmethod) {
+
+    s_debug_draw_box back_box = { 0 };
+    s_debug_draw_box front_box = { 0 };
+
+    int entity_z;
+    int z_background;
+    int z_foreground;
+    int z_depth;
+
+    int perspective_x_sign;
+    int perspective_offset_back;
+    int perspective_offset_front;
+    int back_layer;
+    int front_layer;
+
+    int back_left;
+    int back_right;
+    int back_top;
+    int back_bottom;
+
+    int front_left;
+    int front_right;
+    int front_top;
+    int front_bottom;
+
+    if (!target_entity || !coords) {
+        return;
+    }
+
+    entity_z = target_entity->position.z;
+
+    z_background = coords->z_background;
+    z_foreground = coords->z_foreground;
+
+    if (z_background < 0) {
+        z_background = 0;
+    }
+
+    if (z_foreground < 0) {
+        z_foreground = 0;
+    }
+
+    z_depth = z_background + z_foreground;
+
+    back_layer = entity_z - z_background;
+    front_layer = entity_z + z_foreground;
+
+    /*
+    * No depth - draw a wireframe rectangle only.
+    */
+    if (z_depth < 1) {
+        debug_box_get_screen_coordinates_at_layer(
+            target_entity,
+            coords->x,
+            coords->y,
+            entity_z + 1,
+            coords->width,
+            coords->height,
+            0,
+            0,
+            &front_box);
+
+        debug_box_draw_wireframe(&front_box, color, NULL);
+        return;
+    }
+
+    /*
+    * Visual-only perspective. Keep this independent from
+    * the true Z layer.
+    *
+    */
+    perspective_offset_back = z_background / 4;
+    perspective_offset_front = z_foreground / 4;
+
+    if (z_background > 0 && perspective_offset_back < 1) {
+        perspective_offset_back = 1;
+    }
+
+    if (z_foreground > 0 && perspective_offset_front < 1) {
+        perspective_offset_front = 1;
+    }
+
+    /*
+    * Mirror only the visual perspective X offset.
+    * The collision box coordinate conversion already handles
+    * entity direction, so do not modify coords->x or coords->width.
+    */
+    perspective_x_sign = (target_entity->direction == DIRECTION_RIGHT) ? 1 : -1;
     
+    /*
+    * Back face: projected from entity Z toward background.
+    * Front face: projected from entity Z toward foreground.
+    */
+    debug_box_get_screen_coordinates_at_layer(
+        target_entity,
+        coords->x,
+        coords->y,
+        back_layer,
+        coords->width,
+        coords->height,
+        perspective_offset_back * perspective_x_sign,
+        -perspective_offset_back,
+        &back_box);
 
-    // Add box to que.
-    spriteq_add_box(box.position.x, box.position.y, box.size.x, box.size.y, box.position.z, color, drawmethod);
+    debug_box_get_screen_coordinates_at_layer(
+        target_entity,
+        coords->x,
+        coords->y,
+        front_layer,
+        coords->width,
+        coords->height,
+        -perspective_offset_front * perspective_x_sign,
+        perspective_offset_front,
+        &front_box);
 
-    far_x = box.position.x + (box.size.x - 1);
-    far_y = box.position.y + box.size.y;
+    debug_box_draw_wireframe(&back_box, color, NULL);
+    debug_box_draw_wireframe(&front_box, color, NULL);
 
-    spriteq_add_line(box.position.x, box.position.y, far_x, box.position.y, box.position.z, color, NULL); // Top
-    spriteq_add_line(box.position.x, far_y, far_x, far_y, box.position.z, color, NULL); // Bottom
-    spriteq_add_line(box.position.x, box.position.y, box.position.x, far_y, box.position.z, color, NULL);
-    spriteq_add_line(far_x, box.position.y, far_x, far_y, box.position.z, color, NULL);    
+    back_left   = back_box.position.x;
+    back_top    = back_box.position.y;
+    back_right  = back_box.position.x + back_box.size.x - 1;
+    back_bottom = back_box.position.y + back_box.size.y - 1;
+
+    front_left   = front_box.position.x;
+    front_top    = front_box.position.y;
+    front_right  = front_box.position.x + front_box.size.x - 1;
+    front_bottom = front_box.position.y + front_box.size.y - 1;
+
+    /*
+    * Connector lines use the front layer so they remain visible.
+    */
+    spriteq_add_line(back_left,  back_top,    front_left,  front_top,    front_layer, color, NULL);
+    spriteq_add_line(back_right, back_top,    front_right, front_top,    front_layer, color, NULL);
+    spriteq_add_line(back_left,  back_bottom, front_left,  front_bottom, front_layer, color, NULL);
+    spriteq_add_line(back_right, back_bottom, front_right, front_bottom, front_layer, color, NULL);
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Draw every active collision box in a collection
+* for visual debug output.
+*/
+static void draw_visual_collision_collection(entity* const target_entity,
+    const s_collision_collection* const collection,
+    const int color,
+    s_drawmethod* const drawmethod,
+    const e_debug_display flat_bit,
+    const e_debug_display projected_bit) {
+
+    const s_collision_instance* collision = NULL;
+    const s_hitbox* coords = NULL;
+    uint64_t active_status;
+    int collision_index;
+
+    if (!target_entity || !collection || !collection->active_status) {
+        return;
+    }
+
+    active_status = collection->active_status;
+
+    while (active_status) {
+        collision_index = collision_get_lowest_active_index(active_status);
+        active_status &= active_status - 1;
+
+        collision = collection->slots[collision_index];
+
+        if (!collision) {
+            continue;
+        }
+
+        coords = &collision->coords;
+
+        if (!collision_check_has_coords(coords)) {
+            continue;
+        }
+
+        if (savedata.debuginfo & flat_bit) {
+            draw_box_on_entity(
+                target_entity,
+                coords->x,
+                coords->y,
+                target_entity->position.z + 1,
+                coords->width,
+                coords->height,
+                2,
+                color,
+                drawmethod);
+        }
+
+        if (savedata.debuginfo & projected_bit) {
+            draw_collision_cube_on_entity(
+                target_entity,
+                coords,
+                color,
+                drawmethod);
+        }
+    }
 }
 
 /*
@@ -22105,102 +26442,136 @@ void draw_box_on_entity(entity *entity, int pos_x, int pos_y, int pos_z, int siz
 * 
 * Draw collision on screen as visual boxes.
 */
-void draw_visual_debug()
-{
+void draw_visual_debug(void) {
     #define LOCAL_COLOR_BLUE        _makecolour(0, 0, 255)
     #define LOCAL_COLOR_GREEN       _makecolour(0, 255, 0)
     #define LOCAL_COLOR_MAGENTA     _makecolour(255, 0, 255)
     #define LOCAL_COLOR_WHITE       _makecolour(255, 255, 255)
 
-    int i;
-    s_hitbox            *coords;
-    s_drawmethod        drawmethod = plainmethod;
-    entity              *entity;
+    int entity_index;
+    int range_y_min = 0;
+    int range_y_max = 0;
+    int animation_frame = 0;
 
-    s_collision_attack* collision_attack_cursor;
-    s_collision_body* collision_body_cursor;
-
-	int range_y_min = 0;
-	int range_y_max = 0;
+    s_drawmethod drawmethod = plainmethod;
+    s_collision_collection* collection = NULL;
+    entity* target_entity = NULL;
 
     drawmethod.alpha = BLEND_MODE_ALPHA;
 
-    for(i=0; i<ent_max; i++)
-    {
-        entity = ent_list[i];
+    for (entity_index = 0; entity_index < ent_max; entity_index++) {
+        target_entity = ent_list[entity_index];
 
-        // Entity must exist.
-        if(!entity)
-        {
+        /*
+        * Entity must exist.
+        */
+        if (!target_entity) {
             continue;
         }
 
-        // Entity must be alive.
-        if(entity->death_state & DEATH_STATE_DEAD)
-        {
+        /*
+        * Entity must be alive.
+        */
+        if (target_entity->death_state & DEATH_STATE_DEAD) {
             continue;
         }
 
-        // Basic properties (Name, position, HP, etc.).
-        if(savedata.debuginfo & DEBUG_DISPLAY_PROPERTIES)
-        {
-            draw_properties_entity(entity, 0, LOCAL_COLOR_WHITE, NULL);
+        /*
+        * Most visual debug drawing depends on animation
+        * frame data.
+        */
+        if (!target_entity->animation) {
+            continue;
         }
 
-        // Range debug requested?
-        if(savedata.debuginfo & DEBUG_DISPLAY_RANGE)
-        {
-			// Range is calculated a bit differently than body/attack 
-			// boxes, which is what the draw_box_on_entity() funciton
-			// is meant for. For Y axis, We need to invert the value, 
-			// and place them in opposiing parameters (Max Y into 
-			// function's min Y parameter, and and min Y into function's
-			// max Y parameter).
+        animation_frame = target_entity->animpos;
 
-			range_y_min =  -entity->animation->range.y.min;
-			range_y_max =  -entity->animation->range.y.max;
-			
-            draw_box_on_entity(entity, entity->animation->range.x.min, range_y_max, entity->position.z+1, entity->animation->range.x.max, range_y_min, -1, LOCAL_COLOR_GREEN, &drawmethod);
-        }        
-
-        /* Collision attack debug requested? */
-        if(savedata.debuginfo & DEBUG_DISPLAY_COLLISION_ATTACK)
-        {
-            /* Animation has collision? */
-            if(entity->animation->collision_attack)
-            {
-                collision_attack_cursor = entity->animation->collision_attack[entity->animpos];
-
-                while (collision_attack_cursor != NULL)
-                {                    
-                    coords = collision_attack_cursor->coords;
-                    draw_box_on_entity(entity, coords->x, coords->y, entity->position.z + 1, coords->width, coords->height, 2, LOCAL_COLOR_MAGENTA, &drawmethod);                    
-
-                    collision_attack_cursor = collision_attack_cursor->next;
-                }
-
-                collision_attack_cursor = NULL;
-            }
+        /*
+        * Protect collision frame table lookups.
+        */
+        if (animation_frame < 0 || animation_frame >= target_entity->animation->numframes) {
+            continue;
         }
 
-        /* Collision body debug requested? */
-        if (savedata.debuginfo & DEBUG_DISPLAY_COLLISION_BODY)
-        {
-            /* Animation has collision? */
-            if (entity->animation->collision_body)
-            {
-                collision_body_cursor = entity->animation->collision_body[entity->animpos];
+        /*
+        * Basic properties: name, position, HP, etc.
+        */
+        if (savedata.debuginfo & DEBUG_DISPLAY_PROPERTIES) {
+            draw_properties_entity(target_entity, 0, LOCAL_COLOR_WHITE, NULL);
+        }
 
-                while (collision_body_cursor != NULL)
-                {
-                    coords = collision_body_cursor->coords;
-                    draw_box_on_entity(entity, coords->x, coords->y, entity->position.z + 1, coords->width, coords->height, 2, LOCAL_COLOR_BLUE, &drawmethod);
+        /*
+        * Range debug requested?
+        */
+        if (savedata.debuginfo & DEBUG_DISPLAY_RANGE) {
 
-                    collision_body_cursor = collision_body_cursor->next;
-                }
+            /*
+            * Range is calculated a bit differently than
+            * body/attack boxes. For Y axis, invert the
+            * value and place min/max into the opposite
+            * drawing parameters.
+            */
+            range_y_min = -target_entity->animation->range.y.min;
+            range_y_max = -target_entity->animation->range.y.max;
 
-                collision_body_cursor = NULL;
-            }
+            draw_box_on_entity(
+                target_entity,
+                target_entity->animation->range.x.min,
+                range_y_max,
+                target_entity->position.z + 1,
+                target_entity->animation->range.x.max,
+                range_y_min,
+                -1,
+                LOCAL_COLOR_GREEN,
+                &drawmethod);
+        }
+
+        /*
+        * Collision attack debug requested?
+        */
+        if ((savedata.debuginfo & (DEBUG_DISPLAY_COLLISION_ATTACK_2D | DEBUG_DISPLAY_COLLISION_ATTACK_3D))
+            && target_entity->animation->collision_attack) {
+
+            collection = target_entity->animation->collision_attack[animation_frame];
+
+            draw_visual_collision_collection(
+                target_entity,
+                collection,
+                LOCAL_COLOR_MAGENTA,
+                &drawmethod,
+                DEBUG_DISPLAY_COLLISION_ATTACK_2D,
+                DEBUG_DISPLAY_COLLISION_ATTACK_3D);
+        }
+
+        /*
+        * Collision body debug requested?
+        */
+        if ((savedata.debuginfo & (DEBUG_DISPLAY_COLLISION_BODY_2D | DEBUG_DISPLAY_COLLISION_BODY_3D))
+            && target_entity->animation->collision_body) {
+
+            collection = target_entity->animation->collision_body[animation_frame];
+
+            draw_visual_collision_collection(
+                target_entity,
+                collection,
+                LOCAL_COLOR_BLUE,
+                &drawmethod,
+                DEBUG_DISPLAY_COLLISION_BODY_2D,
+                DEBUG_DISPLAY_COLLISION_BODY_3D);
+        }
+
+        if ((savedata.debuginfo & (DEBUG_DISPLAY_COLLISION_SPACE_2D | DEBUG_DISPLAY_COLLISION_SPACE_3D))
+            && target_entity->animation->collision_space) {
+
+            collection = target_entity->animation->collision_space[animation_frame];
+
+            draw_visual_collision_collection(
+                target_entity,
+                collection,
+                LOCAL_COLOR_GREEN,
+                &drawmethod,
+                DEBUG_DISPLAY_COLLISION_SPACE_2D,
+                DEBUG_DISPLAY_COLLISION_SPACE_3D);
         }
     }
 
@@ -22216,7 +26587,7 @@ void predrawstatus()
 
     int icon = 0;
     int i;
-    unsigned long tmp;
+    uint64_t tmp;
     s_set_entry *set = levelsets + current_set;
     s_model *model = NULL;
     s_drawmethod drawmethod = plainmethod;
@@ -22237,13 +26608,13 @@ void predrawstatus()
             tmp = player[i].score; //work around issue on 64bit where sizeof(long) != sizeof(int)
             if(!pscore[i][2] && !pscore[i][3] && !pscore[i][4] && !pscore[i][5])
             {
-                font_printf(videomodes.shiftpos[i] + pscore[i][0], savedata.windowpos + pscore[i][1], pscore[i][6], 0, (scoreformat ? "%s - %09lu" : "%s - %lu"), (char *)(player[i].ent->name), tmp);
+                font_printf(videomodes.shiftpos[i] + pscore[i][0], savedata.windowpos + pscore[i][1], pscore[i][6], 0, (scoreformat ? "%s - %09" PRIu64 : "%s - %" PRIu64), (char *)(player[i].ent->name), tmp);
             }
             else
             {
                 font_printf(videomodes.shiftpos[i] + pscore[i][0], savedata.windowpos + pscore[i][1], pscore[i][6], 0, "%s", player[i].ent->name);
                 font_printf(videomodes.shiftpos[i] + pscore[i][2], savedata.windowpos + pscore[i][3], pscore[i][6], 0, "-");
-                font_printf(videomodes.shiftpos[i] + pscore[i][4], savedata.windowpos + pscore[i][5], pscore[i][6], 0, (scoreformat ? "%09lu" : "%lu"), tmp);
+                font_printf(videomodes.shiftpos[i] + pscore[i][4], savedata.windowpos + pscore[i][5], pscore[i][6], 0, (scoreformat ? "%09" PRIu64 : "%" PRIu64), tmp);
             }
 
             if(player[i].ent->energy_state.health_current <= 0)
@@ -22392,15 +26763,15 @@ void predrawstatus()
         }
         else if(player[i].credits || credits || (!player[i].hasplayed && noshare))
         {
-            if(player[i].credits && ((_time / (GAME_SPEED * 2)) & 1))
+            if(player[i].credits && ((_time / (global_config.game_speed * 2)) & 1))
             {
                 font_printf(videomodes.shiftpos[i] + pnameJ[i][4], savedata.windowpos + pnameJ[i][5], pnameJ[i][6], 0, Tr("Credit %i"), player[i].credits);
             }
-            else if(credits && ((_time / (GAME_SPEED * 2)) & 1))
+            else if(credits && ((_time / (global_config.game_speed * 2)) & 1))
             {
                 font_printf(videomodes.shiftpos[i] + pnameJ[i][4], savedata.windowpos + pnameJ[i][5], pnameJ[i][6], 0, Tr("Credit %i"), credits);
             }
-            else if(!player[i].hasplayed  && ((_time / (GAME_SPEED * 2)) & 1))
+            else if(!player[i].hasplayed  && ((_time / (global_config.game_speed * 2)) & 1))
             {
                 int showcredits = (!noshare) ? credits : CONTINUES;
 
@@ -22576,15 +26947,15 @@ void drawstatus()
 
 void update_loading(s_loadingbar *s,  int value, int max)
 {
-    static unsigned int lasttick = 0;
-    static unsigned int soundtick = 0;
-    static unsigned int keybtick = 0;
+    static uint64_t lasttick = 0;
+    static uint64_t soundtick = 0;
+    static uint64_t keybtick = 0;
     int pos_x = s->bar_position.x + videomodes.hShift;
     int pos_y = s->bar_position.y + videomodes.vShift;
     int size_x = s->bsize;
     int text_x = s->text_position.x + videomodes.hShift;
     int text_y = s->text_position.y + videomodes.vShift;
-    unsigned int ticks = timer_gettick();
+    uint64_t ticks = timer_gettick();
 
     if(ticks - soundtick > 20)
     {
@@ -22642,10 +27013,21 @@ void update_loading(s_loadingbar *s,  int value, int max)
     }
 }
 
-void addscore(int playerindex, int add)
+/*
+* Caskey, Damon V.
+* 2026-08-20
+*
+* Apply a signed 64-bit score adjustment to an unsigned
+* player score. Saturate at zero or UINT64_MAX, award
+* crossed life thresholds without an unbounded loop, and
+* execute the player's score script.
+*/
+void addscore(int playerindex, int64_t add)
 {
-    unsigned int s = 0;
-    unsigned int next1up = 0;
+    uint64_t add_magnitude = 0;
+    uint64_t life_awards = 0;
+    uint64_t old_score = 0;
+    uint64_t s = 0;
     ScriptVariant var; // used for execute script
     Script *cs;
 
@@ -22656,28 +27038,56 @@ void addscore(int playerindex, int add)
 
     playerindex &= 3;
 
-    s = player[playerindex].score;
+    old_score = player[playerindex].score;
+    s = old_score;
     cs = score_script + playerindex;
 
-    if (lifescore > 0) next1up = ((s / lifescore) + 1) * lifescore;
-	else lifescore = 0;
-
-    s += add;
-    if(s > 999999999)
+    if(add >= 0)
     {
-        s = 999999999;
+        add_magnitude = (uint64_t)add;
+
+        if(add_magnitude > UINT64_MAX - s)
+        {
+            s = UINT64_MAX;
+        }
+        else
+        {
+            s += add_magnitude;
+        }
+    }
+    else
+    {
+        add_magnitude = add == INT64_MIN
+            ? (uint64_t)INT64_MAX + UINT64_C(1)
+            : (uint64_t)-add;
+
+        s = add_magnitude > s ? 0 : s - add_magnitude;
     }
 
-    while(s > next1up)
+    /*
+    * Preserve the legacy strict threshold comparison: a
+    * life is awarded only after score exceeds the boundary.
+    */
+    if(lifescore > 0 && s > old_score)
     {
+        life_awards = ((s - 1) / lifescore) - (old_score / lifescore);
+    }
 
+    if(life_awards > 0)
+    {
         if(global_sample_list.one_up >= 0)
         {
             sound_play_sample(global_sample_list.one_up, 0, savedata.effectvol, savedata.effectvol, 100);
         }
 
-        player[playerindex].lives++;
-        next1up += lifescore;
+        if(life_awards > UINT64_MAX - player[playerindex].lives)
+        {
+            player[playerindex].lives = UINT64_MAX;
+        }
+        else
+        {
+            player[playerindex].lives += life_awards;
+        }
     }
 
     player[playerindex].score = s;
@@ -22686,13 +27096,15 @@ void addscore(int playerindex, int add)
     if(Script_IsInitialized(cs))
     {
         ScriptVariant_Init(&var);
-        ScriptVariant_ChangeType(&var, VT_INTEGER);
-        var.lVal = (LONG)add;
+        ScriptVariant_ChangeType(&var, VT_INTEGER64);
+        var.llVal = add;
         Script_Set_Local_Variant(cs, "score", &var);
         Script_Execute(cs);
         ScriptVariant_Clear(&var);
         Script_Set_Local_Variant(cs, "score", &var);
     }
+
+    execute_score_script_all(playerindex, add);
 }
 
 
@@ -22702,51 +27114,40 @@ void addscore(int playerindex, int add)
 
 void free_ent(entity *e)
 {
-    if(!e)
-    {
+    if(!e) {
         return;
     }
+
+    recursive_effect_free_collection(e);
+
     clear_all_scripts(e->scripts, 2);
     free_all_scripts(&e->scripts);
 
     // Item properties.
-    if(e->item_properties)
-    {
+    if(e->item_properties) {
         free(e->item_properties);
         e->item_properties = NULL;
     }
 
-	// Recursive damage (damage over time).
-	if (e->recursive_damage)
-	{
-		recursive_damage_free_list(e->recursive_damage);
-		e->recursive_damage = NULL;
-	}
-
-    if(e->waypoints)
-    {
+    if(e->waypoints) {
         free(e->waypoints);
         e->waypoints = NULL;
     }
-    if(e->defense)
-    {
+    if(e->defense) {
         defense_free_object(e->defense);
         e->defense = NULL;
     }
-    if(e->offense)
-    {
+    if(e->offense) {
         offense_free_object(e->offense);
         e->offense = NULL;
     }
 
-	if (e->drawmethod)
-	{
+	if (e->drawmethod) {
 		free(e->drawmethod);
 		e->drawmethod = NULL;
 	}
 
-    if(e->varlist)
-    {
+    if(e->varlist) {
         // Although free_ent will be only called once when the engine is shutting down,
         // just clear those in case we forget something
         Varlist_Clear(e->varlist);
@@ -22846,12 +27247,12 @@ int is_walking(int iAni)
 // 2019-02-09
 //
 // Rewritten for greater readability.
-static bool common_anim_series(entity *ent, e_animations *alterates, int max_alternates, int force_mode, e_animations default_animation)
+static bool common_anim_series(entity *ent, const animation_id_t *alterates, int max_alternates, int force_mode, animation_id_t default_animation)
 {
 	int i;						// Loop cursor.
 	int loop_min;							
 	int loop_max;							
-	e_animations animation_id;	// Animation to apply.
+	animation_id_t animation_id;	// Animation to apply.
 	
 	// If we have a forced mode, we'll use it to constrict
 	// loop options to just the forced mode.
@@ -23085,7 +27486,7 @@ void ent_default_init(entity *e)
     case TYPE_ANY:
     case TYPE_NO_COPY:
     case TYPE_RESERVED:
-	case TYPE_UNDELCARED:
+	case TYPE_UNDECLARED:
 	case TYPE_UNKNOWN:
 		//Do nothing.
         break;
@@ -23464,45 +27865,149 @@ void ent_summon_ent(entity *ent)
 
 /*
 * Caskey, Damon V.
-* Unknown date (~2008)
-* 
-* Get final delay.
+* 2026-08-06
+*
+* Add a duration to an animation timestamp without entering
+* the bit-63 behavior range. An infinite operand propagates
+* the canonical infinite flag. Finite overflow stops at the
+* largest timestamp below that flag.
 */
-int calculate_edelay(entity *ent, int frame)
-{
-    int result;
-    int cap_min;
-    int cap_max; 
-    int range_min;
-    int range_max;
-
-    s_anim *anim = ent->animation;
-
-    range_min = ent->modeldata.edelay.range.min;
-    range_max = ent->modeldata.edelay.range.max;
-
-    result = anim->delay[frame];
-
-    if (result >= range_min && result <= range_max) //Regular delay within ignore ranges?
-    {
-        result = (int)(result * ent->modeldata.edelay.factor);
-        result += ent->modeldata.edelay.modifier;            
-
-        cap_min = ent->modeldata.edelay.cap.min;
-        cap_max = ent->modeldata.edelay.cap.max;
-
-        if (result < cap_min)
-        {
-            result = cap_min;
-        }
-        
-        if (result > cap_max)
-        {
-            result = cap_max;
-        }
+static uint64_t animation_timestamp_add_bounded(
+    const uint64_t left,
+    const uint64_t right
+) {
+    if((left & DELAY_FLAG_INFINITE)
+        || (right & DELAY_FLAG_INFINITE)) {
+        return DELAY_INFINITE;
     }
 
-    return result;
+    if(left > DELAY_TIMESTAMP_MAX
+        || right > DELAY_TIMESTAMP_MAX
+        || right > DELAY_TIMESTAMP_MAX - left) {
+        return DELAY_TIMESTAMP_MAX;
+    }
+
+    return left + right;
+}
+
+/*
+* Convert an encoded frame delay into its absolute next-frame
+* timestamp. Behavior bits do not enter clock arithmetic.
+*/
+static uint64_t animation_timestamp_from_delay(
+    const uint64_t current_time,
+    const uint64_t encoded_delay
+) {
+    if(encoded_delay & DELAY_FLAG_INFINITE) {
+        return DELAY_INFINITE;
+    }
+
+    return animation_timestamp_add_bounded(
+        current_time,
+        encoded_delay & DELAY_VALUE_MASK
+    );
+}
+
+/*
+* Multiply a finite delay without exceeding the reserved
+* 32-bit range or creating DELAY_INFINITE by overflow.
+*/
+static uint64_t delay_multiply_bounded(
+    const uint64_t left,
+    const uint64_t right
+) {
+    if(!left || !right) {
+        return 0;
+    }
+
+    if(left > DELAY_FINITE_MAX
+        || right > DELAY_FINITE_MAX
+        || right > DELAY_FINITE_MAX / left) {
+        return DELAY_FINITE_MAX;
+    }
+
+    return left * right;
+}
+
+/*
+* Caskey, Damon V.
+* Unknown date (~2008)
+*
+* Get final delay. Revised 2026-08-06 for unsigned
+* 64-bit encoded delays, preserved behavior flags, and
+* bounded enhanced-delay arithmetic.
+*/
+uint64_t calculate_edelay(const entity* const acting_entity, const uint64_t frame) {
+    const s_anim* const animation = acting_entity->animation;
+    const s_edelay* const edelay = &acting_entity->modeldata.edelay;
+
+    const uint64_t encoded_delay = animation->delay[frame];
+
+    const uint64_t behavior_flags =
+        encoded_delay & DELAY_BEHAVIOR_MASK;
+
+    const uint64_t delay =
+        encoded_delay & DELAY_VALUE_MASK;
+
+    long double result;
+
+    /*
+    * Return delay as-is if it falls outside
+    * of the range defined in the entity's
+    * edelay structure.  This allows for
+    * certain frames to be exempt from the
+    * edelay calculations.
+    */
+    if(edelay->range.max < 0
+        || (edelay->range.min > 0
+            && delay < (uint64_t)edelay->range.min)
+        || delay > (uint64_t)edelay->range.max) {
+        return behavior_flags | delay;
+    }
+
+    /*
+    * Apply percentage and static delay 
+    * modifier.
+    */
+    result = (long double)delay
+        * (long double)edelay->factor
+        + (long double)edelay->modifier;
+
+    /*
+    * Preserve the unmodified delay if a script supplied
+    * a non-number multiplier.
+    */
+    if(result != result) {
+        return behavior_flags | delay;
+    }
+
+    /*
+    * Cap results.
+    */
+
+    if(result < (long double)edelay->cap.min) {
+        result = (long double)edelay->cap.min;
+    }
+
+    if(result > (long double)edelay->cap.max) {
+        result = (long double)edelay->cap.max;
+    }
+
+    /*
+    * Edelay configuration remains signed so negative
+    * modifiers and caps retain their legacy meaning.
+    * Final value bits cannot leave the finite 32-bit
+    * range. Behavior bits remain unchanged.
+    */
+    if(result <= 0.0L) {
+        return behavior_flags;
+    }
+
+    if(result >= (long double)DELAY_FINITE_MAX) {
+        return behavior_flags | DELAY_FINITE_MAX;
+    }
+
+    return behavior_flags | (uint64_t)result;
 }
 
 /*
@@ -23514,7 +28019,7 @@ int calculate_edelay(entity *ent, int frame)
 * designated jump frame. Also spawns effect
 * entity if one is defined.
 */
-bool check_jumpframe(entity * const acting_entity, const unsigned int frame)
+bool check_jumpframe(entity * const acting_entity, const uint64_t frame)
 {
     if (!acting_entity || !acting_entity->animation)
     {
@@ -23571,11 +28076,10 @@ bool check_jumpframe(entity * const acting_entity, const unsigned int frame)
 }
 
 // move here to prevent some duplicated code in ent_sent_anim and update_ents
-void update_frame(entity *ent, unsigned int f)
+void update_frame(entity *ent, uint64_t f)
 {
     entity *tempself;
     s_attack attack = emptyattack;
-    s_defense* defense_object = NULL;
     s_axis_principal_float move;
     s_anim *anim = ent->animation;
 
@@ -23593,7 +28097,10 @@ void update_frame(entity *ent, unsigned int f)
 
     if(self->animating)
     {
-        if (self->nextanim != DELAY_INFINITE) { self->nextanim = _time + calculate_edelay(self, f); }
+        self->nextanim = animation_timestamp_from_delay(
+            _time,
+            calculate_edelay(self, f)
+        );
 
         self->pausetime = 0;
         execute_animation_script(self);
@@ -23644,7 +28151,7 @@ void update_frame(entity *ent, unsigned int f)
 
     if(anim->weaponframe && anim->weaponframe[0] == f)
     {
-        dropweapon(2);
+        dropweapon(self, 2);
         set_weapon(self, anim->weaponframe[1], 0);
         if(!anim->weaponframe[2])
         {
@@ -23683,13 +28190,12 @@ void update_frame(entity *ent, unsigned int f)
             attack.dropv = default_model_dropv;
             attack.attack_force = self->energy_state.health_current;
             attack.attack_type = ATK_SUB_ENTITY_UNSUMMON;
-            if(self->takedamage)
-            {
-                defense_object = defense_find_current_object(self, NULL, attack.attack_type);
-                self->takedamage(self, &attack, 0, defense_object);
-            }
-            else
-            {
+            
+            if(self->takedamage) {
+                const s_defense* defense_object = defense_find_current_object(self, NULL, attack.attack_type);
+                self->takedamage(self, self, &attack, 0, defense_object);
+            
+            } else {
                 kill_entity(self, KILL_ENTITY_TRIGGER_UNSUMMON);
             }
             self = ent; // lol ...
@@ -23718,9 +28224,9 @@ void update_frame(entity *ent, unsigned int f)
         child_spawn_execute_list(anim->child_spawn[f], ent);
     }
 
-    if(anim->soundtoplay && anim->soundtoplay[f] >= 0)
+    if(anim->sound)
     {
-        sound_play_sample(anim->soundtoplay[f], 0, savedata.effectvol, savedata.effectvol, 100);
+        frame_sound_execute_collection(anim->sound[f], ent->unique_id);
     }
 
     // Perform jumping if on a jumpframe.
@@ -23792,67 +28298,66 @@ uf_interrupted:
 }
 
 
-void ent_set_anim(entity *ent, int aninum, int resetable)
-{
+void ent_set_anim(entity *acting_entity, animation_id_t aninum, int resetable) {
+
     s_anim *ani = NULL;
     int animpos;
 
-    if(!ent)
-    {
+    if(!acting_entity) {
         //printf("FATAL: tried to set animation with invalid address (no such object)");
         return;
     }
 
-    if(aninum < 0 || aninum >= max_animations)
-    {
+    if(aninum >= max_animations) {
         //printf("FATAL: tried to set animation with invalid index (%s, %i)", ent->name, aninum);
         return;
     }
 
-    if(!validanim(ent, aninum))
-    {
-        //printf("FATAL: tried to set animation with invalid address (%s, %i)", ent->name, aninum);
+    if(!validanim(acting_entity, aninum)) {
+        //printf("FATAL: tried to set animation with invalid address (%s, %i)", acting_entity->name, aninum);
         return;
     }
 
-    ani = ent->modeldata.animation[aninum];
+    ani = acting_entity->modeldata.animation[aninum];
 
-    if(!resetable && ent->animation == ani)
-    {
+    /*
+    * If reset flag is not enabled and the entity 
+    * is already on the requested animation, then
+    * just bail.
+    */
+    if(!resetable && acting_entity->animation == ani) {
         return;
     }
 
-    if(ani->numframes == 0)
-    {
+    if(ani->numframes == 0) {
         return;
     }
 
-    if(ent->animation && ((resetable & 2) || (ani->sync >= 0 && ent->animation->sync == ani->sync)))
-    {
-        animpos = ent->animpos;
-        if(animpos >= ani->numframes)
-        {
+    if(acting_entity->animation && ((resetable & 2) || (ani->sync >= 0 && acting_entity->animation->sync == ani->sync))) {
+        animpos = acting_entity->animpos;
+        
+        if(animpos >= ani->numframes) {
             animpos = 0;
         }
-        ent->animnum_previous = ent->animnum;
-        ent->animnum = aninum;
-        ent->animation = ani;
-        ent->animpos = animpos;
-        ent->walking = 0;
-    }
-    else
-    {
-        ent->animnum_previous = ent->animnum;
-        ent->animnum = aninum;    // Stored for nocost usage
-        ent->animation = ani;
-        ent->animation->hit_count = 0;
+        
+        acting_entity->animnum_previous = acting_entity->animnum;
+        acting_entity->animnum = aninum;
+        acting_entity->animation = ani;
+        acting_entity->animpos = animpos;
+        acting_entity->walking = false;
+    
+    } else {
+        acting_entity->animnum_previous = acting_entity->animnum;
+        acting_entity->animnum = aninum;    // Stored for nocost usage
+        acting_entity->animation = ani;
+        acting_entity->animation->hit_count = 0;
 
-        ent->animating = ANIMATING_FORWARD;
-        ent->lasthit = ent->grabbing;
-        ent->altbase = 0;
-        ent->walking = 0;
+        acting_entity->animating = ANIMATING_FORWARD;
+        acting_entity->lasthit = acting_entity->grabbing;
+        acting_entity->altbase = 0;
+        acting_entity->walking = false;
 
-        update_frame(ent, 0);
+        update_frame(acting_entity, 0);
     }
 }
 
@@ -23869,7 +28374,7 @@ unsigned char *model_get_colourmap(s_model *model, unsigned which)
 }
 
 // 0 = none, 1+ = alternative
-void ent_set_colourmap(entity *ent, unsigned int which)
+void ent_set_colourmap(entity *ent, uint64_t which)
 {
     if(which > ent->modeldata.maps_loaded)
     {
@@ -23970,7 +28475,10 @@ void ent_set_model(entity *ent, char *modelname, int syncAnim)
             ent->animpos = ent->animation->numframes - 1;
         }
 
-        if (ent->nextanim != DELAY_INFINITE) { ent->nextanim = _time + calculate_edelay(ent, ent->animpos); }
+        ent->nextanim = animation_timestamp_from_delay(
+            _time,
+            calculate_edelay(ent, ent->animpos)
+        );
 
         
         //update_frame(ent, ent->animpos);
@@ -24077,6 +28585,24 @@ s_sub_entity *allocate_sub_entity()
 	return result;
 }
 
+/*
+* Caskey, Damon V.
+* 2026-08-08
+*
+* Return the next process-lifetime entity instance ID.
+* Zero and UINT64_MAX remain reserved for no-owner and
+* wildcard selectors respectively.
+*/
+static uint64_t entity_unique_id_next(void) {
+    entity_unique_id_counter++;
+
+    if(entity_unique_id_counter == ENTITY_UNIQUE_ID_ALL) {
+        entity_unique_id_counter = UINT64_C(1);
+    }
+
+    return entity_unique_id_counter;
+}
+
 entity *spawn(const float pos_x, const float pos_z, const float pos_y, const e_direction direction, char *model_name, const int model_index, s_model* model_pointer)
 {
     entity *acting_entity = NULL;
@@ -24148,8 +28674,12 @@ entity *spawn(const float pos_x, const float pos_z, const float pos_y, const e_d
                 free(acting_entity->waypoints);
             }
 
+            /* Just to make the recrusive collection is free. */
+            recursive_effect_free_collection(acting_entity);
+
             scripts = acting_entity->scripts;
             memset(acting_entity, 0, sizeof(*acting_entity));
+            acting_entity->unique_id = entity_unique_id_next();
             
 			// e->drawmethod = plainmethod;
             acting_entity->drawmethod = allocate_drawmethod();
@@ -24252,15 +28782,15 @@ void kill_entity(entity *victim, e_kill_entity_trigger trigger)
 {
     int i = 0;
     s_attack attack = emptyattack;
-    s_defense* defense_object = NULL;
     entity *tempent = self;
 
-    if(victim == NULL || !victim->exists)
-    {
+    if(victim == NULL || !victim->exists) {
         return;
     }
 
     execute_onkill_script(victim, trigger);
+
+    recursive_effect_free_collection(victim);
 
     ent_unlink(victim);
     victim->weapent = NULL;
@@ -24271,35 +28801,34 @@ void kill_entity(entity *victim, e_kill_entity_trigger trigger)
     //UT: caution, script function killentity calls this
     clear_all_scripts(victim->scripts, 1);
 
-    if(victim->parent && victim->parent->subentity == victim)
-    {
+    if(victim->parent && victim->parent->subentity == victim) {
         victim->parent->subentity = NULL;
     }
+
     victim->parent = NULL;
-    if(victim->modeldata.summonkill)
-    {
+    
+    if(victim->modeldata.summonkill) {
         attack.attack_type = ATK_SUB_ENTITY_PARENT_KILL;
         attack.dropv = default_model_dropv;
     }
 
-    defense_object = defense_find_current_object(self, NULL, attack.attack_type);
+    const s_defense* defense_object = defense_find_current_object(self, NULL, attack.attack_type);
 
     // kill minions
-    if(victim->modeldata.summonkill == 1 && victim->subentity)
-    {
+    if(victim->modeldata.summonkill == 1 && victim->subentity) {
         // kill only summoned one
         victim->subentity->parent = NULL;
         self = victim->subentity;
         attack.attack_force = self->energy_state.health_current;
-        if(self->takedamage && !level_completed)
-        {
-            self->takedamage(self, &attack, 0, defense_object);
-        }
-        else
-        {
+        
+        if(self->takedamage && !level_completed) {
+            self->takedamage(self, self, &attack, 0, defense_object);
+        
+        } else {
             kill_entity(self, KILL_ENTITY_TRIGGER_PARENT_KILL_SUMMON);
         }
     }
+
     victim->subentity = NULL;
 
     for (i = 0; i < MAX_PLAYERS; i++) {
@@ -24309,63 +28838,57 @@ void kill_entity(entity *victim, e_kill_entity_trigger trigger)
         }
     }
 
-    if(victim == smartbomber)
-    {
+    if(victim == smartbomber) {
         smartbomber = NULL;
     }
-    if(victim == textbox)
-    {
+
+    if(victim == textbox) {
         textbox = NULL;
     }
 
-    for(i = 0; i < ent_max; i++)
-    {
-        if(ent_list[i]->exists)
-        {
+    for(i = 0; i < ent_max; i++) {
+        if(ent_list[i]->exists) {
             // kill all minions
             self = ent_list[i];
-            if(self->parent == victim)
-            {
+            if(self->parent == victim) {
                 self->parent = NULL;
-                if(victim->modeldata.summonkill == 2)
-                {
+                if(victim->modeldata.summonkill == 2) {
+                    
                     attack.attack_force = self->energy_state.health_current;
-                    if(self->takedamage && !level_completed)
-                    {
-                        self->takedamage(self, &attack, 0, defense_object);
-                    }
-                    else
-                    {
+                    
+                    if(self->takedamage && !level_completed) {
+                        self->takedamage(self, self, &attack, 0, defense_object);
+                    } else {
                         kill_entity(self, KILL_ENTITY_TRIGGER_PARENT_KILL_ALL);
                     }
                 }
             }
-            if(self->owner == victim)
-            {
+
+            if(self->owner == victim) {
                 self->owner = victim->owner;
             }
-            if(self->opponent == victim)
-            {
+
+            if(self->opponent == victim) {
                 self->opponent = NULL;
             }
-            if(self->binding.target == victim)
-            {
+
+            if(self->binding.target == victim) {
                 self->binding.target = NULL;
             }
-            if(self->landed_on_platform == victim)
-            {
+
+            if(self->landed_on_platform == victim) {
                 self->landed_on_platform = NULL;
             }
-            if(self->hithead == victim)
-            {
+
+            if(self->hithead == victim) {
                 self->hithead = NULL;
             }
-            if(self->lasthit == victim)
-            {
+
+            if(self->lasthit == victim) {
                 self->lasthit = NULL;
             }
-            if(!textbox && (self->modeldata.type & TYPE_TEXTBOX))
-            {
+
+            if(!textbox && (self->modeldata.type & TYPE_TEXTBOX)) {
                 textbox = self;
             }
         }
@@ -24380,16 +28903,19 @@ void kill_entity(entity *victim, e_kill_entity_trigger trigger)
 }
 
 
-void kill_all()
-{
+void kill_all(){
+
     int i;
     entity *e = NULL;
-    for(i = 0; i < ent_max; i++)
-    {
+    
+    for(i = 0; i < ent_max; i++) {
         e = ent_list[i];
-        if (e && e->exists)
-        {
+        if (e && e->exists) {
             execute_onkill_script(e, KILL_ENTITY_TRIGGER_ALL);
+
+            recursive_effect_free_collection(e);
+            ent_unlink(e);
+
             clear_all_scripts(e->scripts, 1);
         }
         e->exists = 0; // well, no need to use kill function
@@ -24397,8 +28923,7 @@ void kill_all()
     textbox = smartbomber = NULL;
     _time = 0;
     ent_count = ent_max = ent_stack_size = 0;
-    if(ent_list_size > MAX_ENTS) //shrinking...
-    {
+    if(ent_list_size > MAX_ENTS) {//shrinking...
         free_ents();
         alloc_ents(); //this shouldn't return 0, because the list shrinks...
     }
@@ -24666,8 +29191,8 @@ int check_collision(s_collision_check_data* collision_data)
 * flash effects, performing hit overrides, populating 
 * script variables and other post hit functionality.
 */
-void populate_lasthit(s_collision_check_data* collision_data, s_collision_attack* collision_attack, s_collision_body* detect_collision_body, s_collision_attack* detect_collision_attack)
-{
+void populate_lasthit(const s_collision_check_data* const collision_data, s_collision_instance* const collision_attack, s_collision_instance* const detect_collision_body, s_collision_instance* const detect_collision_attack) {
+    
     /*
     * Why have both attack and collision_attack when
     * attack is a member of collision_attack?
@@ -24678,252 +29203,483 @@ void populate_lasthit(s_collision_check_data* collision_data, s_collision_attack
     * the property object.
     */
     lasthit.collision_attack = collision_attack;
-	lasthit.attack = collision_attack->attack;
+    lasthit.attack = collision_attack ? collision_attack->attack : NULL;
+
     lasthit.detect_collision_body = detect_collision_body;
-	lasthit.detect_body = detect_collision_body->body;
+    lasthit.detect_body = detect_collision_body ? detect_collision_body->body : NULL;
+
     lasthit.detect_collision_attack = detect_collision_attack;
 
-	lasthit.position.x = collision_data->return_overlap->center_x;
-	lasthit.position.y = collision_data->return_overlap->center_y;
-	lasthit.position.z = collision_data->return_overlap->center_z;
-	lasthit.target = collision_data->target_ent;
-	lasthit.attacker = collision_data->seeker_ent;
-	lasthit.confirm = 1;	
+    lasthit.position.x = collision_data->return_overlap->center_x;
+    lasthit.position.y = collision_data->return_overlap->center_y;
+    lasthit.position.z = collision_data->return_overlap->center_z;
+
+    lasthit.target = collision_data->target_ent;
+    lasthit.attacker = collision_data->seeker_ent;
+    lasthit.confirm = 1;	
 }
 
 /*
 * Caskey, Damon V.
-* 2020-02-04
-* 2021-08-23 - Reworked for linked list containers.
-* 
-* Check collisions of a seeking box vs. all of a target's
-* current frame body boxes. Return pointer to 
-* collision container detecting collision if found, NULL
-* if no collision found.
-*/
-s_collision_body* check_collision_vs_body(s_collision_check_data* collision_check_data)
-{
-    s_anim* animation = collision_check_data->target_animation;
-    int frame = collision_check_data->target_frame;    
-    
-    s_collision_body* detect_cursor;
-
-    /* 
-    * If there's no body allocated for target's
-    * animation, we obviously can't have a collision
-    * and going any further would throw a NULL pointer 
-    * exception. Return FALSE now. 
-    */
-
-    if (!animation->collision_body)
-    {
-        return NULL;
-    }
-
-    /*
-    * Starting from the head node, loop over all collision
-    * nodes. At each node, populate collision_check_data 
-    * structure with the collision object's coordinates 
-    * pointer. Then we can run the check collision function.
-    *
-    * If the collision check function finds a collision we
-    * return detect pointer and exit. If we pass over all 
-    * collision objects without a collision, then we return 
-    * a NULL.
-    */
-
-    detect_cursor = animation->collision_body[frame];
-
-    while (detect_cursor != NULL && detect_cursor->coords != NULL)
-    {
-        collision_check_data->target_coords = detect_cursor->coords;
-
-        if (check_collision(collision_check_data))
-        {
-            return detect_cursor;
-        }
-
-        detect_cursor = detect_cursor->next;
-    }
-
-    return NULL;
-}
-
-/*
-* Caskey, Damon V.
-* 2021-08-23
+* 2026-07-01
 *
-* Check collisions of a seeking box vs. all of a target's
-* current frame attack boxes. Return pointer to
-* collision container detecting collision if found, NULL
-* if no collision found.
+* Check one seeking collision box against all active
+* body collision boxes on the target's current frame.
+*
+* This replaces the old linked-list walk with an active
+* mask scan. The function only visits slots marked active
+* in the target frame's body collision collection.
+*
+* Returns:
+* - Pointer to the body collision instance that was hit.
+* - NULL if no body collision is found.
 */
-s_collision_attack* check_collision_vs_attack(s_collision_check_data* collision_check_data)
-{
-    s_anim* animation = collision_check_data->target_animation;
-    int frame = collision_check_data->target_frame;
-
-    s_collision_attack* detect_cursor;
+s_collision_instance* check_collision_vs_body(s_collision_check_data* const collision_check_data) {
+    s_anim* animation = NULL;
+    s_collision_collection* collection = NULL;
+    s_collision_instance* detect_collision = NULL;
+    uint64_t active_status;
+    int frame;
+    int collision_index;
 
     /*
-    * If there's no attack allocated for target's
-    * animation, we obviously can't have a collision
-    * and going any further would throw a NULL pointer
-    * exception. Return FALSE now.
+    * No collision check data means there is nothing
+    * meaningful to evaluate.
     */
+    if (!collision_check_data) {
+        return NULL;
+    }
 
-    if (!animation->collision_attack)
-    {
+    animation = collision_check_data->target_animation;
+    frame = collision_check_data->target_frame;
+
+    /*
+    * Guard the animation and frame table lookup.
+    */
+    if (!animation || frame < 0 || frame >= animation->numframes) {
         return NULL;
     }
 
     /*
-    * Starting from the head node, loop over all collision
-    * nodes. At each node, populate collision_check_data
-    * structure with the collision object's coordinates
-    * pointer. Then we can run the check collision function.
-    *
-    * If the collision check function finds a collision we
-    * return detect pointer and exit. If we pass over all
-    * collision objects without a collision, then we return
-    * a NULL.
+    * If the animation has no body collision frame 
+    * table, then there are no body boxes to check.
     */
-
-    detect_cursor = animation->collision_attack[frame];
-
-    while (detect_cursor != NULL && detect_cursor->coords != NULL)
-    {
-        collision_check_data->target_coords = detect_cursor->coords;
-
-        if (check_collision(collision_check_data))
-        {
-            return detect_cursor;
-        }
-
-        detect_cursor = detect_cursor->next;
+    if (!animation->collision_body) {
+        return NULL;
     }
 
-    return NULL;
-}
-
-int checkhit(entity *attacker, entity *target)
-{
-	/* 
-    * Before we do anything else, let's make
-	* make sure we aren't about to run collision
-	* checks on ourself or a target with no
-	* collision boxes active.
-    */
-
-    if(attacker == target
-       || !target->animation->collision_body
-       || !attacker->animation->collision_attack
-       || !target->animation->vulnerable[target->animpos]
-       )
-    {
-        return FALSE;
-    }
-    
-    s_collision_attack* seek_cursor = NULL;
-    
-	s_collision_attack* detect_collision_attack = NULL;
-	s_collision_body* detect_collision_body = NULL;
-	s_collision_check_data collision_check_data;
-    	
-	/* 
-    * We'll use these in collision check data
-	* structure in lieu of memory allocations.
-	*/
-    s_axis_principal_int seeker_pos;
-	s_axis_principal_int target_pos;
-	s_box return_overlap;
-
-	/* Get entity positions, cast as int. */
-	seeker_pos.x = (int)attacker->position.x;
-	seeker_pos.y = (int)attacker->position.y;
-	seeker_pos.z = (int)attacker->position.z;
-	target_pos.x = (int)target->position.x;
-	target_pos.y = (int)target->position.y;
-	target_pos.z = (int)target->position.z;
-
-	/* 
-    * Populate the collision data check structure pointers
-	* with the address of local vars from this function.
-	*/
-    collision_check_data.seeker_pos = &seeker_pos;
-	collision_check_data.target_pos = &target_pos;
-	collision_check_data.return_overlap = &return_overlap;
-    
-    /* 
-    * Populate collision check data with everything
-    * we can before running loop checks. 
-    */
-    collision_check_data.seeker_ent = attacker;
-    collision_check_data.target_ent = target;
-    collision_check_data.target_animation = target->animation;
-    collision_check_data.target_frame = target->animpos;
-	
-	collision_check_data.seeker_direction = attacker->direction;
-	collision_check_data.target_direction = target->direction;
-
-    /* New */
-    if (!attacker->animation->collision_attack)
-    {
-        return FALSE;
-    }
-
-    /* Set seek cursor to seeker's collision list head. */
-    seek_cursor = attacker->animation->collision_attack[attacker->animpos];
-    
     /*
-    * Iterate through seeker's collision list.
-    * During iteration, we skip any collision node that 
-    * does not have coordinates defined. This check might 
-    * seem redundant because the model text read-in eliminates 
-    * collision nodes without defined coordinates. However, 
-    * it is possible for a creator to add collisions with 
-    * script that bypass the model read-in criteria.
+    * Get the body collision collection for the requested
+    * target frame.
     */
-    while (seek_cursor != NULL && seek_cursor->coords != NULL)
-    {
-        collision_check_data.seeker_coords = seek_cursor->coords;
-        
-        // TO DO: Don't use attack properties without verifying
-        // attack is defined.
-        
-        /* Check against target body boxes. */
-        detect_collision_body = check_collision_vs_body(&collision_check_data);
+    collection = animation->collision_body[frame];
 
-        if (detect_collision_body)
-        {
-            populate_lasthit(&collision_check_data, seek_cursor, detect_collision_body, detect_collision_attack);
+    /*
+    * No collection, or no active slots in the collection,
+    * means there are no target body boxes on this frame.
+    */
+    if (!collection || !collection->active_status) {
+        return NULL;
+    }
 
-            return TRUE;            
+    /*
+    * Work from a local copy of the active mask.
+    *
+    * The frame collection itself must not be modified by
+    * collision checks. Each loop consumes one active bit
+    * from this local copy.
+    */
+    active_status = collection->active_status;
+
+    while (active_status) {
+
+        /*
+        * Get the lowest active slot index from the local
+        * active mask copy.
+        */
+        collision_index = collision_get_lowest_active_index(active_status);
+
+        /*
+        * Clear the lowest active bit so the next loop
+        * moves to the next active body slot.
+        */
+        active_status &= active_status - 1;
+
+        /*
+        * Active mask and pointer slots should agree, but
+        * guard against damaged or script-modified data.
+        */
+        detect_collision = collection->slots[collision_index];
+
+        if (!detect_collision) {
+            continue;
         }
 
         /*
-        * If this is a counter attack let's check against the
-        * target's attack boxes.
+        * Empty coordinates mean this slot does not have
+        * a usable collision box for this frame.
+        */
+        if (!collision_check_has_coords(&detect_collision->coords)) {
+            continue;
+        }
+
+        /*
+        * Populate the target coordinate pointer and run
+        * the shared collision test.
+        *
+        * Coordinates live inline on the collision instance,
+        * so pass the address of the embedded coords member.
+        */
+        collision_check_data->target_coords = &detect_collision->coords;
+
+        if (check_collision(collision_check_data)) {
+            return detect_collision;
+        }
+    }
+
+    /*
+    * No active target body slot collided with the seeker.
+    */
+    return NULL;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-01
+*
+* Check one seeking collision box against all active
+* attack collision boxes on the target's current frame.
+*
+* This replaces the old linked-list walk with an active
+* mask scan. The function only visits slots marked active
+* in the target frame's attack collision collection.
+*
+* Returns:
+* - Pointer to the attack collision instance that was hit.
+* - NULL if no attack collision is found.
+*/
+s_collision_instance* check_collision_vs_attack(s_collision_check_data* const collision_check_data) {
+    s_anim* animation = NULL;
+    s_collision_collection* collection = NULL;
+    s_collision_instance* detect_collision = NULL;
+    uint64_t active_status;
+    int frame;
+    int collision_index;
+
+    /*
+    * No collision check data means there is nothing
+    * meaningful to evaluate.
+    */
+    if (!collision_check_data) {
+        return NULL;
+    }
+
+    animation = collision_check_data->target_animation;
+    frame = collision_check_data->target_frame;
+
+    /*
+    * Guard the animation and frame table lookup.
+    */
+    if (!animation || frame < 0 || frame >= animation->numframes) {
+        return NULL;
+    }
+
+    /*
+    * If the animation has no attack collision 
+    * frame table, then there are no attack boxes 
+    * to check.
+    */
+    if (!animation->collision_attack) {
+        return NULL;
+    }
+
+    /*
+    * Get the attack collision collection for the requested
+    * target frame.
+    */
+    collection = animation->collision_attack[frame];
+
+    /*
+    * No collection, or no active slots in the collection,
+    * means there are no target attack boxes on this frame.
+    */
+    if (!collection || !collection->active_status) {
+        return NULL;
+    }
+
+    /*
+    * Work from a local copy of the active mask.
+    *
+    * The frame collection itself must not be modified by
+    * collision checks. Each loop consumes one active bit
+    * from this local copy.
+    */
+    active_status = collection->active_status;
+
+    while (active_status) {
+
+        /*
+        * Get the lowest active slot index from the local
+        * active mask copy.
+        */
+        collision_index = collision_get_lowest_active_index(active_status);
+
+        /*
+        * Clear the lowest active bit so the next loop
+        * moves to the next active attack slot.
+        */
+        active_status &= active_status - 1;
+
+        /*
+        * Active mask and pointer slots should agree, but
+        * guard against damaged or script-modified data.
+        */
+        detect_collision = collection->slots[collision_index];
+
+        if (!detect_collision) {
+            continue;
+        }
+
+        /*
+        * Empty coordinates mean this slot does not have
+        * a usable collision box for this frame.
+        */
+        if (!collision_check_has_coords(&detect_collision->coords)) {
+            continue;
+        }
+
+        /*
+        * An attack collision scan should only report
+        * instances that actually carry attack data.
+        */
+        if (!detect_collision->attack) {
+            continue;
+        }
+
+        /*
+        * Populate the target coordinate pointer and run
+        * the shared collision test.
+        *
+        * Coordinates live inline on the collision instance,
+        * so pass the address of the embedded coords member.
+        */
+        collision_check_data->target_coords = &detect_collision->coords;
+
+        if (check_collision(collision_check_data)) {
+            return detect_collision;
+        }
+    }
+
+    /*
+    * No active target attack slot collided with the seeker.
+    */
+    return NULL;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-02
+*
+* Check whether an attacker's active attack collision
+* boxes hit a target's active body collision boxes.
+*
+* This replaces the old linked-list walk with an active
+* mask scan over the attacker's current frame attack
+* collision collection.
+*/
+int checkhit(entity* attacker, entity* target) {
+    s_collision_collection* seek_collection = NULL;
+    s_collision_instance* seek_collision = NULL;
+    s_collision_instance* detect_collision_attack = NULL;
+    s_collision_instance* detect_collision_body = NULL;
+    s_collision_check_data collision_check_data;
+    s_axis_principal_int seeker_pos;
+    s_axis_principal_int target_pos;
+    s_box return_overlap;
+    uint64_t active_status;
+    int collision_index;
+
+    int attacker_frame;
+    int target_frame;
+
+    /*
+    * Basic guards.
+    *
+    * Do not touch animation frame tables until both
+    * animation pointers and frame indexes are valid.
+    */
+    if (!attacker
+        || !target
+        || attacker == target
+        || !attacker->animation
+        || !target->animation) {
+        return FALSE;
+    }
+
+    attacker_frame = attacker->animpos;
+    target_frame = target->animpos;
+
+    /*
+    * Guard animation frame table lookups.
+    */
+    if (attacker_frame < 0
+        || attacker_frame >= attacker->animation->numframes
+        || target_frame < 0
+        || target_frame >= target->animation->numframes) {
+        return FALSE;
+    }
+
+    /*
+    * Now it is safe to inspect per-frame animation tables.
+    */
+    if (!attacker->animation->collision_attack
+        || !target->animation->collision_body
+        || !target->animation->vulnerable
+        || !target->animation->vulnerable[target_frame]) {
+        return FALSE;
+    }
+
+    /*
+    * Get the attacker's attack collision collection for
+    * the current animation frame.
+    */
+    seek_collection = attacker->animation->collision_attack[attacker_frame];
+
+    /*
+    * No collection, or no active slots, means the attacker
+    * has no attack boxes to test on this frame.
+    */
+    if (!seek_collection || !seek_collection->active_status) {
+        return FALSE;
+    }
+
+    /*
+    * We'll use these in collision check data structure
+    * in lieu of memory allocations.
+    */
+    seeker_pos.x = (int)attacker->position.x;
+    seeker_pos.y = (int)attacker->position.y;
+    seeker_pos.z = (int)attacker->position.z;
+
+    target_pos.x = (int)target->position.x;
+    target_pos.y = (int)target->position.y;
+    target_pos.z = (int)target->position.z;
+
+    /*
+    * Populate collision check data with everything
+    * that does not change during the active-slot scan.
+    */
+    collision_check_data.seeker_pos = &seeker_pos;
+    collision_check_data.target_pos = &target_pos;
+    collision_check_data.return_overlap = &return_overlap;
+
+    collision_check_data.seeker_ent = attacker;
+    collision_check_data.target_ent = target;
+    collision_check_data.target_animation = target->animation;
+    collision_check_data.target_frame = target_frame;
+
+    collision_check_data.seeker_direction = attacker->direction;
+    collision_check_data.target_direction = target->direction;
+
+    /*
+    * Work from a local copy of the active mask.
+    *
+    * Collision checks must not modify the animation frame's
+    * collision collection. Each loop consumes one active bit
+    * from this local mask copy.
+    */
+    active_status = seek_collection->active_status;
+
+    while (active_status) {
+
+        /*
+        * Get the lowest active attack slot index from the
+        * local active mask copy.
+        */
+        collision_index = collision_get_lowest_active_index(active_status);
+
+        /*
+        * Clear the lowest active bit so the next loop
+        * moves to the next active attack slot.
+        */
+        active_status &= active_status - 1;
+
+        /*
+        * Active mask and pointer slots should agree, but
+        * guard against damaged or script-modified data.
+        */
+        seek_collision = seek_collection->slots[collision_index];
+
+        if (!seek_collision) {
+            continue;
+        }
+
+        /*
+        * The seeker side must have both usable coordinates
+        * and an attack property. Coordinates live inline on
+        * the collision instance.
+        */
+        if (!seek_collision->attack
+            || !collision_check_has_coords(&seek_collision->coords)) {
+            continue;
+        }
+
+        /*
+        * Populate the seeker coordinate pointer for this
+        * active attack slot.
+        */
+        collision_check_data.seeker_coords = &seek_collision->coords;
+
+        /*
+        * Reset per-slot detection outputs before checking.
+        */
+        detect_collision_attack = NULL;
+        detect_collision_body = NULL;
+
+        /*
+        * Check this attack box against the target's active
+        * body boxes.
+        */
+        detect_collision_body = check_collision_vs_body(&collision_check_data);
+
+        if (detect_collision_body) {
+            populate_lasthit(
+                &collision_check_data,
+                seek_collision,
+                detect_collision_body,
+                detect_collision_attack);
+
+            return TRUE;
+        }
+
+        /*
+        * Counterattack collision checks are disabled
+        * pending a rewrite of the old linked-list walk
+        * to the new active-mask scan pattern.
+        *
+        * If/when this path is restored, check_collision_vs_attack()
+        * now returns s_collision_instance* and already uses the
+        * active-mask scan pattern.
         */
         /*
         detect_collision_attack = check_collision_vs_attack(&collision_check_data);
 
-        if (detect_collision_attack)
-        {
-            populate_lasthit(&collision_check_data, seek_cursor, detect_collision_body, detect_collision_attack);
+        if (detect_collision_attack) {
+            populate_lasthit(
+                &collision_check_data,
+                seek_collision,
+                detect_collision_body,
+                detect_collision_attack);
 
             return TRUE;
         }
         */
-
-        seek_cursor = seek_cursor->next;
     }
-    
-	/* 
-    * If we made it here, then we were unable to find
-	* any collisions, - return FALSE. 
-    */
 
+    /*
+    * No active attacker attack slot collided with any
+    * active target collision slot.
+    */
     return FALSE;
 }
 
@@ -25614,21 +30370,23 @@ e_pain_config_flags pain_get_config_flag_from_string(const char* value)
 }
 
 /*
-* Caskey, Damon V.
-* 2023-04-10
-*
-* Get arguments and output final
-* bitmask.
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read pain configuration arguments directly from the source
+  line and combine their corresponding behavior flags.
 */
-e_pain_config_flags pain_get_config_flags_from_arguments(const ArgList* arglist)
+e_pain_config_flags pain_get_config_flags_from_command_line(
+    const char* command_line
+)
 {
-    int i = 0;
-    char* value = "";
-
+    const char* value;
+    s_command_argument_reader reader;
     e_pain_config_flags result = PAIN_CONFIG_NONE;
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
         result |= pain_get_config_flag_from_string(value);
     }
 
@@ -25679,21 +30437,23 @@ e_block_config_flags block_get_config_flag_from_string(const char* value)
 }
 
 /*
-* Caskey, Damon V.
-* 2023-04-05
-*
-* Get arguments and output final
-* bitmask.
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read blocking configuration arguments directly from the
+  source line and combine their corresponding behavior flags.
 */
-e_block_config_flags block_get_config_flags_from_arguments(const ArgList * arglist)
+e_block_config_flags block_get_config_flags_from_command_line(
+    const char* command_line
+)
 {
-    int i = 0;
-    char* value = "";
-
+    const char* value;
+    s_command_argument_reader reader;
     e_block_config_flags result = BLOCK_CONFIG_NONE;
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
         result |= block_get_config_flag_from_string(value);
     }
 
@@ -25748,80 +30508,50 @@ void do_active_block(entity *ent)
 * guard break, attack type vs. defense, and
 * so on. It does not handle rules for AI blocking.
 */
-int check_blocking_eligible(entity *ent, entity *other, s_attack *attack, s_body *body) 
-{
-    s_defense* defense_object = NULL;
+bool check_blocking_eligible(entity *ent, entity *other, s_attack *attack, s_body *body, e_block_state_flags block_state) {
     int temp_block_threshold = 0;
-     
-	/* 
-	* Kratus (10-2021) For safe, confirm if the entity's "BLOCKING" instance was gone or not
-	* This is to avoid the entity to block while in other animations like RISE, PAIN or WALK.
+
+	/* Blocking must be active regardless of behavior overrides. */
+	if (!(block_state & BLOCK_STATE_ACTIVE)) {
+		return false;
+	}
+
+	/* Guard points only limit native blocking unless explicitly ignored. */
+	if ((block_state & BLOCK_STATE_NATIVE)
+		&& !(block_state & BLOCK_STATE_IGNORE_GUARD_POINTS)
+		&& ent->modeldata.guardpoints > 0
+		&& ent->guardpoints <= 0) {
+		return false;
+	}
+
+    /* Attack from behind? Can't block without an applicable override. */
+    if (!(block_state & BLOCK_STATE_IGNORE_DIRECTION)
+		&& ent->direction == other->direction
+		&& !(ent->modeldata.block_config_flags & BLOCK_CONFIG_BACK)) {
+		return false;
+	}
+
+	/*
+	* Attack eligibility consists of penetration vs. power and the
+	* combined model plus defense threshold. Direction and guard
+	* points have independent override flags above.
 	*/
+	if (!(block_state & BLOCK_STATE_IGNORE_ATTACK_ELIGIBILITY)) {
+        const s_defense* defense_object = defense_find_current_object(ent, body, attack->attack_type);
 
-	if (!ent->blocking)
-	{
-		return 0;
-	}
-
-	/* If guardpoints are set, then find out if they've been depleted. */
-	
-    if (ent->modeldata.guardpoints)
-	{
-		if (ent->guardpoints <= 0)
-		{
-			return 0;
-		}
-	}
-    
-    /*
-	* Attack from behind? Can't block that if
-	* we don't have block back flag enabled.
-	*/
-    
-    if (ent->direction == other->direction)
-	{
-		if (!(ent->modeldata.block_config_flags & BLOCK_CONFIG_BACK))
-		{
-			return 0;
-		}
-	}
-        
-    /* Need defense object for subsequent checks. */
-    defense_object = defense_find_current_object(ent, body, attack->attack_type);
-
-    /* Attack block breaking exceeds block power? */
-    
-    if (attack->no_block || defense_object->blockpower)
-    {
-        if (attack->no_block >= defense_object->blockpower)
-        {
-            return 0;
+        if ((attack->no_block || defense_object->blockpower)
+			&& attack->no_block >= defense_object->blockpower) {
+            return false;
         }
-    }
 
-	/* 
-    * Is there a blocking threshhold for the attack type?
-	* Verify it vs. attack force.
-	*/
-    
-    /* Is there a blocking threshold ? Verify it vs.attack force. */
+        temp_block_threshold = ent->modeldata.thold + defense_object->blockthreshold;
 
-    temp_block_threshold = ent->modeldata.thold + defense_object->blockthreshold;
-
-    if (temp_block_threshold)
-	{
-		if (temp_block_threshold > attack->attack_force)
-		{
-			return 0;
+        if (temp_block_threshold > attack->attack_force) {
+			return false;
 		}
 	}
 
-    /*
-	* If we made it through all that, then
-	* attack can be blocked. Return true.
-	*/
-
-    return 1;
+    return true;
 }
 
 // Caskey, Damon V.
@@ -25830,59 +30560,50 @@ int check_blocking_eligible(entity *ent, entity *other, s_attack *attack, s_body
 // Mandatory conditions the AI must pass before it
 // can decide to block. These are not rules for
 // blocking in general.
-int check_blocking_rules(entity *ent)
-{
+bool check_blocking_rules(entity *ent) {
 	// If already blocking we can
 	// forget the rest and return
 	// true right away.
-	if (ent->blocking)
-	{
-		return 1;
+	if (ent->blocking & BLOCK_STATE_ACTIVE) {
+		return true;
 	}
 
 	// No blocking animation?
-	if (!validanim(ent, ANI_BLOCK))
-	{
-		return 0;
+	if (!validanim(ent, ANI_BLOCK))	{
+		return false;
 	}
 
 	// Have to be idle.
-	if (!ent->idling)
-	{
-		return 0;
+	if (!ent->idling) {
+		return false;
 	}
 
 	// AI can't be attacking.
-	if (ent->attacking == ATTACKING_ACTIVE)
-	{
-		return 0;
+	if (ent->attacking == ATTACKING_ACTIVE)	{
+		return false;
 	}
 
 	// Grappling?
-	if (ent->link)
-	{
-		return 0;
+	if (ent->link) {
+		return false;
 	}
 
 	//  Airborne?
-	if (inair(ent))
-	{
-		return 0;
+	if (inair(ent))	{
+		return false;
 	}
 
 	// Frozen?
-	if (ent->frozen)
-	{
-		return 0;
+	if (ent->frozen) {
+		return false;
 	}
 
 	// Falling?
-	if (ent->falling)
-	{
-		return 0;
+	if (ent->falling) {
+		return false;
 	}
 
-	return 1;
+	return true;
 }
 
 // Caskey, Damon V.
@@ -25891,16 +30612,18 @@ int check_blocking_rules(entity *ent)
 // AI blocking decision. Handles AI's chances
 // to block. Returns true if AI chooses to attempt 
 // a block.
-int check_blocking_decision(entity *ent)
-{
+bool check_blocking_decision(entity *ent) {
+	/* Per-instance override supplied through the blocking state. */
+	if (ent->blocking & BLOCK_STATE_IGNORE_CHANCE) {
+		return true;
+	}
+
 	// If we have active block enabled and we're
 	// already blocking, then we want the AI to
 	// keep blocking (like most players would).
-	if (ent->modeldata.block_config_flags & BLOCK_CONFIG_ACTIVE)
-	{
-		if (ent->blocking)
-		{
-			return 1;
+	if (ent->modeldata.block_config_flags & BLOCK_CONFIG_ACTIVE) {
+		if (ent->blocking & BLOCK_STATE_ACTIVE) {
+			return true;
 		}
 	}
 
@@ -25908,75 +30631,65 @@ int check_blocking_decision(entity *ent)
 	// Now it works as intended (1 = block all / 2147483647 = never block)
 	// Run random chance against blockodds. If it
 	// passes, AI will block.
-	if ((rand32()&ent->modeldata.blockodds) == 0)
-	{
-		return 1;
+	if ((rand32()&ent->modeldata.blockodds) == 0) {
+		return true;
 	}
 
 	// If we got this far, we never decided to
 	// block, so return false.
-	return 0;
+	return false;
 }
 
 // Caskey, Damon V.
 // 2018-09-17
 //
-// Runs all blocking conditions and returns true
-// if the attack should be blocked.
-int check_blocking_master(entity *ent, entity *other, s_attack *attack, s_body *body)
-{
+// Runs all blocking conditions and returns the active
+// blocking state, or BLOCK_STATE_NONE if the attack
+// should not be blocked.
+e_block_state_flags check_blocking_master(entity *ent, entity *other, s_attack *attack, s_body *body) {
 	e_entity_type entity_type;
+	e_block_state_flags block_state;
 
 	entity_type = ent->modeldata.type;
+	block_state = ent->blocking;
 
-    if (ent->modeldata.block_config_flags & BLOCK_CONFIG_DISABLED)
-    {
-        return 0;
+    if (ent->modeldata.block_config_flags & BLOCK_CONFIG_DISABLED) {
+        return BLOCK_STATE_NONE;
     }
 
-	// Check AI or player blocking rules.
-	if (entity_type & TYPE_PLAYER)
-	{
-		// For players, all we need to know is if they
-		// are in a blocking state. If not we exit.
-		if (!ent->blocking)
-		{
-			return 0;
+	/*
+	* Script-controlled blocking is already an explicit choice. It
+	* bypasses native initiation rules and chance while retaining
+	* common attack eligibility unless its individual bits disable it.
+	*/
+	if ((block_state & BLOCK_STATE_ACTIVE)
+		&& !(block_state & BLOCK_STATE_NATIVE)) {
+		if (!check_blocking_eligible(ent, other, attack, body, block_state)) {
+			return BLOCK_STATE_NONE;
 		}
 
-		// Verify entity can block the attack at all.
-		if (!check_blocking_eligible(ent, other, attack, body))
-		{
-			return 0;
-		}
-	}
-	else
-	{
-		// AI must pass a series of conditions
-		// before it may block attacks.
-		if (!check_blocking_rules(ent))
-		{
-			return 0;
-		}
-
-		// Now that we know AI is allowed
-		// to block let's find out if it
-		// wants to.
-		if (!check_blocking_decision(ent))
-		{
-			return 0;
-		}
-
-		// Verify entity can block the attack at all.
-		if (!check_blocking_eligible(ent, other, attack, body))
-		{
-			return 0;
-		}
+		return block_state;
 	}
 
-	// Looks like we made it through
-	// all the verifications. Return true.
-	return 1;
+	/* Players must have entered native blocking before impact. */
+	if (entity_type & TYPE_PLAYER) {
+		if (!(block_state & BLOCK_STATE_ACTIVE)) {
+			return BLOCK_STATE_NONE;
+		}
+	} else {
+		/* AI either continues native blocking or chooses it on impact. */
+		if (!check_blocking_rules(ent) || !check_blocking_decision(ent)) {
+			return BLOCK_STATE_NONE;
+		}
+
+		block_state |= BLOCK_STATE_ACTIVE | BLOCK_STATE_NATIVE;
+	}
+
+	if (!check_blocking_eligible(ent, other, attack, body, block_state)) {
+		return BLOCK_STATE_NONE;
+	}
+
+	return block_state;
 }
 
 /* 
@@ -25986,23 +30699,25 @@ int check_blocking_master(entity *ent, entity *other, s_attack *attack, s_body *
 * Apply primary block settings, animations,
 * actions, and scripts.
 */
-void set_blocking_action(entity *ent, entity *other, s_attack *attack)
+void set_blocking_action(entity *ent, entity *other, s_attack *attack, e_block_state_flags block_state)
 {
 	/* Execute the attacker's didhit script with blocked flag. */
 	execute_didhit_script(other, ent, attack, 1);
 
-	/* Set up blocking action and flag. */
-	ent->takeaction = common_block;
-	set_blocking(ent);	
+	/* Native blocking owns the action, movement, and guard system. */
+	if (block_state & BLOCK_STATE_NATIVE) {
+		ent->blocking |= block_state;
+		set_blocking(ent);
+		block_state = ent->blocking;
+		ent->takeaction = common_block;
 
-	/* Stop ground movement. */
-    ent->velocity.x = 0;
-    ent->velocity.z = 0;
+		ent->velocity.x = 0;
+		ent->velocity.z = 0;
 
-	/* If we have guardpoints, then reduce them here. */
-	if (ent->modeldata.guardpoints > 0)
-	{
-		ent->guardpoints -= attack->guardcost;
+		if (!(block_state & BLOCK_STATE_IGNORE_GUARD_POINTS)
+			&& ent->modeldata.guardpoints > 0) {
+			ent->guardpoints -= attack->guardcost;
+		}
 	}
 
 	/* 
@@ -26015,56 +30730,60 @@ void set_blocking_action(entity *ent, entity *other, s_attack *attack)
 	execute_didblock_script(ent, other, attack);
 }
 
-// Caskey, Damon V.
-// 2018-09-18
-//
-// Verify entity has blockpain and that attack
-// should trigger it.
-// Kratus (01-2024) Minor fix in the blockpain flag check (inverted)
-int check_blocking_pain(entity *ent, s_attack *attack)
-{
-	// If blockpain is greater than attack
-	// force, we don't apply it.
-	if (attack->attack_force >= self->modeldata.blockpain)
-	{
-		return 1;
+/* 
+* Caskey, Damon V.
+* 2018-09-18
+*
+* Return true if attack force is sufficient 
+* to cause blocking pain. Otherwise return false.
+*/
+bool check_blocking_pain(const entity *ent, const s_attack *attack) {
+	
+	if (attack->attack_force >= ent->modeldata.blockpain) {
+		return true;
 	}
 
-	return 0;
+	return false;
 }
 
 // Caskey, Damon V.
 // 2018-09-21
 //
 // Place entity into appropriate blocking animation.
-void set_blocking_animation(entity *ent, s_attack *attack)
-{
-	// If we have an appropriate blockpain, lets
-	// apply it here.
-	if (check_blocking_pain(ent, attack))
-	{
-		set_blockpain(self, attack->attack_type, 1);
-	}
-	else
-	{
-		ent_set_anim(ent, ANI_BLOCK, 0);
-	}
+void set_blocking_animation(entity *acting_entity, s_attack *attack, e_block_state_flags block_state) {
+
+    /*
+    * Entity must have a valid blockpain and
+    * attack must meet or exceed the blockpain 
+    * threshold. Otherwise, we just go to the 
+    * normal block animation.
+    */
+
+    if(!(block_state & BLOCK_STATE_IGNORE_BLOCKPAIN)
+		&& check_blocking_pain(acting_entity, attack)
+        && set_blockpain(acting_entity, attack->attack_type, 1)) {
+        return;
+    }
+
+    ent_set_anim(acting_entity, ANI_BLOCK, 0);
 }
 
 // Caskey, Damon V.
 // 2018-09-21
 //
 // Perform a block.
-void do_passive_block(entity *ent, entity *other, s_attack *attack)
+void do_passive_block(entity *ent, entity *other, s_attack *attack, e_block_state_flags block_state)
 {	
-	// Place entity in blocking animation.
-	set_blocking_animation(ent, attack);
+	/* Script-controlled blocks preserve the creator-controlled action. */
+	if (block_state & BLOCK_STATE_NATIVE) {
+		set_blocking_animation(ent, attack, block_state);
+	}
 	
 	// Spawn the blocking flash.
 	spawn_attack_flash(ent, attack, attack->flash.model_block, ent->modeldata.flash.model_block);
 
 	// Run blocking actions and scripts.
-	set_blocking_action(ent, other, attack);
+	set_blocking_action(ent, other, attack, block_state);
 }
 
 /*
@@ -26414,7 +31133,7 @@ int check_follow_up_condition(entity *ent, entity *target, s_anim *animation, in
 */
 int try_follow_up(entity *ent, entity *target, s_anim *animation, int didblock)
 {
-	e_animations animation_id = ANI_NONE;
+	animation_id_t animation_id = ANI_NONE;
 
 	/* If we don't have a follow action, get out. */
 	
@@ -26450,141 +31169,113 @@ int try_follow_up(entity *ent, entity *target, s_anim *animation, int didblock)
 *
 * Verify an attack meets conditions to trigger a counter action.
 */
-int check_counter_condition(entity* target, entity* attacker, s_attack* attack_object, s_body* body_object)
-{
+bool check_counter_condition(entity* target, entity* attacker, s_attack* attack_object, s_body* body_object) {
+
 	s_counter_action* counter = &target->animation->counter_action;
-    s_defense* defense_object = NULL;
-    int force = 0;
+    int64_t force = 0;
 
 	/* If there's no condition, get out now. */
-	if (!counter->condition)
-	{
-		return 0;
+	if (!counter->condition) {
+		return false;
 	}
 
 	/* Verify in the frame range. */
-	if (target->animpos < counter->frame.min || target->animpos > counter->frame.max)
-	{
-		return 0;
+	if (target->animpos < counter->frame.min || target->animpos > counter->frame.max) {
+		return false;
 	}
 	
 	/* Now we verify condition flags. */
 
 	/* Always is always... */
-	if (counter->condition == COUNTER_ACTION_CONDITION_ANY)
-	{
-		return 1;
+	if (counter->condition == COUNTER_ACTION_CONDITION_ANY)	{
+		return true;
 	}
 
 	/* In the back ? */
-	if (counter->condition & COUNTER_ACTION_CONDITION_BACK_FALSE)
-	{
-		if (target->direction == attacker->direction)
-		{
-			return 0;
+	if (counter->condition & COUNTER_ACTION_CONDITION_BACK_FALSE) {
+		if (target->direction == attacker->direction) {
+			return false;
 		}
 	}
 
-	if (counter->condition & COUNTER_ACTION_CONDITION_BACK_TRUE)
-	{
-		if (target->direction != attacker->direction)
-		{
-			return 0;
+	if (counter->condition & COUNTER_ACTION_CONDITION_BACK_TRUE) {
+		if (target->direction != attacker->direction) {
+			return false;
 		}
 	}
 	
     /* We need defense object for subsequent checks. */
-    defense_object = defense_find_current_object(target, body_object, attack_object->attack_type);
+    const s_defense* defense_object = defense_find_current_object(target, body_object, attack_object->attack_type);
 
 	/* Blockable ? */
-	if (counter->condition & COUNTER_ACTION_CONDITION_BLOCK_FALSE)
-	{
-		if (attack_object->no_block <= defense_object->blockpower)
-		{
-			return 0;
+	if (counter->condition & COUNTER_ACTION_CONDITION_BLOCK_FALSE) {
+		if (attack_object->no_block <= defense_object->blockpower) {
+			return false;
 		}
 	}
 
-	if (counter->condition & COUNTER_ACTION_CONDITION_BLOCK_TRUE)
-	{
-		if (attack_object->no_block > defense_object->blockpower)
-		{
-			return 0;
+	if (counter->condition & COUNTER_ACTION_CONDITION_BLOCK_TRUE) {
+		if (attack_object->no_block > defense_object->blockpower) {
+			return false;
 		}
 	}
 
 	/* Vs.lethal / non - lethal damage. */
-	force = calculate_force_damage(target, attacker, attack_object, defense_object);
+	force = calculate_force_damage(target, attacker, attack_object, defense_object, FALSE);
 
-	if (counter->condition & COUNTER_ACTION_CONDITION_DAMAGE_LETHAL_FALSE)
-	{
-		if (target->energy_state.health_current <= force)
-		{
-			return 0;
+	if (counter->condition & COUNTER_ACTION_CONDITION_DAMAGE_LETHAL_FALSE) {
+		if (target->energy_state.health_current <= force) {
+			return false;
 		}
 	}
 
-	if (counter->condition & COUNTER_ACTION_CONDITION_DAMAGE_LETHAL_TRUE)
-	{
-		if (target->energy_state.health_current > force)
-		{
-			return 0;
+	if (counter->condition & COUNTER_ACTION_CONDITION_DAMAGE_LETHAL_TRUE) {
+		if (target->energy_state.health_current > force) {
+			return false;
 		}
 	}
 
 	/* Freeze attack ? */
-	if (counter->condition & COUNTER_ACTION_CONDITION_FREEZE_FALSE)
-	{
-		if (attack_object->freeze)
-		{
-			return 0;
+	if (counter->condition & COUNTER_ACTION_CONDITION_FREEZE_FALSE) {
+		if (attack_object->freeze) {
+			return false;
 		}
 	}
 
-	if (counter->condition & COUNTER_ACTION_CONDITION_FREEZE_TRUE)
-	{
-		if (!attack_object->freeze)
-		{
-			return 0;
+	if (counter->condition & COUNTER_ACTION_CONDITION_FREEZE_TRUE) {
+		if (!attack_object->freeze)	{
+			return false;
 		}
 	}
 
 	/* Attacker hostile to us ? */
-	if (counter->condition == COUNTER_ACTION_CONDITION_HOSTILE_ATTACKER_FALSE)
-	{
-        if (faction_check_is_hostile(attacker, target))
-        {
-            return 0;
+	if (counter->condition == COUNTER_ACTION_CONDITION_HOSTILE_ATTACKER_FALSE) {
+        if (faction_check_is_hostile(attacker, target)) {
+            return false;
         }
 	}
 
-	if (counter->condition == COUNTER_ACTION_CONDITION_HOSTILE_ATTACKER_TRUE)
-	{
-        if (!faction_check_is_hostile(attacker, target))
-        {
-            return 0;
+	if (counter->condition == COUNTER_ACTION_CONDITION_HOSTILE_ATTACKER_TRUE) {
+        if (!faction_check_is_hostile(attacker, target)) {
+            return false;
         }
 	}
 
 	/* Hostile to attacker ? */
-	if (counter->condition == COUNTER_ACTION_CONDITION_HOSTILE_TARGET_FALSE)
-	{
-        if (faction_check_is_hostile(target, attacker))
-        {
-            return 0;
+	if (counter->condition == COUNTER_ACTION_CONDITION_HOSTILE_TARGET_FALSE) {
+        if (faction_check_is_hostile(target, attacker)) {
+            return false;
         }
 	}
 
-	if (counter->condition == COUNTER_ACTION_CONDITION_HOSTILE_TARGET_TRUE)
-	{
-        if (!faction_check_is_hostile(target, attacker))
-        {
-            return 0;
+	if (counter->condition == COUNTER_ACTION_CONDITION_HOSTILE_TARGET_TRUE)	{
+        if (!faction_check_is_hostile(target, attacker)) {
+            return false;
         }
 	}
 
 	/* Passed all checks. We can return true. */
-	return 1;
+	return true;
 }
 
 /*
@@ -26595,57 +31286,47 @@ int check_counter_condition(entity* target, entity* attacker, s_attack* attack_o
 * If successful, sets entity animation to
 * appropriate counter and returns true.
 */
-int try_counter_action(entity* target, entity* attacker, s_attack* attack_object, s_body* body_object)
-{
-	int force = 0;
-	int current_follow_id = 0;
-    s_defense* defense_object = NULL;
-
+bool try_counter_action(entity* target, entity* attacker, s_attack* attack_object, s_body* body_object) {
+    
     /*
 	* If we don't have a follow animation to use 
 	* for counter, get out.
 	*/
     
-    if (!target->animation->followup.animation)
-	{
-		return 0;
+    if (!target->animation->followup.animation)	{
+		return false;
 	}
 
 	/* Must meet counter action conditions. */
 	
-    if (!check_counter_condition(target, attacker, attack_object, body_object))
-	{
-		return 0;
+    if (!check_counter_condition(target, attacker, attack_object, body_object))	{
+		return false;
 	}	
 
 	/* Take damage from attack ? */
 	
-    if (target->animation->counter_action.damaged == COUNTER_ACTION_TAKE_DAMAGE_NORMAL)
-	{
-		/* We need the real damage. */
-        defense_object = defense_find_current_object(target, body_object, attack_object->attack_type);
+    if (target->animation->counter_action.damaged == COUNTER_ACTION_TAKE_DAMAGE_NORMAL)	{
 
-		force = calculate_force_damage(target, attacker, attack_object, defense_object);
+		/* We need the real damage. */
+        const s_defense* defense_object = defense_find_current_object(target, body_object, attack_object->attack_type);
+
+		const int64_t force = calculate_force_damage(target, attacker, attack_object, defense_object, FALSE);
 
 		/* Revert lethal damage to 1. */
-		if (target->energy_state.health_current - force <= 0)
-		{
+		if (target->energy_state.health_current - force <= 0) {
 			target->energy_state.health_current = 1;
-		}
-		else
-		{
+		
+        } else {
 			target->energy_state.health_current -= force;
 		}
 	}
 
 	/* Set counter animation if we can. */
 	
-    current_follow_id = animfollows[target->animation->followup.animation - 1];
+    const animation_id_t current_follow_id = animfollows[target->animation->followup.animation - 1];
 	
-    if (validanim(self, current_follow_id))
-	{
-		if (!target->modeldata.animation[current_follow_id]->attack_one)
-		{
+    if (validanim(target, current_follow_id)) {
+		if (!target->modeldata.animation[current_follow_id]->attack_one) {
 			target->modeldata.animation[current_follow_id]->attack_one = target->animation->attack_one;
 		}
 		ent_set_anim(target, current_follow_id, 0);
@@ -26654,7 +31335,7 @@ int try_counter_action(entity* target, entity* attacker, s_attack* attack_object
 	/* Flash spawn. */
 	spawn_attack_flash(target, attack_object, attack_object->flash.model_block, target->modeldata.flash.model_block);
 
-	return 1;
+	return true;
 }
 
 /*
@@ -26740,57 +31421,67 @@ int attack_id_check_match(entity* acting_entity, s_attack* attack_object, int at
     return 0;
 }
 
-void do_attack(entity *attacking_entity)
-{
-    int indirect = 0;
+/*
+* Caskey, Damon V.
+* 2026-07-23
+*
+* Invoke legacy item collection with the 
+* collecting entity as self.
+*
+* didfind_item() does not yet accept the 
+* collector explicitly. Isolate that compatibility 
+*requirement here instead of exposing do_attack() to self.
+*/
+static void do_attack_invoke_didfind_item(entity* target_entity, entity* item_entity) {
+    entity* previous_self = self;
+
+    self = target_entity;
+    didfind_item(item_entity);
+    self = previous_self;
+}
+
+void do_attack(entity *attacking_entity) {
     int i = 0;
-    int force = 0;
+    int64_t force = 0;
     e_blocktype blocktype       = BLOCK_TYPE_MP_FIRST;
-    entity* temp                = NULL;
     entity* def                 = NULL;
     entity* topowner            = NULL;
     entity* otherowner          = NULL;
     entity* target              = NULL;
     s_anim* current_anim        = NULL;
     s_attack* attack            = NULL;
-    s_defense* defense_object = NULL;
     s_body* target_body_object  = NULL;
-    int didhit              = 0;
-    int didblock            = 0;    // So a different sound effect can be played when an attack is blocked
-    int current_attack_id   = 0;
+    const s_defense* defense_object = NULL;
+    bool didhit              = false;  // So a different sound effect can be played when an attack hits
+    bool didblock            = false;    // So a different sound effect can be played when an attack is blocked
+    e_block_state_flags block_state = BLOCK_STATE_NONE;
+    uint64_t current_attack_id   = 0;
     //int hit_detected        = 0;    // Has a hit been detected?
 
 
 #define followed (current_anim!=attacking_entity->animation)
-    static unsigned int new_attack_id = 1;
+    static uint64_t new_attack_id = 1;
 
     // Can't get hit after this
-    if(level_completed)
-    {
+    if(level_completed) {
         return;
     }
 
     topowner = attacking_entity; // trace the top owner, for projectile combo checking :)
-    while(topowner->owner)
-    {
+    while(topowner->owner) {
         topowner = topowner->owner;
     }
 
 	// If any blast active, use indirect damage downstream.
-    if(attacking_entity->projectile != BLAST_NONE)
-    {
-        indirect = 1;
-    }
+    const bool indirect = attacking_entity->projectile != BLAST_NONE ? true : false;
 
     // Every attack gets a unique ID to make sure no one
     // gets hit more than once by the same attack
     current_attack_id = attacking_entity->attack_id_outgoing;
 
-    if(!current_attack_id)
-    {
+    if(!current_attack_id) {
         ++new_attack_id;
-        if(new_attack_id == 0)
-        {
+        if(new_attack_id == 0) {
             new_attack_id = 1;
         }
         attacking_entity->attack_id_outgoing = current_attack_id = new_attack_id;
@@ -26799,12 +31490,10 @@ void do_attack(entity *attacking_entity)
 
     current_anim = attacking_entity->animation;
 
-    for(i = 0; i < ent_max && !followed; i++)
-    {
+    for(i = 0; i < ent_max && !followed; i++) {
         target = ent_list[i];
 
-        if(!target->exists)
-        {
+        if(!target->exists) {
             continue;
         }
 
@@ -26813,8 +31502,7 @@ void do_attack(entity *attacking_entity)
         // collision pointers are also
         // populated into lasthit, which
         // we will use below.
-        if(!checkhit(attacking_entity, target))
-        {
+        if(!checkhit(attacking_entity, target)) {
             continue;
         }
                 
@@ -26824,8 +31512,7 @@ void do_attack(entity *attacking_entity)
         defense_object = defense_find_current_object(target, target_body_object, attack->attack_type);
 
         // Verify target is alive.
-        if(target->death_state & DEATH_STATE_DEAD)
-        {
+        if(target->death_state & DEATH_STATE_DEAD) {
             continue;
         }
 
@@ -26833,10 +31520,8 @@ void do_attack(entity *attacking_entity)
         // or attack type is an item.
         // This is to allow item collection
         // even while invincible.
-        if(target->invincible & INVINCIBLE_INTANGIBLE)
-        {
-            if(attack->attack_type != ATK_ITEM)
-            {
+        if(target->invincible & INVINCIBLE_INTANGIBLE) {
+            if(attack->attack_type != ATK_ITEM) {
                 continue;
             }
         }
@@ -26848,12 +31533,9 @@ void do_attack(entity *attacking_entity)
         // differs from current target,
         // then we are trying to hit
         // another entity and should exit.
-        if(current_anim->attack_one)
-        {
-            if(attacking_entity->lasthit)
-            {
-                if(target != attacking_entity->lasthit)
-                {
+        if(current_anim->attack_one) {
+            if(attacking_entity->lasthit) {
+                if(target != attacking_entity->lasthit) {
                     continue;
                 }
             }
@@ -26863,8 +31545,7 @@ void do_attack(entity *attacking_entity)
         * Verify this is a faction we
         * can hit.
         */
-        if (!faction_check_can_damage(attacking_entity, target, indirect))
-        {
+        if (!faction_check_can_damage(attacking_entity, target, indirect)) {
             continue;
         }        
 
@@ -26874,15 +31555,13 @@ void do_attack(entity *attacking_entity)
         * between hits so engine will not
         * run hit on every update.
         */
-        if(target->next_hit_time >= _time)
-        {
+        if(target->next_hit_time >= _time) {
             continue;
         }
 
         // Target takedamage flag
         // must be set.
-        if(!target->takedamage)
-        {
+        if(!target->takedamage) {
             continue;
         }
         
@@ -26894,8 +31573,10 @@ void do_attack(entity *attacking_entity)
         * Note that function includes exceptions for an attacks 
         * that ignore IDs and the global mutlihit cheat.
         */
-        if (attack_id_check_match(target, attack, current_attack_id, (global_config.cheats & CHEAT_OPTIONS_MULTIHIT_ACTIVE)))
-        {
+        const bool multihit_enabled = (global_config.cheats & CHEAT_OPTIONS_MULTIHIT_ACTIVE) != 0;
+        const bool attack_id_match = attack_id_check_match(target, attack, current_attack_id, multihit_enabled);
+
+        if(attack_id_match) {
             continue;
         }
 
@@ -26903,41 +31584,32 @@ void do_attack(entity *attacking_entity)
         // attack only hits standing targets.
 		// Otherwise exit if attack only hits 
 		// grounded targets.
-        if(target->takeaction == common_lie)
-        {
-            if(attack->otg == OTG_NONE)
-            {
+        if(target->takeaction == common_lie) {
+            if(attack->otg == OTG_NONE) {
                 continue;
             }
-        }
-		else
-		{
-            if(attack->otg == OTG_GROUND_ONLY)
-            {
+        
+        } else {
+            if(attack->otg == OTG_GROUND_ONLY) {
                 continue;
             }
         }    
 
         //printf("\n\n Check");
 
-        if(inair(target))
-        {
+        if(inair(target)) {
             //printf("\n\n In air. \n\t Jugglecost: %d \n\t Jugglepoints: %d", attack->jugglecost, target->jugglepoints);
 
-            if(attack->jugglecost > target->jugglepoints)
-            {
+            if(attack->jugglecost > target->jugglepoints) {
                 //printf("\n\n Continue.");
                 continue;
             }
         }
 
-        temp = self;
-        self = target;
-
         // Execute the doattack scripts so author can set take action
         // before the hit code below does.
-        execute_ondoattack_script(self, attacking_entity, attack, EXCHANGE_RECIPIANT, current_attack_id);
-        execute_ondoattack_script(attacking_entity, self, attack, EXCHANGE_CONFERRER, current_attack_id);
+        execute_ondoattack_script(target, attacking_entity, attack, EXCHANGE_RECIPIANT, current_attack_id);
+        execute_ondoattack_script(attacking_entity, target, attack, EXCHANGE_CONFERRER, current_attack_id);
 
         // 2010-12-31
         // Damon V. Caskey
@@ -26946,24 +31618,15 @@ void do_attack(entity *attacking_entity)
         // certainly with the ondoattack event scripts above. Skip the engine's
         // default hit handling below. Useful for scripting parry systems, alternate blocking,
         // or other custom collision events.
-        if(lasthit.confirm)
-        {
-            didhit = 1;
-        }
-        else
-        {
-            // By White Dragon
-            // This line: self = temp; is the fix for
-            // !lasthit.confirm bug. Without it when
-            // active lasthitc 0 the damagetaker has
-            // weird speedy effect.
-            self = temp;
+        if(lasthit.confirm) {
+            didhit = true;
+        
+        } else {
             continue;
         }
 
-        otherowner = self; // trace top owner for opponent
-        while(otherowner->owner)
-        {
+        otherowner = target; // trace top owner for opponent
+        while(otherowner->owner) {
             otherowner = otherowner->owner;
         }
 
@@ -26974,26 +31637,25 @@ void do_attack(entity *attacking_entity)
 		// projectile won't be able to hit its original owner. If they need to know the 
 		// original owner after changing the owner property, they can check the parent 
 		// property.
-		if(topowner == otherowner)
-        {
-            didhit = 0;
+		if(topowner == otherowner) {
+            didhit = false;
         }
 
         //Ground missle checking, and bullets wont hit each other
-        if( (attacking_entity->owner && self->owner) ||
-                (attacking_entity->modeldata.ground && inair(attacking_entity)))
-        {
-            didhit = 0;
+        
+        const bool both_owners_exist = attacking_entity->owner && target->owner;
+        const bool ground_attack_is_airborne = attacking_entity->modeldata.ground && inair(attacking_entity);
+
+        if(both_owners_exist || ground_attack_is_airborne) {
+            didhit = false;
         }
 
         // Blocking code section.
-        if(didhit)
-        {
-            if(attack->attack_type == ATK_ITEM)
-            {
-                do_item_script(self, attacking_entity);
+        if(didhit) {
+            if(attack->attack_type == ATK_ITEM) {
+                do_item_script(target, attacking_entity);
 
-                didfind_item(attacking_entity);
+                do_attack_invoke_didfind_item(target, attacking_entity);
                 return;
             }
             
@@ -27006,129 +31668,117 @@ void do_attack(entity *attacking_entity)
             * hits normally.
             */
 
-            if(self->toexplode & EXPLODE_PREPARE_TOUCH)
-            {
-                if (validanim(self, ANI_ATTACK2))
-                {
-                    self->toexplode |= EXPLODE_DETONATE_DAMAGED;
+            if(target->toexplode & EXPLODE_PREPARE_TOUCH) {
+                if (validanim(target, ANI_ATTACK2)) {
+                    target->toexplode |= EXPLODE_DETONATE_DAMAGED;
                 }
             }
            
-            if(attacking_entity->toexplode & EXPLODE_PREPARE_TOUCH)
-            {
+            if(attacking_entity->toexplode & EXPLODE_PREPARE_TOUCH) {
                 attacking_entity->toexplode |= EXPLODE_DETONATE_HIT;
             }
 
             /*
             * Reduce available juggle points.
             */
-            if(inair(self))
-            {
-                self->jugglepoints -= attack->jugglecost;
+            if(inair(target)) {
+                target->jugglepoints -= attack->jugglecost;
             }
 
-            didblock = check_blocking_master(self, attacking_entity, attack, target_body_object);
+            block_state = check_blocking_master(target, attacking_entity, attack, target_body_object);
+            didblock = (block_state & BLOCK_STATE_ACTIVE) != 0;
 
             // Blocking the attack?
-            if(didblock)
-            {
+            if(didblock) {
                 // Perform the blocking actions.
-                do_passive_block(self, attacking_entity, attack);
-            }
-            // Counter the attack? 
-           	else if(try_counter_action(self, attacking_entity, attack, target_body_object))
-			{		
+                do_passive_block(target, attacking_entity, attack, block_state);
+            
+            } else if(try_counter_action(target, attacking_entity, attack, target_body_object)) {	// Counter action?
+
                 /* Kratus(20 - 04 - 21) used by the multihit glitch memorization. */
-                attack_update_id(self, current_attack_id);
-            }
-            else if(self->takedamage(attacking_entity, attack, 0, defense_object))
-            {
+                attack_update_id(target, current_attack_id);
+            
+            } else if(target->takedamage(target, attacking_entity, attack, 0, defense_object)) {
                 
 
-                // This is the block for normal hits. The
-                // hit was not blocked, countered, or
+                // This is the code block for normal hits. 
+                // The hit was not blocked, countered, or
                 // otherwise nullified, and this entity
                 // has takedamage() function. Let's
                 // process the hit.
 
-                execute_didhit_script(attacking_entity, self, attack, 0);
+                execute_didhit_script(attacking_entity, target, attack, 0);
                 ++attacking_entity->animation->hit_count;
 
-                attacking_entity->lasthit = self;
+                attacking_entity->lasthit = target;
 
                 // Flash spawn.
-                spawn_attack_flash(self, attack, attack->flash.model_hit, self->modeldata.flash.model_hit);
+                spawn_attack_flash(target, attack, attack->flash.model_hit, target->modeldata.flash.model_hit);
 
 				// Add to owner's combo time.
                 topowner->combotime = _time + combodelay; 
 
 				// If equalairpause is set, inair(attacking_entity) is nolonger a condition for extra pausetime.
-                if(attacking_entity->pausetime < _time || (inair(attacking_entity) && !equalairpause))
-                {
+                if(attacking_entity->pausetime < _time || (inair(attacking_entity) && !equalairpause)) {
                     // Adds pause to the current animation
                     attacking_entity->toss_time += attack->pause_add;      // So jump height pauses in midair
                     attacking_entity->nextmove += attack->pause_add;      // xdir, zdir
                    
-                    if (attacking_entity->nextanim != DELAY_INFINITE) { attacking_entity->nextanim += attack->pause_add; }
+                    attacking_entity->nextanim = animation_timestamp_add_bounded(
+                        attacking_entity->nextanim,
+                        attack->pause_add
+                    );
 
                     attacking_entity->nextthink += attack->pause_add;      // So anything that auto moves will pause
                     attacking_entity->pausetime = _time + attack->pause_add ; //UT: temporary solution
                 }
 
-                self->toss_time += attack->pause_add;       // So jump height pauses in midair
-                self->nextmove += attack->pause_add;      // xdir, zdir
-                self->nextanim += attack->pause_add;        //Pause animation for a bit
-                self->nextthink += attack->pause_add;       // So anything that auto moves will pause
+                target->toss_time += attack->pause_add;       // So jump height pauses in midair
+                target->nextmove += attack->pause_add;      // xdir, zdir
+                target->nextanim = animation_timestamp_add_bounded(
+                    target->nextanim,
+                    attack->pause_add
+                ); // Pause animation for a bit.
+                target->nextthink += attack->pause_add;       // So anything that auto moves will pause
 
-            }
-            else
-            {
+            }  else  {
                 // If we made it to this block the hit was
                 // not countered or blocked, but the entity
                 // does not have a takedamage() function. It
                 // therefore must be a type that is meant
                 // to ignore hits.
 
-                didhit = 0;
+                didhit = false;
                 continue;
             }
 
             // 2007 3 24, hmm, def should be like this
-            if(didblock && !def)
-            {
-                def = self;
+            if(didblock && !def)  {
+                def = target;
             }
             
 			// Attacker executes a follow up animation if it can.
-			try_follow_up(attacking_entity, self, attacking_entity->animation, didblock);
+			try_follow_up(attacking_entity, target, attacking_entity->animation, didblock);
 
             /* Kratus(20 - 04 - 21) used by the multihit glitch memorization. */
-            attack_update_id(self, current_attack_id);
-
-			// If hit, stop blocking.
-			if(self == def)
-            {
-                self->blocking = didblock;   
-            }
+            attack_update_id(target, current_attack_id);
 
             /*
 			* Utunnels
             * 2011-11-24 UT
 			*
 			* Move the next_hit_time logic here, because block needs this 
-			* as well. Otherwise, blockratio causes instant death
+            * as well. Otherwise, blockratio causes instant death
             */
-            self->next_hit_time = _time + (attack->next_hit_time ? attack->next_hit_time : (GAME_SPEED / 5));
-            self->nextattack = 0; // reset this, make it easier to fight back
+            target->next_hit_time = _time + (attack->next_hit_time ? attack->next_hit_time : (global_config.game_speed / 5));
+            target->nextattack = 0; // reset this, make it easier to fight back
         }
-        self = temp;
 
     }
 
 
     // Did we get a hit? let's process it.
-    if(didhit)
-    {
+    if(didhit) {
 		// Handle energy cost if attacking animation has any.
 
 		// Caskey, Damon V.
@@ -27137,28 +31787,25 @@ void do_attack(entity *attacking_entity)
 		// I'm honestly not sure how the legacy logic works. Will need to spend
 		// some more time breaking it down.
 
-        if(current_anim->energy_cost.cost > 0)
-        {
+        if(current_anim->energy_cost.cost > 0) {
+
             // well, dont check player or not - UTunnels. TODO: take care of that health cheat
-            if(attacking_entity == topowner && nocost && !(global_config.cheats & CHEAT_OPTIONS_HEALTH_ACTIVE))
-            {
+            if(attacking_entity == topowner && nocost && !(global_config.cheats & CHEAT_OPTIONS_HEALTH_ACTIVE)) {
                 attacking_entity->tocost = 1;    // Set flag so life is subtracted when animation is finished
-            }
-            else if(attacking_entity != topowner && nocost && !(global_config.cheats & CHEAT_OPTIONS_HEALTH_ACTIVE) && !attacking_entity->tocost) // if it is not top, then must be a shot
-            {
-                if(current_anim->energy_cost.mponly != COST_TYPE_MP_THEN_HP && topowner->energy_state.mp_current > 0)
-                {
+            
+            } else if(attacking_entity != topowner && nocost && !(global_config.cheats & CHEAT_OPTIONS_HEALTH_ACTIVE) && !attacking_entity->tocost) { // if it is not top, then must be a shot.
+            
+                if(current_anim->energy_cost.mponly != COST_TYPE_MP_THEN_HP && topowner->energy_state.mp_current > 0) {
+                    
                     topowner->energy_state.mp_current -= current_anim->energy_cost.cost;
-                    if(topowner->energy_state.mp_current < 0)
-                    {
+                    if(topowner->energy_state.mp_current < 0) {
                         topowner->energy_state.mp_current = 0;
                     }
-                }
-                else
-                {
+                
+                } else {
                     topowner->energy_state.health_current -= current_anim->energy_cost.cost;
-                    if(topowner->energy_state.health_current <= 0)
-                    {
+                    
+                    if(topowner->energy_state.health_current <= 0) {
                         topowner->energy_state.health_current = 1;
                     }
                 }
@@ -27175,10 +31822,10 @@ void do_attack(entity *attacking_entity)
 		* Added checks for defense property specific blockratio and type. 
 		* Could probably use some cleaning.
         */
-        if(didblock && level->nohurt == DAMAGE_FROM_ENEMY_ON)
-        {
-            /* Gets total force after defense adjustments. */
-            force = defense_result_damage(defense_object, force, 1);            
+        if(didblock && level->nohurt == DAMAGE_FROM_ENEMY_ON) {
+            
+            /* Gets total force after offense and defense adjustments. */
+            force = calculate_force_damage(def, attacking_entity, attack, defense_object, true);
             
             /*
             * Handle block type. Global blocktype is a 
@@ -27191,17 +31838,14 @@ void do_attack(entity *attacking_entity)
             * False = HP.
             */
 
-            if (defense_object->blocktype == BLOCK_TYPE_GLOBAL)
-            {
+            if (defense_object->blocktype == BLOCK_TYPE_GLOBAL) {
                 blocktype = global_config.block_type ? BLOCK_TYPE_MP_FIRST : BLOCK_TYPE_HP;
-            }
-            else
-            {
+            
+            } else {
                 blocktype = defense_object->blocktype;
             }
 
-            switch (blocktype)
-            {
+            switch (blocktype) {
                 case BLOCK_TYPE_GLOBAL:
                 case BLOCK_TYPE_HP:
                     /* 
@@ -27215,8 +31859,7 @@ void do_attack(entity *attacking_entity)
                     def->energy_state.mp_current -= force;
                     force = 0;
 
-                    if(def->energy_state.mp_current < 0)
-                    {
+                    if(def->energy_state.mp_current < 0) {
                         def->energy_state.mp_current = 0;
                     }
 
@@ -27230,13 +31873,11 @@ void do_attack(entity *attacking_entity)
                     * If there isn't enough MP to cover force, subtract remaining 
 					* MP from force and set MP to 0.
                     */
-                    if(def->energy_state.mp_current < 0)
-                    {
+                    if(def->energy_state.mp_current < 0) {
                         force = -def->energy_state.mp_current;
                         def->energy_state.mp_current = 0;
-                    }
-                    else
-                    {
+                    
+                    } else {
                         force = 0;
                     }
 
@@ -27246,8 +31887,7 @@ void do_attack(entity *attacking_entity)
 
                     def->energy_state.mp_current -= force;
 
-                    if(def->energy_state.mp_current < 0)
-                    {
+                    if(def->energy_state.mp_current < 0) {
                         def->energy_state.mp_current = 0;
                     }
 
@@ -27266,31 +31906,23 @@ void do_attack(entity *attacking_entity)
 			// 3. Damage force > HP, chip death is allowed - Set take 
 			// damage so engine will apply damage normally and KO the 
 			// entity.
-            if(force < def->energy_state.health_current)
-            {
+            if(force < def->energy_state.health_current) {
                 def->energy_state.health_current -= force;
-            }
-            else if(nochipdeath)
-            {
+            } else if(nochipdeath) {
                 def->energy_state.health_current = 1;
-            }
-            else
-            {
-                temp = self;
-                self = def;
-                self->takedamage(attacking_entity, attack, 0, defense_object);
-                self = temp;
+            } else {
+                def->takedamage(def, attacking_entity, attack, 0, defense_object);
             }            
         }
 
 		// If the attack was not blocked, let's increment the
 		// attacker's combo counter and time.
-        if(!didblock)
-        {
-            topowner->rush.time = _time + (GAME_SPEED * rush[1]);
+        if(!didblock) {
+
+            topowner->rush.time = _time + (global_config.game_speed * rush[1]);
             topowner->rush.count++;
-            if(topowner->rush.count > topowner->rush.max && topowner->rush.count > 1)
-            {
+            
+            if(topowner->rush.count > topowner->rush.max && topowner->rush.count > 1) {
                 topowner->rush.max = topowner->rush.count;
             }
         }
@@ -27303,8 +31935,7 @@ void do_attack(entity *attacking_entity)
 		* kills itself instantly. Used mainly for
 		* projectiles.
         */
-        if(attacking_entity->autokill & AUTOKILL_ATTACK_HIT)
-        {
+        if(attacking_entity->autokill & AUTOKILL_ATTACK_HIT) {
             kill_entity(attacking_entity, KILL_ENTITY_TRIGGER_AUTOKILL_ATTACK_HIT);
         }
     }
@@ -27651,7 +32282,7 @@ void check_gravity(entity *e)
                 {
                     self->velocity.y = 0;
                     self->hithead = other;
-                    execute_onblocka_script(self, other);
+                    execute_onblocky_script(self, other);
                 }
             }
             else
@@ -27660,7 +32291,7 @@ void check_gravity(entity *e)
             }
             
             // gravity, antigravity factors
-            self->position.y += self->velocity.y * 100.0 / GAME_SPEED;
+            self->position.y += self->velocity.y * 100.0 / global_config.game_speed;
             if(!(self->animation->move_config_flags & MOVE_CONFIG_SUBJECT_TO_GRAVITY))
             {
                 gravity = 0;
@@ -27672,7 +32303,7 @@ void check_gravity(entity *e)
             
             if(self->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_GRAVITY)
             {
-                self->velocity.y += gravity * 100.0 / GAME_SPEED;
+                self->velocity.y += gravity * 100.0 / global_config.game_speed;
             }
 
             fmin = (level ? level->maxfallspeed : default_level_maxfallspeed);
@@ -27810,69 +32441,62 @@ void check_gravity(entity *e)
     self = tempself;
 }
 
-int check_lost()
-{
-    s_defense* defense_object = NULL;
+bool check_lost() {
+
     s_attack attack = emptyattack;
     int osk = self->modeldata.offscreenkill ? self->modeldata.offscreenkill : DEFAULT_OFFSCREEN_KILL;
 
     if((self->position.z != ITEM_HIDE_POSITION_Z && (advancex - self->position.x > osk || self->position.x - advancex - videomodes.hRes > osk ||
                               (level->scrolldir != SCROLL_UP && level->scrolldir != SCROLL_DOWN && (advancey - self->position.z + self->position.y > osk || self->position.z - self->position.y - advancey - videomodes.vRes > osk)) ||
                               ((level->scrolldir == SCROLL_UP || level->scrolldir == SCROLL_DOWN) && (self->position.z - self->position.y < -osk || self->position.z - self->position.y > videomodes.vRes + osk))		) )
-            || self->position.y < 2 * PIT_DEPTH) //self->position.z<ITEM_HIDE_POSITION_Z, so weapon item won't be killed
-    {
-        if(self->modeldata.type & TYPE_PLAYER)
-        {
+            || self->position.y < 2 * PIT_DEPTH) {
+    
+        if(self->modeldata.type & TYPE_PLAYER) {
             player_die();
-        }
-        else
-        {
+        
+        } else {
             kill_entity(self, KILL_ENTITY_TRIGGER_OUT_OF_BOUNDS);
         }
-        return 1;
+        return true;
     }
 
+    const s_defense* defense_object = defense_find_current_object(self, NULL, attack.attack_type);
+
     // fall into a pit
-    if(self->position.y < PIT_DEPTH)
-    {
-        if(!self->takedamage)
-        {
+    if(self->position.y < PIT_DEPTH) {
+        
+        if(!self->takedamage) {
             kill_entity(self, KILL_ENTITY_TRIGGER_PIT);
-        }
-        else
-        {
+        
+        } else {
             attack.dropv	= default_model_dropv;
             attack.attack_force = self->energy_state.health_current;
             attack.attack_type  = ATK_PIT;
-            defense_object = defense_find_current_object(self, NULL, attack.attack_type);
-            self->takedamage(self, &attack, 0, defense_object);
+            
+            self->takedamage(self, self, &attack, 0, defense_object);
         }
-        return 1;
-    }
-    else if(self->lifespancountdown < 0) //Lifespan expired.
-    {
-        if(!self->takedamage)
-        {
+        return true;
+    
+    } else if(self->lifespancountdown < 0) { //Lifespan expired.
+
+        if(!self->takedamage) {
             kill_entity(self, KILL_ENTITY_TRIGGER_LIFESPAN);
-        }
-        else
-        {
+        
+        } else {
             attack.dropv	= default_model_dropv;
             attack.attack_force = self->energy_state.health_current;
             attack.attack_type  = ATK_LIFESPAN;
-            defense_object = defense_find_current_object(self, NULL, attack.attack_type);
-            self->takedamage(self, &attack, 0, defense_object);
+            self->takedamage(self, self, &attack, 0, defense_object);
         }
-        return 1;
-    }//else
+        return true;
+    }
 
     // Doom count down
-    if(!is_frozen(self) && self->lifespancountdown != LIFESPAN_DEFAULT)
-    {
+    if(!is_frozen(self) && self->lifespancountdown != LIFESPAN_DEFAULT) {
         self->lifespancountdown--;
     }
 
-    return 0;
+    return false;
 }
 
 // grab walk check
@@ -28343,12 +32967,24 @@ void update_animation()
         self->escapecount = 0;
     }
 
-    if((self->nextanim == _time && self->nextanim != DELAY_INFINITE) ||
-            ((self->modeldata.type & TYPE_TEXTBOX) && self->modeldata.subtype != SUBTYPE_NOSKIP &&
-             (bothnewkeys & (FLAG_JUMP | FLAG_ATTACK | FLAG_ATTACK2 | FLAG_ATTACK3 | FLAG_ATTACK4 | FLAG_SPECIAL)))) // Textbox will autoupdate if a valid player presses an action button
-    {
-        // Now you can display text and cycle through with any jump/attack/special unless SUBTYPE_NOSKIP
-
+    /*
+    * Cycle frame if the frame time is not infinite 
+    * and the nextanim time has been reached, or if 
+    * the entity is a textbox and the player has 
+    * pressed a key to skip the text.
+    */
+    if((!(self->nextanim & DELAY_FLAG_INFINITE)
+        && self->nextanim <= _time) ||
+        ((self->modeldata.type & TYPE_TEXTBOX)
+            && self->modeldata.subtype != SUBTYPE_NOSKIP
+            && (bothnewkeys
+                & (FLAG_JUMP
+                    | FLAG_ATTACK
+                    | FLAG_ATTACK2
+                    | FLAG_ATTACK3
+                    | FLAG_ATTACK4
+                    | FLAG_SPECIAL)))) {
+                
         f = self->animpos + self->animating;
 
         //Specified loop break frame.
@@ -28423,29 +33059,68 @@ void update_animation()
 
 }
 
-void check_attack()
-{
-    /* a normal fall */
-    if(self->falling && self->projectile == BLAST_NONE)
-    {
+void check_attack(void) {
+    s_collision_collection* collision_attack = NULL;
+    int animation_frame;
+
+    /*
+    * Basic guards.
+    */
+    if (!self || !self->animation) {
+        return;
+    }
+
+    /*
+    * If falling, we don't attack unless 
+    * in a projectile state (as in, thrown
+    * or blasted by another entity). This
+    * is how we handle throwing a guy into
+    * his buddies. 
+    */
+    if (self->falling && self->projectile == BLAST_NONE) {
         self->attack_id_outgoing = 0;
         return;
     }
 
-    /* on ground */
-    if(self->drop && !self->falling)
-    {
+    /*
+    * On ground after drop.
+    */
+    if (self->drop && !self->falling) {
         self->attack_id_outgoing = 0;
         return;
     }
 
-    /* Can't hit an opponent if you are frozen. */
-    if(!is_frozen(self) && self->animation->collision_attack &&
-            self->animation->collision_attack[self->animpos])
-    {
-                do_attack(self);
+    /*
+    * Can't hit an opponent if frozen.
+    */
+    if (is_frozen(self)) {
+        self->attack_id_outgoing = 0;
         return;
     }
+
+    animation_frame = self->animpos;
+
+    /*
+    * Protect animation frame table lookup.
+    */
+    if (animation_frame < 0 || animation_frame >= self->animation->numframes) {
+        self->attack_id_outgoing = 0;
+        return;
+    }
+
+    /*
+    * Attack collision table must exist, and this frame
+    * must have at least one active attack slot.
+    */
+    if (self->animation->collision_attack) {
+        collision_attack = self->animation->collision_attack[animation_frame];
+
+        if (collision_attack && collision_attack->active_status) {
+            do_attack(self);
+            return;
+        }
+    }
+
     self->attack_id_outgoing = 0;
 }
 
@@ -28476,7 +33151,7 @@ int do_energy_charge(entity *ent)
 	ent->energy_state.mp_current += ent->modeldata.chargerate;
 
 	// Time for next charge tick.
-	ent->mpchargetime = _time + (GAME_SPEED * ENERGY_CHARGE_RATE);
+	ent->mpchargetime = _time + (global_config.game_speed * ENERGY_CHARGE_RATE);
 
 	return 1;
 
@@ -28501,7 +33176,9 @@ void update_health()
         * Recover guardpoints. Half rate if
         * blocking.
         */
-        if(self->blocking)
+        if((self->blocking & (BLOCK_STATE_ACTIVE | BLOCK_STATE_NATIVE))
+			== (BLOCK_STATE_ACTIVE | BLOCK_STATE_NATIVE)
+			&& !(self->blocking & BLOCK_STATE_IGNORE_GUARD_POINTS))
         {
             self->guardpoints += (self->modeldata.guardrate / 2);            
         }
@@ -28517,11 +33194,11 @@ void update_health()
         }
 
         /* Reset guardtime. */
-        self->guardtime = _time + GAME_SPEED;    
+        self->guardtime = _time + global_config.game_speed;    
     }
 
     //Damage over time.
-    recursive_damage_update(self);
+    recursive_entity_effect_update(self);
 
     // this is for restoring mp by _time by tails
     // Cleaning and addition of mpstable by DC, 08172008.
@@ -28534,7 +33211,7 @@ void update_health()
 
             // 1 Only recover MP > mpstableval.
             // 2 No recover. Drop MP if MP < mpstableval.
-            // 3 Both: recover if MP if MP < mpstableval and drop if MP > mpstableval.
+            // 3 Both: recover if MP < mpstableval and drop if MP > mpstableval.
             // 4 Gain until stable, then fall to stable.
 			// 0 Default. Recover MP at all times.
 
@@ -28591,7 +33268,7 @@ void update_health()
                 self->energy_state.mp_current += self->modeldata.mprate;
             }
 
-            self->magictime = _time + GAME_SPEED;    //Reset magictime.
+            self->magictime = _time + global_config.game_speed;    //Reset magictime.
         }
     }
 
@@ -28695,14 +33372,13 @@ s_bind* bind_clone_object(s_bind* source)
 *
 * Send all bind data to log for debugging.
 */
-void bind_dump_object(s_bind* object)
-{
+void bind_dump_object(s_bind* object) {
+
     printf("\n\n -- Bind (%p) dump --", object);
 
-    if (object)
-    {
+    if (object) {
         printf("\n\t ->animation: %d", object->animation);
-        printf("\n\t ->config: %d", object->config);
+        printf("\n\t ->config: %" PRIu64, object->config);
         printf("\n\t ->direction_adjust: %d", object->direction_adjust);
         printf("\n\t ->frame: %d", object->frame);
         printf("\n\t ->meta_data: %p", object->meta_data);
@@ -28739,84 +33415,68 @@ void bind_free_object(s_bind* object)
 * depending on bind property settings. Also 
 * executes bind scripts for acting and target.
 */
-void adjust_bind(entity* acting_entity)
-{
+void adjust_bind(entity* acting_entity) {
+
 	#define ADJUST_BIND_SET_ANIM_RESETABLE 1
 	#define ADJUST_BIND_NO_FRAME_MATCH -1   
 
     int				frame = 0;
-    e_animations	animation = ANI_NONE;
+    animation_id_t animation = ANI_NONE;
 
-	/* 
-    * Exit if there is no bind 
-    * or bind target. 
-    */
-	if (!acting_entity->binding.target)
-	{
-		return;
-	}
+    s_bind *const acting_bind = &acting_entity->binding;
 
-	/* 
-    * Run bind update scripts for target and
-    * acting entity. 
-    */
+    if (!acting_bind->target) {
+        return;
+    }
 
-	execute_on_bind_update_other_to_self(acting_entity->binding.target, acting_entity, &acting_entity->binding); 
-    execute_on_bind_update_self_to_other(acting_entity, acting_entity->binding.target, &acting_entity->binding);
+    execute_on_bind_update_other_to_self(acting_bind->target, acting_entity, acting_bind);
+    execute_on_bind_update_self_to_other(acting_entity, acting_bind->target, acting_bind);
 
-    /*
-    printf("\n\n adjust_bind(%p)", acting_entity);
-    printf("\n\t Acting Name: %s", acting_entity->name);
-    printf("\n\t acting_entity->binding: %p", &acting_entity->binding);
-    printf("\n\t\t binding.animation: %d", acting_entity->binding.animation);
-    printf("\n\t\t binding.config: %d", acting_entity->binding.config);
-    printf("\n\t\t binding.direction_adjust: %d", acting_entity->binding.direction_adjust);
-    printf("\n\t\t binding.frame: %d", acting_entity->binding.frame);
-    printf("\n\t\t binding.meta_data: %p", &acting_entity->binding.meta_data);
-    printf("\n\t\t binding.meta_tag: %d", acting_entity->binding.meta_tag);
-    printf("\n\t\t binding.offset: %d, %d, %d", acting_entity->binding.offset.x, acting_entity->binding.offset.y, acting_entity->binding.offset.z);
-    printf("\n\t\t binding.sortid: %d", acting_entity->binding.sortid);    
+    if (!acting_bind->target) { 
+        return;
+    }
+
+    const bind_config_t bind_config = acting_bind->config;
     
-    if (acting_entity->binding.target)
-    {
-        printf("\n\t\t binding.target: %p (%s)", acting_entity->binding.target, acting_entity->binding.target->name);
-    }
-    else
-    {
-        printf("\n\t\t binding.target: %p (%s)", acting_entity->binding.target, "");
-    }
-    printf("\n\n");
-    */
+	/*
+    * Check config flags for removal. Legacy bindentity() 
+    * used values 4 and 8 for animation and frame removal, 
+    * respectively. These values are now defined as 
+    * BIND_CONFIG_ANIMATION_REMOVE and BIND_CONFIG_ANIMATION_FRAME_REMOVE. 
+    * The removal flags imply target matching for legacy 
+    * bindentity() values 4 and 8, even when no explicit 
+    * matching flag is set.
+	*/
+	if (bind_config & (BIND_CONFIG_ANIMATION_DEFINED
+		| BIND_CONFIG_ANIMATION_TARGET
+		| BIND_CONFIG_ANIMATION_REMOVE
+		| BIND_CONFIG_ANIMATION_FRAME_DEFINED
+		| BIND_CONFIG_ANIMATION_FRAME_TARGET
+		| BIND_CONFIG_ANIMATION_FRAME_REMOVE)) {
 
-	if (acting_entity->binding.config & (BIND_CONFIG_ANIMATION_DEFINED | BIND_CONFIG_ANIMATION_TARGET | BIND_CONFIG_ANIMATION_FRAME_DEFINED | BIND_CONFIG_ANIMATION_FRAME_TARGET))
-	{
 		/* 
         * If a defined value is requested,
 		* use the binding member value.
 		* Otherwise use target's current value.
 		*/
-        if (acting_entity->binding.config & BIND_CONFIG_ANIMATION_DEFINED)
-		{
-			animation = acting_entity->binding.animation;
-		}
-		else
-		{
-			animation = acting_entity->binding.target->animnum;
+        if (bind_config & BIND_CONFIG_ANIMATION_DEFINED) {
+			animation = acting_bind->animation;
+        } else {
+			animation = acting_bind->target->animnum;
 		}
 
 		/* Are we NOT currently playing the target animation? */
-		if (acting_entity->animnum != animation)
-		{
+		if (acting_entity->animnum != animation) {
+
 			/*
             * If we don't have the target animation
 			* and animation kill flag is set, then
 			* we kill ourselves and exit the function.
 			*/
-            if (!validanim(acting_entity, animation))
-			{
+            if (!validanim(acting_entity, animation)) {
+
 				/* Don't have the animation? Kill self. */
-				if (acting_entity->binding.config & BIND_CONFIG_ANIMATION_REMOVE)
-				{
+				if (bind_config & BIND_CONFIG_ANIMATION_REMOVE) {
 					kill_entity(acting_entity, KILL_ENTITY_TRIGGER_BIND_ANIMATION_MATCH);
 				}
 
@@ -28843,37 +33503,30 @@ void adjust_bind(entity* acting_entity)
 		* so frame matching logic is skipped.		
 		*/
 
-		if (acting_entity->binding.config & BIND_CONFIG_ANIMATION_FRAME_DEFINED)
-		{
-			frame = acting_entity->binding.frame;
-		}
-		else if (acting_entity->binding.config & BIND_CONFIG_ANIMATION_FRAME_TARGET)
-		{
-			frame = acting_entity->binding.target->animpos;
-		}
-		else
-		{
-			frame = ADJUST_BIND_NO_FRAME_MATCH;
-		}
+		if (bind_config & BIND_CONFIG_ANIMATION_FRAME_DEFINED) {
+		    frame = acting_bind->frame;
+        } else if (bind_config & BIND_CONFIG_ANIMATION_FRAME_TARGET) {
+            frame = acting_bind->target->animpos;
+        } else {
+            frame = ADJUST_BIND_NO_FRAME_MATCH;
+        }
 
 		/* 
         * Any frame match flag set?
 		*/
-        if (frame != ADJUST_BIND_NO_FRAME_MATCH)
-		{
+        if (frame != ADJUST_BIND_NO_FRAME_MATCH) {
+
 			/* Are we NOT currently playing the target frame ? */
-			if (acting_entity->animpos != frame)
-			{
-				/*
+			if (acting_entity->animpos != frame) {
+				
+                /*
                 * If we don't have the frame and frame kill flag is
 				* set, kill self.
 				*/
-                if ((acting_entity->animation->numframes -1) < frame)
-				{
-					if (acting_entity->binding.config & BIND_CONFIG_ANIMATION_FRAME_REMOVE)
-					{
-						kill_entity(acting_entity, KILL_ENTITY_TRIGGER_BIND_FRAME_MATCH);
-                        						
+                if ((acting_entity->animation->numframes -1) < frame) {
+					if (bind_config & BIND_CONFIG_ANIMATION_FRAME_REMOVE) {
+
+						kill_entity(acting_entity, KILL_ENTITY_TRIGGER_BIND_FRAME_MATCH);                        						
 						return;
 					}					
 				}
@@ -28888,10 +33541,10 @@ void adjust_bind(entity* acting_entity)
 	}
 
 	/* Apply sort ID adjustment. */
-    acting_entity->sortid = acting_entity->binding.target->sortid + acting_entity->binding.sortid;
+    acting_entity->sortid = acting_bind->target->sortid + acting_bind->sortid;
 
 	/* Getand apply direction adjustment. */
-    acting_entity->direction = direction_get_adjustment_result(acting_entity, acting_entity->binding.target, acting_entity->binding.direction_adjust);
+    acting_entity->direction = direction_get_adjustment_result(acting_entity, acting_bind->target, acting_bind->direction_adjust);
 
     /*
 	* Apply positioning based on config. For
@@ -28900,44 +33553,79 @@ void adjust_bind(entity* acting_entity)
 	*/
 
     // X
-    if (acting_entity->binding.config & BIND_CONFIG_AXIS_X_TARGET)
-    {
-        if (acting_entity->binding.target->direction == DIRECTION_LEFT)
-        {
-            acting_entity->position.x = acting_entity->binding.target->position.x - acting_entity->binding.offset.x;            
+    const int offset_x = acting_bind->offset.x;
+
+    if (bind_config & BIND_CONFIG_AXIS_X_TARGET) {
+        
+        const float target_x = acting_bind->target->position.x;
+
+        if (acting_bind->target->direction == DIRECTION_LEFT) {
+
+            acting_entity->position.x = target_x - (float)offset_x;
+        
+        } else {
+        
+            acting_entity->position.x = target_x + (float)offset_x;
+        
         }
-        else
-        {
-            acting_entity->position.x = acting_entity->binding.target->position.x + acting_entity->binding.offset.x;
-        }
-    }
-    else if (acting_entity->binding.config & BIND_CONFIG_AXIS_X_LEVEL)
-    {
-        acting_entity->position.x = acting_entity->binding.offset.x;
+    
+    } else if (bind_config & BIND_CONFIG_AXIS_X_LEVEL) {
+
+        acting_entity->position.x = (float)offset_x;
+
     }
     
     // Y
-    if (acting_entity->binding.config & BIND_CONFIG_AXIS_Y_TARGET)
-    {
-        acting_entity->position.y = acting_entity->binding.target->position.y + acting_entity->binding.offset.y;
-    }
-    else if (acting_entity->binding.config & BIND_CONFIG_AXIS_Y_LEVEL)
-    {
-        acting_entity->position.y = acting_entity->binding.offset.y;
+    const int offset_y = acting_bind->offset.y;
+
+    if (bind_config & BIND_CONFIG_AXIS_Y_TARGET) {
+
+        acting_entity->position.y = acting_bind->target->position.y + (float)offset_y;
+
+    } else if (bind_config & BIND_CONFIG_AXIS_Y_LEVEL) {
+
+        acting_entity->position.y = (float)offset_y;
+
     }
 
     // Z
-    if (acting_entity->binding.config & BIND_CONFIG_AXIS_Z_TARGET)
-    {
-        acting_entity->position.z = acting_entity->binding.target->position.z + acting_entity->binding.offset.z;
-    }
-    else if (acting_entity->binding.config & BIND_CONFIG_AXIS_Z_LEVEL)
-    {
-        acting_entity->position.z = acting_entity->binding.offset.z;
+    const int offset_z = acting_bind->offset.z;
+
+    if (bind_config & BIND_CONFIG_AXIS_Z_TARGET) {
+
+        acting_entity->position.z = acting_bind->target->position.z + (float)offset_z;
+    
+    } else if (bind_config & BIND_CONFIG_AXIS_Z_LEVEL) {
+
+        acting_entity->position.z = (float)offset_z;
+
     }
     	
 	#undef ADJUST_BIND_SET_ANIM_RESETABLE
 	#undef ADJUST_BIND_NO_FRAME_MATCH
+}
+
+/*
+* Caskey, Damon V.
+* 2021-08-24
+*
+* Read a text argument for direction and output
+* appropriate direction constant. If input is
+* legacy integer, we just pass it on.
+*/
+e_direction direction_get_direction_from_argument(const char* filename, const char* command, const char* value) {
+    e_direction result = DIRECTION_NONE;
+        
+    if (stricmp(value, "left") == 0) {
+        result = DIRECTION_LEFT;    
+    } else if (stricmp(value, "right") == 0) {
+        result = DIRECTION_RIGHT;    
+    } else {
+        /* Just pass through for legacy integer. */
+        result = getValidInt(value, filename, command);
+    }
+
+    return result;
 }
 
 /*
@@ -28948,40 +33636,24 @@ void adjust_bind(entity* acting_entity)
 * appropriate direction adjustment constant. If
 * input is legacy integer, we just pass it on.
 */
-e_direction_adjust direction_get_adjustment_from_argument(char* filename, char* command, char* value)
-{
+e_direction_adjust direction_get_adjustment_from_argument(const char* filename, const char* command, const char* value) {
     e_direction_adjust result = DIRECTION_ADJUST_NONE;
         
-    if (stricmp(value, "left") == 0)
-    {
+    if (stricmp(value, "left") == 0) {
         result = DIRECTION_ADJUST_LEFT;
-    }
-    else if (stricmp(value, "none") == 0)
-    {
+    } else if (stricmp(value, "none") == 0) {
         result = DIRECTION_ADJUST_NONE;
-    }
-    else if (stricmp(value, "opposite") == 0)
-    {
+    } else if (stricmp(value, "opposite") == 0) {
         result = DIRECTION_ADJUST_OPPOSITE;
-    }
-    else if (stricmp(value, "right") == 0)
-    {
-        result = DIRECTION_ADJUST_RIGHT;
-    }
-    else if (stricmp(value, "same") == 0)
-    {
+    } else if (stricmp(value, "right") == 0) {
+        result = DIRECTION_ADJUST_RIGHT;    
+    } else if (stricmp(value, "same") == 0) {
         result = DIRECTION_ADJUST_SAME;
-    }
-    else if (stricmp(value, "toward") == 0)
-    {
+    } else if (stricmp(value, "toward") == 0) {
         result = DIRECTION_ADJUST_TOWARD;
-    }
-    else if (stricmp(value, "away") == 0)
-    {
+    } else if (stricmp(value, "away") == 0) {
         result = DIRECTION_ADJUST_AWAY;
-    }
-    else
-    {
+    } else {
         result = getValidInt(value, filename, command);
     }
 
@@ -29090,12 +33762,10 @@ e_direction direction_get_adjustment_result(entity* acting_entity, const entity*
 * Return true if the target entity has a valid
 * bind target and match for the override argument.
 */
-int check_bind_override(entity *ent, e_bind_config bind_config)
-{
-    if(ent->binding.target)
-    {
-        if(ent->binding.config & bind_config)
-        {
+bool check_bind_override(entity *ent, bind_config_t bind_config) {
+    
+    if(ent->binding.target) {
+        if(ent->binding.config & bind_config) {
             return TRUE;
         }
     }
@@ -29188,58 +33858,66 @@ void check_move(entity *e)
     self = tempself;
 }
 
-void ent_post_update(entity *e)
-{
-    check_gravity(e);// check gravity
-    check_entity_collision_for(e);
-    check_move(e);
+void ent_post_update(entity *e) {
 
-    adjust_bind(e);
+    check_gravity(e);// check gravity
+    //check_entity_collision_for(e);
+    check_move(e);
 }
 
-// arrenge the list reduce its length
-void arrange_ents()
-{
+// arrange the list and reduce its length
+void arrange_ents() {
+
     int i, ind = -1;
     entity *temp;
-    if(ent_count == 0)
-    {
+
+    if(ent_count == 0) {
         return;
     }
-    if(ent_max == ent_count)
-    {
-        for(i = 0; i < ent_max; i++)
-        {
-            if(ent_list[i]->exists)
-            {
-                ent_post_update(ent_list[i]);
-            }
+
+    /*
+    * Finish movement for every entity before 
+    * resolving binds. Movement may change a 
+    * bind target's animation, such as entering 
+    * ANI_HITWALL, and all bound entities must 
+    * observe the completed target state regardless 
+    * of their order in ent_list.
+    */
+    for(i = 0; i < ent_max; i++) {
+        if(ent_list[i]->exists) {
+            ent_post_update(ent_list[i]);
         }
     }
-    else
-    {
-        for(i = 0; i < ent_max; i++)
-        {
-            if(!ent_list[i]->exists && ind < 0)
-            {
+
+    /* 
+    * Resolve binding after all target movement 
+    * and animation changes. 
+    */
+    for(i = 0; i < ent_max; i++) {
+        if(ent_list[i]->exists) {
+            adjust_bind(ent_list[i]);
+        }
+    }
+
+    if(ent_max != ent_count) {
+
+        for(i = 0; i < ent_max; i++) {
+
+            if(!ent_list[i]->exists && ind < 0) {
+                
                 ind = i;
-            }
-            else if(ent_list[i]->exists && ind >= 0)
-            {
+            
+            } else if(ent_list[i]->exists && ind >= 0) {
                 temp = ent_list[i];
                 ent_list[i] = ent_list[ind];
                 ent_list[ind] = temp;
                 ind++;
             }
-            if(ent_list[i]->exists)
-            {
-                ent_post_update(ent_list[i]);
-            }
         }
         ent_max = ent_count;
     }
-    for(i = 0; i < ent_max; i++)
-    {
+
+    for(i = 0; i < ent_max; i++) {
         ent_list[i]->movex = ent_list[i]->movez = 0;
     }
 }
@@ -29254,6 +33932,29 @@ void update_ents()
         if(ent_list[i]->exists && _time != ent_list[i]->timestamp)// dont update fresh entity
         {
             self = ent_list[i];
+            bool trace_aerial_recovery = self->playerindex >= 0
+                && max_follows >= 9
+                && self->animnum == animfollows[8];
+
+            if(trace_aerial_recovery)
+            {
+                printf(
+                    "AERIAL_RECOVERY_UPDATE stage=start"
+                    " player=%" PRId64
+                    " animation=%" PRIu64
+                    " falling=%d"
+                    " drop=%d"
+                    " velocity_y=%f"
+                    " takeaction_fall=%d\n",
+                    self->playerindex,
+                    (uint64_t)self->animnum,
+                    self->falling,
+                    self->drop,
+                    self->velocity.y,
+                    self->takeaction == common_fall
+                );
+            }
+
             self->update_mark = UPDATE_MARK_NONE;
             if(level)
             {
@@ -29272,16 +33973,57 @@ void update_ents()
             {
 
                 execute_updateentity_script(self);// execute a script
+                if(trace_aerial_recovery)
+                {
+                    printf(
+                        "AERIAL_RECOVERY_UPDATE stage=updateentity"
+                        " animation=%" PRIu64
+                        " falling=%d drop=%d velocity_y=%f takeaction_fall=%d\n",
+                        (uint64_t)self->animnum,
+                        self->falling,
+                        self->drop,
+                        self->velocity.y,
+                        self->takeaction == common_fall
+                    );
+                }
                 if(!self->exists)
                 {
                     continue;
                 }
                 check_ai();// check ai
+                if(trace_aerial_recovery)
+                {
+                    printf(
+                        "AERIAL_RECOVERY_UPDATE stage=check_ai"
+                        " animation=%" PRIu64
+                        " falling=%d drop=%d velocity_y=%f takeaction_fall=%d\n",
+                        (uint64_t)self->animnum,
+                        self->falling,
+                        self->drop,
+                        self->velocity.y,
+                        self->takeaction == common_fall
+                    );
+                }
                 if(!self->exists)
                 {
                     continue;
                 }
                 update_animation(); // if not frozen, update animation
+                if(trace_aerial_recovery)
+                {
+                    printf(
+                        "AERIAL_RECOVERY_UPDATE stage=animation"
+                        " animation=%" PRIu64
+                        " frame=%" PRIu64
+                        " falling=%d drop=%d velocity_y=%f takeaction_fall=%d\n",
+                        (uint64_t)self->animnum,
+                        self->animpos,
+                        self->falling,
+                        self->drop,
+                        self->velocity.y,
+                        self->takeaction == common_fall
+                    );
+                }
                 if(!self->exists)
                 {
                     continue;
@@ -29292,8 +34034,8 @@ void update_ents()
                     continue;
                 }
                 update_health();// Update displayed health
-                self->movex += self->velocity.x * self->speedmul * (100.0 / GAME_SPEED);
-                self->movez += self->velocity.z * self->speedmul * (100.0 / GAME_SPEED);
+                self->movex += self->velocity.x * self->speedmul * (100.0 / global_config.game_speed);
+                self->movez += self->velocity.z * self->speedmul * (100.0 / global_config.game_speed);
             }
         }
     }//end of for
@@ -29301,7 +34043,7 @@ void update_ents()
     /*
     if(time>=nextplan){
     	plan();
-    	nextplan = time+GAME_SPEED/2;
+    	nextplan = time+global_config.game_speed/2;
     }*/
 }
 
@@ -29367,7 +34109,7 @@ void display_ents()
             scrx = o_scrx - ((e->modeldata.quake_config & QUAKE_CONFIG_DISABLE_SELF) ? 0 : gfx_x_offset);
             scry = o_scry - ((e->modeldata.quake_config & QUAKE_CONFIG_DISABLE_SELF) ? 0 : gfx_y_offset);
             
-			if(freezeall || !(e->blink && (_time % (GAME_SPEED / 10)) < (GAME_SPEED / 20)))
+			if(freezeall || !(e->blink && (_time % (global_config.game_speed / 10)) < (global_config.game_speed / 20)))
             {
                 float eheight = T_WALKOFF, eplatheight = 0;
 
@@ -29375,11 +34117,12 @@ void display_ents()
                 if ( e->animation->platform )
                 {
                     s_anim *anim = e->animation;
-
-                    if ( anim->platform[e->animpos] )
+                                       
+                    if (anim->platform[e->animpos][PLATFORM_HEIGHT])
                     {
-                        if ( anim->platform[e->animpos][PLATFORM_HEIGHT] ) eplatheight += anim->platform[e->animpos][PLATFORM_HEIGHT];
+                        eplatheight += anim->platform[e->animpos][PLATFORM_HEIGHT];
                     }
+                    
                 }
                 if ( e->modeldata.size.y && eplatheight <= 0 ) eheight += e->modeldata.size.y;
                 else eheight += eplatheight;
@@ -29538,8 +34281,8 @@ void display_ents()
                     {
 						// This checks against both dying percentage thresholds and their associated 
 						// timing. If any pass, then we can move on and apply a flash.
-                        if((e->energy_state.health_current <= e->per1 && e->energy_state.health_current > e->per2 && (_time % (GAME_SPEED / 5)) < (GAME_SPEED / 10)) ||
-                                (e->energy_state.health_current <= e->per2 && (_time % (GAME_SPEED / 10)) < (GAME_SPEED / 20)))
+                        if((e->energy_state.health_current <= e->per1 && e->energy_state.health_current > e->per2 && (_time % (global_config.game_speed / 5)) < (global_config.game_speed / 10)) ||
+                                (e->energy_state.health_current <= e->per2 && (_time % (global_config.game_speed / 10)) < (global_config.game_speed / 20)))
                         {
 							// Have any HP left?
                             if(e->energy_state.health_current > 0 )
@@ -29637,7 +34380,7 @@ void display_ents()
                                 {
                                     alty = (int)(e->position.y - (other->position.y + other->animation->platform[other->animpos][PLATFORM_HEIGHT]));
                                     temp1 = -1 * (e->position.y - (other->position.y + other->animation->platform[other->animpos][PLATFORM_HEIGHT])) * light.x / 256; // xshift
-                                    temp2 = (float)(-e->position.y * light.y / 256);
+                                    temp2 = -e->position.y * light.y / 256;
 
                                     qx = (int)(e->position.x - scrx);
                                     qy = (int)(e->position.z - scry - other->position.y - other->animation->platform[other->animpos][PLATFORM_HEIGHT]); // + (other->animation->platform[other->animpos][PLATFORM_DEPTH]/2)
@@ -30012,7 +34755,7 @@ int set_idle(entity *ent)
     ent->inbackpain = 0;
     ent->falling = 0;
     ent->jumping = 0;
-    ent->blocking = 0;
+    ent->blocking = BLOCK_STATE_NONE;
     common_idle_anim(ent);
 
     /*
@@ -30036,7 +34779,7 @@ int set_death(entity *iDie, int type, int reset)
     int die = 0;
 
     //iDie->velocity.x = iDie->velocity.z = iDie->velocity.y = 0; // stop the target
-    if(iDie->blocking && validanim(iDie, ANI_CHIPDEATH))
+    if((iDie->blocking & BLOCK_STATE_ACTIVE) && validanim(iDie, ANI_CHIPDEATH))
     {
         ent_set_anim(iDie, ANI_CHIPDEATH, reset);
         iDie->idling = IDLING_NONE;
@@ -30044,7 +34787,7 @@ int set_death(entity *iDie, int type, int reset)
         iDie->jumping = 0;
         iDie->charging = 0;
         iDie->attacking = ATTACKING_NONE;
-        iDie->blocking = 0;
+        iDie->blocking = BLOCK_STATE_NONE;
         iDie->inpain = IN_PAIN_NONE;
         iDie->falling = 0;
         iDie->rising = RISING_NONE;
@@ -30090,7 +34833,7 @@ int set_death(entity *iDie, int type, int reset)
     iDie->jumping = 0;
     iDie->charging = 0;
     iDie->attacking = ATTACKING_NONE;
-    iDie->blocking = 0;
+    iDie->blocking = BLOCK_STATE_NONE;
     iDie->inpain = IN_PAIN_NONE;
     iDie->falling = 0;
     iDie->rising = RISING_NONE;
@@ -30106,6 +34849,34 @@ int set_death(entity *iDie, int type, int reset)
 int set_fall(entity *ent, entity *other, s_attack *attack, int reset)
 {
     int fall = 0;
+
+    if (ent
+        && attack
+        && ent->playerindex >= 0)
+    {
+        printf(
+            "AERIAL_RECOVERY_FALL player=%" PRId64
+            " attack_type=%d"
+            " selected=%" PRIu64
+            " previous=%" PRIu64
+            " reset=%d"
+            " seal=%" PRId64
+            " sealtime=%" PRIu64
+            " time=%" PRIu64
+            " projectile=%d"
+            " linked=%d\n",
+            ent->playerindex,
+            attack->attack_type,
+            (uint64_t)animfalls[attack->attack_type],
+            (uint64_t)ent->animnum,
+            reset,
+            ent->seal,
+            ent->sealtime,
+            _time,
+            ent->projectile,
+            ent->link != NULL
+        );
+    }
 
     if ( ent->inbackpain ) fall = animbackfalls[attack->attack_type];
     else fall = animfalls[attack->attack_type];
@@ -30145,7 +34916,7 @@ int set_fall(entity *ent, entity *other, s_attack *attack, int reset)
     ent->getting = 0;
     ent->charging = 0;
     ent->attacking = ATTACKING_NONE;
-    ent->blocking = 0;
+    ent->blocking = BLOCK_STATE_NONE;
     ent->nograb = 1;
     ent->running = RUN_STATE_NONE; //Kratus (01-2024) Resets the aiflag running when falling
 
@@ -30265,67 +35036,67 @@ int set_riseattack(entity *iRiseattack, int type, int reset)
     return 1;
 }
 
-int set_blockpain(entity *ent, e_attack_types attack_type, int reset)
-{
-    e_animations animation;
+/*
+* Caskey, Damon V.
+* 2018
+*
+* Place entity into appropriate block pain animation 
+* based on attack type and direction of attack.
+*
+* Returns true if successful, false if no valid block pain 
+* animation was found.
+*/
+bool set_blockpain(entity *acting_entity, attack_type_t attack_type, int reset) {
+    animation_id_t animation;
 
     // If attack type is out of bounds we
     // just use normal.
-    if(attack_type < ATK_NORMAL || attack_type >= max_attack_types)
-    {
+    if(attack_type >= max_attack_types) {
         attack_type = ATK_NORMAL;
     }
 
     // In front or back?
-    if (ent->inbackpain)
-    {
+    if (acting_entity->inbackpain) {
         animation = animbackblkpains[attack_type];
-    }
-    else
-    {
+    
+    } else {
         animation = animblkpains[attack_type];
     }
 
-    if(validanim(ent, animation))
-    {
-        ent_set_anim(ent, animation, reset);
-    }
-    else if( ent->inbackpain && validanim(ent, animbackblkpains[ATK_NORMAL]) )
-    {
-        ent_set_anim(ent, animbackblkpains[ATK_NORMAL], reset);
-    }
-    else if(validanim(ent, animblkpains[attack_type]))
-    {
-        if (ent->inbackpain)
-        {
-            reset_backpain(ent);
+    if(validanim(acting_entity, animation)) {
+        ent_set_anim(acting_entity, animation, reset);
+    
+    } else if( acting_entity->inbackpain 
+        && validanim(acting_entity, animbackblkpains[ATK_NORMAL]) ) {
+        
+            ent_set_anim(acting_entity, animbackblkpains[ATK_NORMAL], reset);
+    
+    } else if(validanim(acting_entity, animblkpains[attack_type])) {
+        
+        if (acting_entity->inbackpain) {
+            reset_backpain(acting_entity);
         }
 
-        ent->inbackpain = 0;
-        ent_set_anim(ent, animblkpains[attack_type], reset);
-    }
-    else if(validanim(ent, animblkpains[ATK_NORMAL]))
-    {
-        if (ent->inbackpain)
-        {
-            reset_backpain(ent);
+        acting_entity->inbackpain = 0;
+        ent_set_anim(acting_entity, animblkpains[attack_type], reset);
+    
+    } else if(validanim(acting_entity, animblkpains[ATK_NORMAL])) {
+        if (acting_entity->inbackpain) {
+            reset_backpain(acting_entity);
         }
 
-        ent->inbackpain = 0;
-        ent_set_anim(ent, animblkpains[ATK_NORMAL], reset);
-    }
-    else
-    {
-        return 0;
+        acting_entity->inbackpain = 0;
+        ent_set_anim(acting_entity, animblkpains[ATK_NORMAL], reset);
+    } else {
+        return false;
     }
 
-    ent->takeaction = common_block;
-    set_blocking(self);
-    ent->inpain = IN_PAIN_BLOCK;
-    ent->rising = RISING_NONE;
-    ent->ducking = DUCK_NONE;
-    ent_set_anim(ent, animblkpains[attack_type], reset);
-    return 1;
+    acting_entity->takeaction = common_block;
+    set_blocking(acting_entity);
+    acting_entity->inpain = IN_PAIN_BLOCK;
+    acting_entity->rising = RISING_NONE;
+    acting_entity->ducking = DUCK_NONE;
+    return true;
 }
 
 int reset_backpain(entity *ent)
@@ -30425,7 +35196,7 @@ int set_pain(entity *iPain, int type, int reset)
 	iPain->getting = 0;
 	iPain->charging = 0;
 	iPain->jumping = 0;
-	iPain->blocking = 0;
+	iPain->blocking = BLOCK_STATE_NONE;
 	iPain->inpain = IN_PAIN_HIT;
 	if(iPain->frozen) unfrozen(iPain);
 
@@ -30772,7 +35543,7 @@ entity *normal_find_target(int anim, int detect_adj)
             continue;
         }
 
-        // If anim is defined, then then target must be
+        // If anim is defined, then target must be
         // in range of animation.
         if(anim >= 0)
         {
@@ -30870,69 +35641,63 @@ int perform_atchain()
 {
     int pickanim = 0;
 
-    if(self->modeldata.chainlength <= 0)
-    {
+    if(self->modeldata.chainlength <= 0) {
         return 0;
     }
 
-    if(self->combotime > _time)
-    {
-        self->combostep[0]++;
-    }
-    else
-    {
+    /*
+    * Even if we miss, cotinue the combo chain
+    * unless time has expired.
+    */
+    if(self->combotime > _time) {
+        self->combostep[0]++;    
+    } else {
         self->combostep[0] = 1;
     }
 
-    if(self->modeldata.atchain[self->combostep[0] - 1] == 0) // 0 means the chain ends
-    {
+    if(self->modeldata.atchain[self->combostep[0] - 1] == 0) { // 0 means the chain ends
         self->combostep[0] = 1;
     }
 
-    if(validanim(self, animattacks[self->modeldata.atchain[self->combostep[0] - 1] - 1]) )
-    {
+    if(validanim(self, animattacks[self->modeldata.atchain[self->combostep[0] - 1] - 1]) ) {
         if(((self->combostep[0] == 1 || !(self->modeldata.combostyle & 1)) && (self->modeldata.type & TYPE_PLAYER)) || // player should use attack 1st step without checking range
 
                 (!(self->modeldata.combostyle & 1) && normal_find_target(animattacks[self->modeldata.atchain[0] - 1], 0)) || // normal chain just checks the first attack in chain(guess no one like it)
 
-                ((self->modeldata.combostyle & 1) && normal_find_target(animattacks[self->modeldata.atchain[self->combostep[0] - 1] - 1], 0))) // combostyle 1 checks all anyway
-        {
+                ((self->modeldata.combostyle & 1) && normal_find_target(animattacks[self->modeldata.atchain[self->combostep[0] - 1] - 1], 0))) { // combostyle 1 checks all anyway.
             pickanim = 1;
-        }
-        else if((self->modeldata.combostyle & 1) && self->combostep[0] != 1) // ranged combo? search for a valid attack
-        {
-
-            while(++self->combostep[0] <= self->modeldata.chainlength)
-            {
+        
+        } else if((self->modeldata.combostyle & 1) && self->combostep[0] != 1) { // ranged combo? search for a valid attack
+        
+            while(++self->combostep[0] <= self->modeldata.chainlength) {
                 if(self->modeldata.atchain[self->combostep[0] - 1] &&
                         validanim(self, animattacks[self->modeldata.atchain[self->combostep[0] - 1] - 1]) &&
                         (self->combostep[0] == self->modeldata.chainlength ||
-                         normal_find_target(animattacks[self->modeldata.atchain[self->combostep[0] - 1] - 1], 0)))
-                {
+                         normal_find_target(animattacks[self->modeldata.atchain[self->combostep[0] - 1] - 1], 0))) {
                     pickanim = 1;
                     break;
                 }
             }
         }
-    }
-    else
-    {
+    
+    } else {
         self->combostep[0] = 0;
     }
-    if(pickanim && validanim(self, animattacks[self->modeldata.atchain[self->combostep[0] - 1] - 1]))
-    {
+
+    if(pickanim && validanim(self, animattacks[self->modeldata.atchain[self->combostep[0] - 1] - 1])){
         self->takeaction = common_attack_proc;
         set_attacking(self);
         ent_set_anim(self, animattacks[self->modeldata.atchain[self->combostep[0] - 1] - 1], 1);
     }
-    if(!pickanim || self->combostep[0] > self->modeldata.chainlength)
-    {
+
+    if(!pickanim || self->combostep[0] > self->modeldata.chainlength) {
         self->combostep[0] = 0;
     }
-    if((self->modeldata.combostyle & 2))
-    {
+
+    if((self->modeldata.combostyle & 2)) {
         self->combotime = _time + combodelay;
     }
+
     return pickanim;
 }
 
@@ -30981,6 +35746,30 @@ void upper_prepare()
         ent_set_anim(self, ANI_UPPER, 0);
         return;
     }
+}
+
+/*
+* Add one animation to the temporary AI attack-choice
+* table. A capacity failure is fatal because continuing
+* would overwrite unrelated memory.
+*/
+static void ai_attack_choice_append(int* choice_count, const int animation)
+{
+    if(!choice_count
+        || *choice_count < 0
+        || !ai_attack_choices
+        || (size_t)*choice_count >= ai_attack_choice_capacity) {
+        borShutdown(
+            1,
+            "AI attack-choice table exceeds its capacity of %zu animations.\n",
+            ai_attack_choice_capacity
+        );
+
+        return;
+    }
+
+    ai_attack_choices[*choice_count] = animation;
+    (*choice_count)++;
 }
 
 void normal_prepare()
@@ -31040,12 +35829,12 @@ void normal_prepare()
                  check_energy(ENERGY_TYPE_HP, animspecials[i])) &&
                 check_range_target_all(self, target, animspecials[i], 0, 0))
         {
-            atkchoices[found++] = animspecials[i];
+            ai_attack_choice_append(&found, animspecials[i]);
         }
     }
     if((rand32() & 7) < 2)
     {
-        if(found && check_costmove(atkchoices[(rand32() & 0xffff) % found], 1, 0) )
+        if(found && check_costmove(ai_attack_choices[(rand32() & 0xffff) % found], 1, 0) )
         {
             return;
         }
@@ -31078,7 +35867,7 @@ void normal_prepare()
                 // 6 5 4 3 2 1 1 1 1 1 ....
                 for(j = ((5 - i) >= 0 ? (5 - i) : 0); j >= 0; j--)
                 {
-                    atkchoices[found++] = animattacks[i];
+                    ai_attack_choice_append(&found, animattacks[i]);
                 }
             }
         }
@@ -31086,13 +35875,13 @@ void normal_prepare()
         {
             self->takeaction = common_attack_proc;
             set_attacking(self);
-            ent_set_anim(self, atkchoices[special + (rand32() & 0xffff) % (found - special)], 0);
+            ent_set_anim(self, ai_attack_choices[special + (rand32() & 0xffff) % (found - special)], 0);
             return;
         }
     }
 
     // if no attack was picked, just choose a random one from the valid list
-    if(special && check_costmove(atkchoices[(rand32() & 0xffff) % special], 1, 0))
+    if(special && check_costmove(ai_attack_choices[(rand32() & 0xffff) % special], 1, 0))
     {
         return;
     }
@@ -31287,7 +36076,7 @@ void common_fall()
 
     // Pause a bit...
     self->takeaction	= common_lie;
-    self->stalltime		= _time + MAX(0, (int)(self->staydown.rise + GAME_SPEED - self->modeldata.risetime.rise));	//Set rise delay.
+    self->stalltime		= _time + MAX(0, (int)(self->staydown.rise + global_config.game_speed - self->modeldata.risetime.rise));	//Set rise delay.
     self->staydown.riseattack_stall	= _time + MAX(0, (int)(self->staydown.riseattack - self->modeldata.risetime.riseattack));					//Set rise attack delay.
     self->staydown.rise = 0; //Reset staydown.
     self->staydown.riseattack = 0; //Reset staydown atk.
@@ -31325,7 +36114,7 @@ void common_try_riseattack()
 int death_try_sequence_damage(entity* acting_entity, e_death_config_flags death_sequence, e_death_sequence_acting_event acting_event)
 {
     int result = 0;
-    e_attack_types attack_type = acting_entity->last_damage_type;
+    attack_type_t attack_type = acting_entity->last_damage_type;
     e_death_state death_state = acting_entity->death_state;
     
     if (death_state & DEATH_STATE_AIR)
@@ -31386,7 +36175,7 @@ int death_try_sequence_damage(entity* acting_entity, e_death_config_flags death_
             if (death_sequence & DEATH_CONFIG_BLINK_REMOVE_AIR)
             {                
                 acting_entity->blink = 1;
-                acting_entity->stalltime = _time + GAME_SPEED * 2;
+                acting_entity->stalltime = _time + global_config.game_speed * 2;
             }
         }
         else if (death_sequence & DEATH_CONFIG_REMOVE_CORPSE_AIR)
@@ -31456,7 +36245,7 @@ int death_try_sequence_damage(entity* acting_entity, e_death_config_flags death_
             if (death_sequence & DEATH_CONFIG_BLINK_REMOVE_GROUND)
             {
                 acting_entity->blink = 1;
-                acting_entity->stalltime = _time + GAME_SPEED * 2;
+                acting_entity->stalltime = _time + global_config.game_speed * 2;
             }
         }
         else if (death_sequence & DEATH_CONFIG_REMOVE_CORPSE_GROUND)
@@ -31483,21 +36272,19 @@ int death_try_sequence_damage(entity* acting_entity, e_death_config_flags death_
     return result;
 }
 
-void common_lie()
-{
+void common_lie() {
+
     entity* acting_entity = self;
     e_death_config_flags death_config;
-    s_defense* defense_object;
-
+    
     // Died?
-    if(acting_entity->energy_state.health_current <= 0)
-    {        
-        defense_object = defense_find_current_object(acting_entity, NULL, acting_entity->last_damage_type);
+    if(acting_entity->energy_state.health_current <= 0) {
+
+        const s_defense* defense_object = defense_find_current_object(acting_entity, NULL, acting_entity->last_damage_type);
         
         death_config = defense_object->death_config_flags;
 
-        if (death_config & DEATH_CONFIG_SOURCE_MODEL)
-        {
+        if (death_config & DEATH_CONFIG_SOURCE_MODEL) {
             death_config = acting_entity->modeldata.death_config_flags;
         }
 
@@ -31506,15 +36293,13 @@ void common_lie()
         /*
         * Apply KO (death) map if we have one.
         */
-        if (acting_entity->modeldata.colorsets.ko != COLORSET_INDEX_NONE)
-        {   
+        if (acting_entity->modeldata.colorsets.ko != COLORSET_INDEX_NONE) {   
             /* 
             * Wait for animation to finish unless type is set to
             * apply map immediately.
             */
             
-            if (acting_entity->modeldata.colorsets.kotype == KO_COLORSET_CONFIG_INSTANT || !acting_entity->animating)
-            {
+            if (acting_entity->modeldata.colorsets.kotype == KO_COLORSET_CONFIG_INSTANT || !acting_entity->animating) {
                 acting_entity->colourmap = model_get_colourmap(&(acting_entity->modeldata), acting_entity->modeldata.colorsets.ko);
             }
         }
@@ -31522,8 +36307,7 @@ void common_lie()
         return;
     }
 
-    if(_time < acting_entity->stalltime || acting_entity->position.y != acting_entity->base || acting_entity->velocity.y)
-    {
+    if(_time < acting_entity->stalltime || acting_entity->position.y != acting_entity->base || acting_entity->velocity.y) {
         return;
     }
 
@@ -31567,7 +36351,8 @@ void common_pain()
 //        set_pain(self, -1, 0);
         self->takeaction = common_grabbed;
     }
-    else if(self->blocking)
+    else if((self->blocking & (BLOCK_STATE_ACTIVE | BLOCK_STATE_NATIVE))
+		== (BLOCK_STATE_ACTIVE | BLOCK_STATE_NATIVE))
     {
         self->inpain = IN_PAIN_BLOCK;
         self->takeaction = common_block;
@@ -31636,9 +36421,9 @@ void dograbattack(int which)
 // Choose appropriate grab finish animation
 // or do nothing if we can't find one. Returns
 // selected animation.
-e_animations do_grab_attack_finish(entity *ent, int which)
+animation_id_t do_grab_attack_finish(entity *ent, int which)
 {
-    e_animations animation;
+    animation_id_t animation;
 
     // Clear out the combostep array since this is
     // the finishing attack.
@@ -31666,7 +36451,7 @@ e_animations do_grab_attack_finish(entity *ent, int which)
     }
 
     // Could not find a valid finisher. Return none.
-    return ATK_NONE;
+    return ANI_NONE;
 }
 
 void common_grab_check()
@@ -31690,7 +36475,7 @@ void common_grab_check()
 
     if(!nolost && self->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_GRABBING)
     {
-        dropweapon(1);
+        dropweapon(self, 1);
     }
 
     self->attacking = ATTACKING_NONE; //for checking
@@ -31709,7 +36494,7 @@ void common_grab_check()
         }
         else
         {
-            self->releasetime = _time + (GAME_SPEED / 2);
+            self->releasetime = _time + (global_config.game_speed / 2);
         }
     }
 
@@ -31807,8 +36592,7 @@ void common_block()
 
 	// If we are in a block transition, let's see if it is finished.
 	// If it is, apply block animation.
-	if (self->animnum == ANI_BLOCKSTART && !self->animating)
-	{
+	if (self->animnum == ANI_BLOCKSTART && !self->animating) {
 		ent_set_anim(self, ANI_BLOCK, 0);
 	}
 	
@@ -31832,16 +36616,15 @@ void common_block()
     if(self->inpain & IN_PAIN_BLOCK
 		&& (self->modeldata.block_config_flags & BLOCK_CONFIG_HOLD_INFINITE)
 		&& !self->animating 
-		&& validanim(self, ANI_BLOCK))
-    {
+		&& validanim(self, ANI_BLOCK)) {
+
 		self->inpain = IN_PAIN_NONE;
 		self->rising = RISING_NONE;
 		self->inbackpain = 0;
 		ent_set_anim(self, ANI_BLOCK, 0);
-    }
-    else if((player_hold_block_eligible && !player_holding_special)
-		|| (!self->animating && (!player_hold_block_eligible || !player_holding_special)))
-    {
+    
+    } else if((player_hold_block_eligible && !player_holding_special)
+		|| (!self->animating && (!player_hold_block_eligible || !player_holding_special))) {
 		
         /*
         * Is blockstun complete (no blockpain and
@@ -31851,23 +36634,22 @@ void common_block()
         * return to idle.
         */ 
 
-		if (self->inpain & ~IN_PAIN_BLOCK || !self->animating)
-		{
-			if (self->animnum == ANI_BLOCKRELEASE && !self->animating)
-			{
-				self->blocking = 0;
+		if (self->inpain == IN_PAIN_NONE || !self->animating) {
+			
+            if (self->animnum == ANI_BLOCKRELEASE && !self->animating) {
+				self->blocking = BLOCK_STATE_NONE;
 				self->takeaction = NULL;
 				set_idle(self);
-			}
-			else
-			{
-				if (validanim(self, ANI_BLOCKRELEASE))
-				{
-					ent_set_anim(self, ANI_BLOCKRELEASE, 0);
-				}
-				else
-				{
-					self->blocking = 0;
+			
+            } else {
+				
+                if (validanim(self, ANI_BLOCKRELEASE)) {
+				
+                    ent_set_anim(self, ANI_BLOCKRELEASE, 0);
+				
+                } else {
+
+					self->blocking = BLOCK_STATE_NONE;
 					self->takeaction = NULL;
 					set_idle(self);
 				}				
@@ -32001,55 +36783,55 @@ entity *drop_driver(entity *e)
 }
 
 
-void checkdeath()
+void checkdeath(entity* target_entity)
 {
-    if(self->energy_state.health_current > 0)
+    if(target_entity->energy_state.health_current > 0)
     {
         return;
     }
-    self->death_state |= DEATH_STATE_DEAD;
+    target_entity->death_state |= DEATH_STATE_DEAD;
     
     /* Killed in the air? */
-    if (inair(self))
+    if (inair(target_entity))
     {
-        self->death_state |= DEATH_STATE_AIR;
+        target_entity->death_state |= DEATH_STATE_AIR;
     }
 
     /* In the back? D*** move banner! */
-    if (self->inbackpain)
+    if (target_entity->inbackpain)
     {
-        self->death_state |= DEATH_STATE_BACK;
+        target_entity->death_state |= DEATH_STATE_BACK;
     }
     
     //be careful, since the opponent can be other types
-    if(self->opponent && (self->opponent->modeldata.type & TYPE_PLAYER))
+    if(target_entity->opponent && (target_entity->opponent->modeldata.type & TYPE_PLAYER))
     {
-        addscore(self->opponent->playerindex, self->modeldata.score);    // Add score to the player
+        addscore(target_entity->opponent->playerindex, target_entity->modeldata.score);    // Add score to the player
     }
-    self->nograb = 1;
-    self->idling = IDLING_NONE;
-    self->ducking = DUCK_NONE;
+    target_entity->nograb = 1;
+    target_entity->idling = IDLING_NONE;
+    target_entity->ducking = DUCK_NONE;
 
-    if(self->modeldata.diesound >= 0)
+    if(target_entity->modeldata.diesound >= 0)
     {
-        sound_play_sample(self->modeldata.diesound, 0, savedata.effectvol, savedata.effectvol, 100);
+        sound_play_sample(target_entity->modeldata.diesound, 0, savedata.effectvol, savedata.effectvol, 100);
     }
 
     // Drop an item if we have one.
-    if(self->item_properties)
+    if(target_entity->item_properties)
     {
-        if(count_ents(TYPE_PLAYER) > self->item_properties->player_count)
+        if(count_ents(TYPE_PLAYER) > target_entity->item_properties->player_count)
         {
-            drop_item(self);
+            drop_item(target_entity);
         }
     }
 
 
-    if(self->boss)
+    if(target_entity->boss)
     {
-        self->boss = 0;
+        target_entity->boss = 0;
         --level->bossescount;
-        if(level->bossescount <= 0 && (self->modeldata.type & TYPE_ENEMY))
+        if(level->bossescount <= 0 && (target_entity->modeldata.type & TYPE_ENEMY))
         {
             kill_all_enemies();
             level_completed = 1;
@@ -32058,7 +36840,7 @@ void checkdeath()
     }
 }
 
-void checkdamageflip(entity* target_entity, entity *other, s_attack *attack_object, s_defense* defense_object)
+void checkdamageflip(entity* target_entity, entity *other, s_attack *attack_object, const s_defense* defense_object)
 {
     /* Debuging info */
     //attack_dump_object(attack_object);
@@ -32217,7 +36999,7 @@ void checkdamageflip(entity* target_entity, entity *other, s_attack *attack_obje
     
 }
 
-void checkdamageeffects(s_attack *attack)
+void checkdamageeffects(entity* target_entity, s_attack* attack)
 {
 #define _freeze         attack->freeze
 #define _maptime        attack->maptime
@@ -32230,21 +37012,21 @@ void checkdamageeffects(s_attack *attack)
 #define _staydown_rise			attack->staydown.rise
 #define _staydown_rise_attack	attack->staydown.riseattack
 
-    entity *opp = self->opponent;
+    entity *opp = target_entity->opponent;
 
 	// Steal. Take HP from the entity and add it to attacker.
-    if(_steal && opp && opp != self)
+    if(_steal && opp && opp != target_entity)
     {
 		// If we have enough HP to withstand the attack, give attacker
 		// the same amount as attack force. Otherwise just give them 
 		// whatever HP we have left.
-		if(self->energy_state.health_current >= attack->attack_force)
+		if(target_entity->energy_state.health_current >= attack->attack_force)
         {
             opp->energy_state.health_current += attack->attack_force;
         }
         else
         {
-            opp->energy_state.health_current += self->energy_state.health_current;
+            opp->energy_state.health_current += target_entity->energy_state.health_current;
         }
 
 		// Cap the effect so attacker doesn't go over their maximum HP.
@@ -32258,14 +37040,14 @@ void checkdamageeffects(s_attack *attack)
 	// not already frozen, apply a freeze effect and possibly 
 	// remap to freeze palette. If we ARE frozen, then
 	// unfreeze and knock down instead.
-    if(_freeze && !self->frozen)
+    if(_freeze && !target_entity->frozen)
     {
         
 		// Set freeze status and expire time.
-        self->frozen = 1;
-        if(self->freezetime == 0)
+        target_entity->frozen = 1;
+        if(target_entity->freezetime == 0)
         {
-            self->freezetime = _time + _freezetime;
+            target_entity->freezetime = _time + _freezetime;
         }
 
 		// 2007-12-14 
@@ -32273,17 +37055,17 @@ void checkdamageeffects(s_attack *attack)
 		//
 		// If opponents frozen map = -1 or only stun, then don't change the color map.
 
-        if(_remap == -1 && self->modeldata.colorsets.frozen != -1)
+        if(_remap == -1 && target_entity->modeldata.colorsets.frozen != -1)
         {
-            self->colourmap = model_get_colourmap(&(self->modeldata), self->modeldata.colorsets.frozen);
+            target_entity->colourmap = model_get_colourmap(&(target_entity->modeldata), target_entity->modeldata.colorsets.frozen);
         }
 
-        self->drop = 0;
+        target_entity->drop = 0;
     }
-    else if(self->frozen)
+    else if(target_entity->frozen)
     {
-        unfrozen(self);
-        self->drop = 1;
+        unfrozen(target_entity);
+        target_entity->drop = 1;
     }
 
 	// If we want to apply a remap without freezing (forcemap attack command) then
@@ -32304,74 +37086,74 @@ void checkdamageeffects(s_attack *attack)
         switch (_remap)
         {
             case MAP_TYPE_BURN:
-                if (self->modeldata.colorsets.burn != COLORSET_INDEX_NONE)
+                if (target_entity->modeldata.colorsets.burn != COLORSET_INDEX_NONE)
                 {
-                    self->colourmap = model_get_colourmap(&(self->modeldata), self->modeldata.colorsets.burn);
+                    target_entity->colourmap = model_get_colourmap(&(target_entity->modeldata), target_entity->modeldata.colorsets.burn);
                 }
                 break;
             case MAP_TYPE_FREEZE:
-                if (self->modeldata.colorsets.frozen != COLORSET_INDEX_NONE)
+                if (target_entity->modeldata.colorsets.frozen != COLORSET_INDEX_NONE)
                 {
-                    self->colourmap = model_get_colourmap(&(self->modeldata), self->modeldata.colorsets.frozen);
+                    target_entity->colourmap = model_get_colourmap(&(target_entity->modeldata), target_entity->modeldata.colorsets.frozen);
                 }
                 break;
             case MAP_TYPE_KO:
-                if (self->modeldata.colorsets.ko != COLORSET_INDEX_NONE)
+                if (target_entity->modeldata.colorsets.ko != COLORSET_INDEX_NONE)
                 {
-                    self->colourmap = model_get_colourmap(&(self->modeldata), self->modeldata.colorsets.ko);
+                    target_entity->colourmap = model_get_colourmap(&(target_entity->modeldata), target_entity->modeldata.colorsets.ko);
                 }
                 break;
             case MAP_TYPE_SHOCK:
-                if (self->modeldata.colorsets.shock != COLORSET_INDEX_NONE)
+                if (target_entity->modeldata.colorsets.shock != COLORSET_INDEX_NONE)
                 {
-                    self->colourmap = model_get_colourmap(&(self->modeldata), self->modeldata.colorsets.shock);
+                    target_entity->colourmap = model_get_colourmap(&(target_entity->modeldata), target_entity->modeldata.colorsets.shock);
                 }
                 break;
             default:
-                self->colourmap = model_get_colourmap(&(self->modeldata), _remap);
+                target_entity->colourmap = model_get_colourmap(&(target_entity->modeldata), _remap);
                 break;
         }
 
-        self->maptime = _time + _maptime;        
+        target_entity->maptime = _time + _maptime;
     }
 
 	// Disable specials. Apply seal (Any animation with 
 	// energy_cost > seal) is disabled and time to expire.
     if(_seal)                                                                       
     {
-        self->sealtime  = _time + _sealtime;
-        self->seal      = _seal;
+        target_entity->sealtime  = _time + _sealtime;
+        target_entity->seal      = _seal;
     }
 
 	// Apply any recursive (damage over time) effects.
-	recursive_damage_check_apply(self, opp, attack);
+	recursive_effect_check_apply(target_entity, opp, attack);
 
 	// Static enemies/nodrop enemies cannot be knocked down
-    if(self->modeldata.pain_config_flags & PAIN_CONFIG_FALL_DISABLE)
+    if(target_entity->modeldata.pain_config_flags & PAIN_CONFIG_FALL_DISABLE)
     {
-        self->drop = 0;    
+        target_entity->drop = 0;
     }
 
 	// Always knock airborne entities down unless we're freezeing them
 	// or they are specfically immune to in air knockdowns.
-    if(inair(self) && !self->frozen && !(self->modeldata.pain_config_flags & PAIN_CONFIG_FALL_DISABLE_AIR))
+    if(inair(target_entity) && !target_entity->frozen && !(target_entity->modeldata.pain_config_flags & PAIN_CONFIG_FALL_DISABLE_AIR))
     {
-        self->drop = 1;
+        target_entity->drop = 1;
     }
 
 	// Immune to hit stun? No knockdown either.
     if(attack->no_pain)
     {
-        self->drop = 0;
+        target_entity->drop = 0;
     }
 
 	// If entity will be knocked down, let's apply knockdown specific effects here.
-    if(self->drop)
+    if(target_entity->drop)
     {
-		self->projectile = _blast;
+		target_entity->projectile = _blast;
 
-        self->staydown.rise	= _staydown_rise;                                            //Staydown: Add to risetime until next rise.
-        self->staydown.riseattack   = _staydown_rise_attack;
+        target_entity->staydown.rise	= _staydown_rise;                                            //Staydown: Add to risetime until next rise.
+        target_entity->staydown.riseattack   = _staydown_rise_attack;
     }
 
 #undef _freeze
@@ -32401,7 +37183,7 @@ void checkdamageeffects(s_attack *attack)
 * Accepts defense object to pass on into
 * total damage calculation functions.
 */ 
-void checkdamagedrop(entity* target_entity, s_attack* attack_object, s_defense* defense_object)
+void checkdamagedrop(entity* target_entity, s_attack* attack_object, const s_defense* defense_object)
 {
     int attack_drop = attack_object->attack_drop;
     float defense_knockdown = defense_object->knockdown;
@@ -32457,7 +37239,7 @@ void checkdamagedrop(entity* target_entity, s_attack* attack_object, s_defense* 
     */
 
     target_entity->knockdowncount -= (attack_drop * defense_knockdown);    
-    target_entity->knockdowntime = _time + GAME_SPEED;
+    target_entity->knockdowntime = _time + global_config.game_speed;
 
     if (target_entity->knockdowncount < 0)
     {
@@ -32465,10 +37247,10 @@ void checkdamagedrop(entity* target_entity, s_attack* attack_object, s_defense* 
     }
 }
 
-void checkmpadd()
+void checkmpadd(entity* target_entity)
 {
-    entity *other = self->opponent;
-    if(other == NULL || other == self)
+    entity *other = target_entity->opponent;
+    if(other == NULL || other == target_entity)
     {
         return;
     }
@@ -32488,25 +37270,25 @@ void checkmpadd()
     }
 }
 
-void checkhitscore(entity *other, s_attack *attack)
+void checkhitscore(entity* target_entity, entity* attacking_entity, s_attack* attack_object)
 {
-    entity *opp = self->opponent;
+    entity *opp = target_entity->opponent;
     if(!opp)
     {
         return;
     }
-    if(opp && opp != self && (opp->modeldata.type & TYPE_PLAYER))
+    if(opp != target_entity && (opp->modeldata.type & TYPE_PLAYER))
     {
         // Added obstacle so explosions can hurt enemies
-        addscore(opp->playerindex, attack->attack_force * self->modeldata.multiple);  // New multiple variable
-        if (savedata.joyrumble[opp->playerindex]) control_rumble(opp->playerindex, 1, attack->attack_force * 2);
+        addscore(opp->playerindex, attack_object->attack_force * target_entity->modeldata.multiple);  // New multiple variable
+        if (savedata.joyrumble[opp->playerindex]) control_rumble(opp->playerindex, 1, attack_object->attack_force * 2);
     }
     // Don't animate or fall if hurt by self, since
     // it means self fell to the ground already. :)
     // Add throw score to the player
-    else if(other == self && self->damage_on_landing.attack_force > 0)
+    else if(attacking_entity == target_entity && target_entity->damage_on_landing.attack_force > 0)
     {
-        addscore(opp->playerindex, attack->attack_force);
+        addscore(opp->playerindex, attack_object->attack_force);
     }
 }
 
@@ -32566,21 +37348,28 @@ e_death_config_flags death_get_config_flag_from_string(const char* value)
 }
 
 /*
-* Caskey, Damon V.
-* 2023-03-20
-*
-* Get arguments to output final
-* bitmask.
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read death configuration arguments directly from the source
+  line, beginning at the requested item, and combine their flags.
 */
-e_death_config_flags death_get_config_flags_from_arguments(const ArgList* arglist, int start_position)
+e_death_config_flags death_get_config_flags_from_command_line(
+    const char* command_line,
+    const size_t start_position
+)
 {
-    int i = 0;
-    char* value = "";
-
+    const char* value;
+    s_command_argument_reader reader;
     e_death_config_flags result = DEATH_CONFIG_NONE;
 
-    for (i = start_position; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(
+        &reader,
+        command_line,
+        start_position
+    );
+
+    while(command_argument_reader_next(&reader, &value)) {
         result |= death_get_config_flag_from_string(value);
     }
 
@@ -32780,21 +37569,28 @@ e_run_config_flags run_get_config_flag_from_string(const char* value)
 }
 
 /*
-* Caskey, Damon V.
-* 2023-04-26
-*
-* Get arguments to output final
-* bitmask.
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read running configuration arguments directly from the source
+  line, beginning at the requested item, and combine their flags.
 */
-e_run_config_flags run_get_config_flags_from_arguments(const ArgList* arglist, const unsigned int start_position)
+e_run_config_flags run_get_config_flags_from_command_line(
+    const char* command_line,
+    const size_t start_position
+)
 {
-    int i = 0;
-    char* value = "";
-
+    const char* value;
+    s_command_argument_reader reader;
     e_run_config_flags result = RUN_CONFIG_NONE;
 
-    for (i = start_position; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(
+        &reader,
+        command_line,
+        start_position
+    );
+
+    while(command_argument_reader_next(&reader, &value)) {
         result |= run_get_config_flag_from_string(value);
     }
 
@@ -32848,21 +37644,23 @@ e_shadow_config_flags shadow_get_config_flag_from_string(const char* value)
 }
 
 /*
-* Caskey, Damon V.
-* 2023-03-20
-*
-* Get arguments foroutput final
-* bitmask.
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read shadow configuration arguments directly from the source
+  line and combine their corresponding behavior flags.
 */
-e_shadow_config_flags shadow_get_config_flags_from_arguments(const ArgList* arglist)
+e_shadow_config_flags shadow_get_config_flags_from_command_line(
+    const char* command_line
+)
 {
-    int i = 0;
-    char* value = "";
-
+    const char* value;
+    s_command_argument_reader reader;
     e_shadow_config_flags result = SHADOW_CONFIG_NONE;
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    command_argument_reader_initialize(&reader, command_line, 1);
+
+    while(command_argument_reader_next(&reader, &value)) {
         result |= shadow_get_config_flag_from_string(value);
     }
 
@@ -33034,6 +37832,45 @@ e_shadow_config_flags shadow_get_config_from_legacy_shadowbase(e_shadow_config_f
     return result;
 }
 
+/*
+* Caskey, Damon V.
+* 2025-05-21
+* 
+* Remove trigger parameter reading. As
+* of 2025-05-21, this is a bit much, but
+* we may want to expand with more options
+* later on.
+*/
+static const s_remove_config_map remove_config_map[] = {
+    { "None", REMOVE_CONFIG_NONE },
+    { "Hit", REMOVE_CONFIG_HIT },
+};
+
+#define REMOVE_CONFIG_MAP_SIZE (sizeof(remove_config_map) / sizeof(remove_config_map[0]))
+
+e_remove_config get_remove_config_from_string(const char* value) {
+    if (!value) return REMOVE_CONFIG_NONE;
+
+    // Try to match string (case-insensitive)
+    for (size_t i = 0; i < REMOVE_CONFIG_MAP_SIZE; i++) {
+        if (stricmp(value, remove_config_map[i].name) == 0) {
+            return remove_config_map[i].trigger;
+        }
+    }
+
+    // Try to parse as an integer fallback
+    char* endptr = NULL;
+    long val = strtol(value, &endptr, 10);
+    if (endptr != value && *endptr == '\0' && val >= 0) {
+        return (e_remove_config)val;
+    }
+
+    // Default fallback
+    printf("Warning: Unknown Remove value '%s', defaulting to Hit\n", value);
+    return REMOVE_CONFIG_HIT;
+}
+
+#undef REMOVE_CONFIG_MAP_SIZE
 
 /*
 * Caskey, Damon V.
@@ -33041,23 +37878,22 @@ e_shadow_config_flags shadow_get_config_from_legacy_shadowbase(e_shadow_config_f
 *
 * Allocate a defense object and return pointer.
 */
-s_defense* defense_allocate_object()
-{
-    int i = 0;
-    s_defense* result;
-
-    /* Allocate memory with 0 values and get the pointer. */
-    result = calloc(max_attack_types + 1, sizeof(*result));
+s_defense* defense_allocate_object(void) {
+    int attack_type;
+    s_defense* result = NULL;
 
     /*
-    * Default values.
-    *
-    * -- Copy the global default to each attack type.
+    * Allocate one extra slot because several legacy paths
+    * historically expect max_attack_types + 1 storage.
     */
-    
-    for (i = 0; i < max_attack_types; i++)
-    {
-        result[i] = default_defense;
+    result = calloc(max_attack_types + 1, sizeof(*result));
+
+    if (!result) {
+        borShutdown(1, E_OUT_OF_MEMORY);
+    }
+
+    for (attack_type = 0; attack_type < max_attack_types + 1; attack_type++) {
+        result[attack_type] = default_defense;
     }
 
     return result;
@@ -33070,7 +37906,14 @@ s_defense* defense_allocate_object()
 * Applies value to an attack type element
 * of defense.
 */
-void defense_apply_setup_to_property(char* filename, char* command, s_defense* defense, ArgList* arglist, e_defense_parameters target_parameter)
+void defense_apply_setup_to_property(
+    char* filename,
+    char* command,
+    const char* command_line,
+    s_defense* defense,
+    ArgList* arglist,
+    e_defense_parameters target_parameter
+)
 {
     //printf("\n\n defense_apply_setup_to_property(%s, %s, %p, %p, %d)", filename, command, defense, arglist, target_parameter);
     //printf("\n\t GET_FLOAT_ARGP(2): %f", GET_FLOAT_ARGP(2));
@@ -33139,7 +37982,7 @@ void defense_apply_setup_to_property(char* filename, char* command, s_defense* d
         break;
 
     case DEFENSE_PARAMETER_DEATH_CONFIG:
-        defense->death_config_flags = death_get_config_flags_from_arguments(arglist, 2);
+        defense->death_config_flags = death_get_config_flags_from_command_line(command_line, 2);
         break;
 
     case DEFENSE_PARAMETER_FACTOR:
@@ -33332,107 +38175,65 @@ int offense_result_damage(s_offense* offense_object, int attack_force)
 /*
 * Caskey, Damon V.
 * 2021-09-08
-* 
-* Get damage after applying defense adjustments.
-* 
-* Note: We send damage separately from attack object
-* as we usually want to get a calculated value
-* without modifying the original property.
+*
+* Return final damage output from
+* after defense adjustments. If the attack
+* was blocked, then the block ratio and
+* block damage adjustments are applied. If
+* the attack was not blocked, then the defense
+* factor and damage adjustments are applied.
 */
-int defense_result_damage(s_defense* defense_object, int attack_force, int blocked)
-{   
-    const float DEFENSE_GLOBAL_BLOCK_RATIO = 0.25;
+int64_t defense_result_damage(const s_defense* defense_object, int64_t attack_force, bool blocked) {
+    const float DEFENSE_GLOBAL_BLOCK_RATIO = 0.25f;
 
-    //printf("\n\n defense_result_damage(%p, %p, %d, %d)", defense_object, attack_force, blocked);
-    
-    int result = attack_force;
-    float ratio = 0.0;
-    int damage_adjust = 0;
-    int damage_min = MIN_INT;
-    int damage_max = MAX_INT;
+    int64_t result = attack_force;
+    float ratio = 0.0f;
+    int64_t damage_adjust = 0;
+    int64_t damage_min = INT64_MIN;
+    int64_t damage_max = INT64_MAX;
 
-    /* 
-    * If there's no defense object, then
-    * fall back to default defense.
+    /*
+    * Fall back to global default if defense
+    * object is NULL.
     */
+    const s_defense* const defense_object_local = defense_object ? defense_object : &default_defense;
 
-    if (!defense_object)
-    {
-        defense_object = (s_defense*)&default_defense;
+    /*
+    * Get the ratio and adjustments for a hit
+    * or successfully blocked attack.
+    */
+    if (blocked) {
+        if (defense_object_local->blockratio ==
+            DEFENSE_BLOCKRATIO_COMPATABILITY_DEFAULT) {
+            ratio = global_config.block_ratio
+                ? DEFENSE_GLOBAL_BLOCK_RATIO
+                : 0.0f;
+        } else {
+            ratio = defense_object_local->blockratio;
+        }
+
+        damage_adjust = defense_object_local->block_damage_adjust;
+        damage_min = defense_object_local->block_damage_min;
+        damage_max = defense_object_local->block_damage_max;
+    } else {
+        ratio = defense_object_local->factor;
+        damage_adjust = defense_object_local->damage_adjust;
+        damage_min = defense_object_local->damage_min;
+        damage_max = defense_object_local->damage_max;
     }
 
     /*
-    * We have a defense object, so get the
-    * ratio and adjustments for hit or block.
+    * Apply ratio, round to the nearest whole damage
+    * value, apply adjustment, and enforce bounds.
     */
-
-    if (blocked)
-    {
-        /*
-        * We want blockratio to default as 0.0 and 
-        * also override the legacy global blockratio 
-        * setting with local defense values. However,
-        * a value of 0.0 is too ambiguous. We can't 
-        * tell if it was intentional from the creator 
-        * or they just left defense blank. 
-        * 
-        * We could dynamically allocate defense and 
-        * then check for valid pointers, but that would 
-        * add several failure points and increase the
-        * complexity for creators.
-        * 
-        * Instead, we use an impractical default value. 
-        * If that value is still in place here, we know 
-        * the creator did not define defense and we can 
-        * apply a real default of 0.0, or 
-        when the
-        * legacy global blockratio is enabled.
-        */
-
-        if (defense_object->blockratio == DEFENSE_BLOCKRATIO_COMPATABILITY_DEFAULT)
-        {
-            if (global_config.block_ratio)
-            {
-                ratio = DEFENSE_GLOBAL_BLOCK_RATIO;
-            }
-            else
-            {
-                ratio = 0.0;
-            }
-        }
-        else
-        {
-            ratio = defense_object->blockratio;
-        }
-               
-        damage_adjust = defense_object->block_damage_adjust;
-        damage_min = defense_object->block_damage_min;
-        damage_max = defense_object->block_damage_max;
-    }
-    else
-    {
-        ratio = defense_object->factor;
-        damage_adjust = defense_object->damage_adjust;
-        damage_min = defense_object->damage_min;
-        damage_max = defense_object->damage_max;
-    }
-
-    /*
-    * Apply ratio, then adjustment, and
-    * cap the result to min/max.
-    */
-
-    result = (int)(result * ratio);
-
+    result = (int64_t)round((double)result * ratio);
     result += damage_adjust;
 
-    if (result < damage_min)
-    {
+    if (result < damage_min) {
         result = damage_min;
     }
 
-    if (result > damage_max)
-    {
+    if (result > damage_max) {
         result = damage_max;
     }
 
@@ -33446,10 +38247,10 @@ int defense_result_damage(s_defense* defense_object, int attack_force, int block
 * Return true if entity should enter pain reaction
 * after applying defense pain property.
 */
-int defense_result_pain(s_attack* attack_object, s_defense* defense_object)
+int defense_result_pain(s_attack* attack_object, const s_defense* defense_object)
 {
-    int attack_force = attack_object->attack_force;
-    e_attack_types attack_type = attack_object->attack_type;
+    const int attack_force = attack_object->attack_force;
+    const attack_type_t attack_type = attack_object->attack_type;
 
     /*
     * Make sure attack types are in bounds and defense
@@ -33461,7 +38262,7 @@ int defense_result_pain(s_attack* attack_object, s_defense* defense_object)
         return 1;
     }
 
-    if (attack_type < 0 || attack_type > max_attack_types)
+    if (attack_type >= (attack_type_t)max_attack_types)
     {
         return 1;
     }
@@ -33513,14 +38314,21 @@ int defense_result_pain(s_attack* attack_object, s_defense* defense_object)
 * 
 * 3. Global defense_default constant.
 */
-s_defense* defense_find_current_object(entity* ent, s_body* body_object, e_attack_types attack_type)
-{    
+const s_defense* defense_find_current_object(const entity* ent, const s_body* body_object, const attack_type_t attack_type) {    
     //printf("\n\n defense_find_current_object(%p, %p, %d)", ent, body_object, attack_type);
+
+    /*
+    * Runtime attack types may include creator-defined
+    * values, but they must remain within the configured
+    * defense collection capacity.
+    */
+    if (attack_type >= (attack_type_t)max_attack_types) {
+        return &default_defense;
+    }
     
      /* Supplied body. */
 
-    if (body_object && body_object->defense)
-    {   
+    if (body_object && body_object->defense) {   
         //printf("\n\t &body_object->defense[%d]: %p", attack_type, &body_object->defense[attack_type]);
 
         return &body_object->defense[attack_type];
@@ -33528,118 +38336,301 @@ s_defense* defense_find_current_object(entity* ent, s_body* body_object, e_attac
 
     /* Entity defense */
 
-    if (ent->defense)
-    {
+    if (ent && ent->defense) {
         //printf("\n\t ent->defense: %p", &ent->defense[attack_type]);
 
         return &ent->defense[attack_type];
     }
 
-    /* 
-    * Global default. We're recasting a
-    * a constant to return its pointer, so 
-    * we need to be careful and avoid mutating 
-    * any values downstream.
-    */
+    /* Global default. */
 
-    //printf("\n\t &default_defense: %p", (s_defense*)&default_defense);
+    //printf("\n\t &default_defense: %p", &default_defense);
 
-    return (s_defense *)&default_defense;
+    return &default_defense;
 }
+
+// attack_type_map.h
+
+#ifndef ATTACK_TYPE_MAP_H
+#define ATTACK_TYPE_MAP_H
+
+typedef struct {
+    const char* name;
+    attack_type_t attack_type;
+} s_attack_type_map;
+
+static const s_attack_type_map attack_type_map[] = {
+    { "NORMAL", ATK_NORMAL },
+    { "NORMAL0", ATK_NORMAL },
+    { "NORMAL1", ATK_NORMAL },
+    { "NORMAL2", ATK_NORMAL2 },
+    { "NORMAL3", ATK_NORMAL3 },
+    { "NORMAL4", ATK_NORMAL4 },
+    { "NORMAL5", ATK_NORMAL5 },
+    { "NORMAL6", ATK_NORMAL6 },
+    { "NORMAL7", ATK_NORMAL7 },
+    { "NORMAL8", ATK_NORMAL8 },
+    { "NORMAL9", ATK_NORMAL9 },
+    { "NORMAL10", ATK_NORMAL10 },
+    { "BLAST", ATK_BLAST },
+    { "STEAL", ATK_STEAL },
+    { "BURN", ATK_BURN },
+    { "SHOCK", ATK_SHOCK },
+    { "FREEZE", ATK_FREEZE },
+    { "BOSS_DEATH", ATK_BOSS_DEATH },
+    { "ITEM", ATK_ITEM },
+    { "LAND", ATK_LAND },
+    { "LIFESPAN", ATK_LIFESPAN },
+    { "LOSE", ATK_LOSE },
+    { "PIT", ATK_PIT },
+    { "SUB_ENTITY_PARENT_KILL", ATK_SUB_ENTITY_PARENT_KILL },
+    { "SUB_ENTITY_UNSUMMON", ATK_SUB_ENTITY_UNSUMMON },
+    { "TIMEOVER", ATK_TIMEOVER }
+};
+
+#define ATTACK_TYPE_MAP_SIZE (sizeof(attack_type_map) / sizeof(attack_type_map[0]))
+
+#endif // ATTACK_TYPE_MAP_H
+
+/*
+ * Converts a string into a valid attack type index.
+ *
+ * Input formats supported:
+ *   - A case-insensitive match to a predefined attack name in attack_type_map[]
+ *   - A numeric string (e.g., "3"), interpreted as a 1-based index
+ *   - A special case-insensitive prefix format:
+ *       "normal<int>" or "attack<int>", where <int> is an integer value
+ *
+ * Behavior:
+ *   - The function first checks against known names in attack_type_map.
+ *   - If not found, it looks for "attack" or "normal" prefixes and parses the suffix.
+ *   - If still unresolved, it attempts to parse the entire input as a numeric string.
+ *   - In all cases, the resulting attack type is adjusted to be 0-based.
+ *   - If the final index exceeds max_attack_types or is invalid, it falls back to 0.
+ */
+int get_attack_type_from_string(const char* value, const char* filename)
+{
+    const char* prefixes[] = { "normal", "attack" };
+    const size_t num_prefixes = sizeof(prefixes) / sizeof(prefixes[0]);
+    char normalized_input[64];
+    char* endptr = NULL;
+    long val = -1;
+    int parsed_type = -1;
+    const char* input = value;
+
+    //printf("\n\nParsing attack type from string '%s' (file: %s)\n", value, filename);
+
+    // =========================================================================
+    // Step 1: Normalize known prefixes OR numeric-only values into "normal<num>"
+    // =========================================================================
+    // This allows "attack3", "normal3", and even just "3" to resolve through LUT
+    // to entries like "NORMAL3". Special cases like "attack1" now work because
+    // "NORMAL1" is present in the LUT and maps to ATK_NORMAL.
+    for (size_t i = 0; i < num_prefixes; i++) {
+        const char* prefix = prefixes[i];
+        size_t prefix_len = strlen(prefix);
+
+        if (strnicmp(value, prefix, prefix_len) == 0) {
+            if (value[prefix_len] == '\0') {
+                // Case: "attack" or "normal" with no suffix: treat as "normal1"
+                snprintf(normalized_input, sizeof(normalized_input), "normal1");
+            }
+            else if (isdigit((unsigned char)value[prefix_len])) {
+                // Case: "attackX" or "normalX": normalize to "normalX"
+                snprintf(normalized_input, sizeof(normalized_input), "normal%s", value + prefix_len);
+            }
+            else {
+                continue;
+            }
+
+            input = normalized_input;
+            //printf("Normalized prefixed form '%s' to '%s'\n", value, input);
+            break;
+        }
+    }
+
+    // If no prefix match occurred, check for numeric-only input
+    if (input == value && isdigit((unsigned char)value[0])) {
+        errno = 0;
+        val = strtol(value, &endptr, 10);
+        if (errno == 0 && endptr != value && *endptr == '\0' && val >= 0) {
+            snprintf(normalized_input, sizeof(normalized_input), "normal%ld", val);
+            input = normalized_input;
+            //printf("Normalized numeric-only string '%s' to '%s' for LUT match\n", value, input);
+        }
+    }
+
+    // =========================================================================
+    // Step 2: Lookup the normalized input in attack_type_map
+    // =========================================================================
+    for (size_t i = 0; i < ATTACK_TYPE_MAP_SIZE; i++) {
+        if (stricmp(input, attack_type_map[i].name) == 0) {
+            //printf("Match found in attack_type_map: '%s' => %d\n", input, attack_type_map[i].attack_type);
+            return attack_type_map[i].attack_type;
+        }
+    }
+
+    // =========================================================================
+    // Step 3: If no LUT match, attempt to extract a number from:
+    //         - "normal<num>"
+    //         - "attack<num>"
+    //         - plain "<num>"
+    // =========================================================================
+    const char* numeric_ptr = NULL;
+
+    for (size_t i = 0; i < num_prefixes; i++) {
+        const char* prefix = prefixes[i];
+        size_t len = strlen(prefix);
+
+        if (strnicmp(value, prefix, len) == 0 && isdigit((unsigned char)value[len])) {
+            numeric_ptr = value + len;
+            break;
+        }
+    }
+
+    if (!numeric_ptr && isdigit((unsigned char)value[0])) {
+        numeric_ptr = value;
+    }
+
+    if (numeric_ptr) {
+        errno = 0;
+        val = strtol(numeric_ptr, &endptr, 10);
+        if (errno == 0 && endptr != numeric_ptr && *endptr == '\0' && val >= 0) {
+            parsed_type = (int)val;
+            //printf("Extracted numeric attack type: %d\n", parsed_type);
+        }
+    }
+
+    // =========================================================================
+    // Step 4: Fallback if nothing valid could be parsed
+    // =========================================================================
+    if (parsed_type == -1) {
+        printf("Warning: Could not resolve attack type '%s' in file '%s'. Defaulting to ATK_NORMAL.\n",
+            value, filename);
+        return ATK_NORMAL;
+    }
+
+    // =========================================================================
+    // Step 5: Adjust for 1-based indexing used by designers/scripts
+    // =========================================================================
+    if (parsed_type > 0) {
+        parsed_type--;
+        //printf("Adjusted for 1-based input: %d\n", parsed_type);
+    }
+    else {
+        parsed_type = 0;
+        //printf("Clamped type to 0 due to non-positive value.\n");
+    }
+
+    // =========================================================================
+    // Step 6: Remap into user-defined attack type ID range
+    // =========================================================================
+    const int user_input_cutoff = MAX_ATKS - STA_ATKS + 1;
+    if (parsed_type < user_input_cutoff) {
+        parsed_type = user_input_cutoff;
+        //printf("Input below remap threshold (%d); adjusted to %d\n", user_input_cutoff, parsed_type);
+    }
+
+    parsed_type += STA_ATKS;
+    //printf("Remapped to user-defined attack type ID: %d\n", parsed_type);
+
+    // =========================================================================
+    // Step 7: Final bounds check against engine maximum
+    // =========================================================================
+    if (parsed_type >= max_attack_types) {
+        printf("Warning: Attack type ID %d exceeds max (%d) in file '%s'. Using default.\n",
+            parsed_type, max_attack_types, filename);
+        return ATK_NORMAL;
+    }
+
+    // =========================================================================
+    // Step 8: Success - return resolved attack type ID
+    // =========================================================================
+    return parsed_type;
+}
+
+
+
+
 
 /*
 * Caskey, Damon V.
-* 2021-08-30
-* 
+* 2021-08-30 (Original)
+* 2025-05-04 (Refactor)
+*
 * Read first argument in supplied argument list
 * for type, and determines which attack type or
-* attack types to assign a defense value. 
-*/ 
-void defense_setup_from_arg(char* filename, char* command, s_defense* target_defense, ArgList* arglist, e_defense_parameters target_parameter)
-{
-    //printf("\n\n defense_setup_from_arg(%s, %s, %p, %p, %d)", filename, command, target_defense, arglist, target_parameter);
-
+* attack types to assign a defense value.
+*/
+void defense_setup_from_arg(
+    char* filename,
+    char* command,
+    const char* command_line,
+    s_defense* target_defense,
+    ArgList* arglist,
+    e_defense_parameters target_parameter
+) {
     int tempInt = 0;
     int i = 0;
-    char* value = GET_ARGP(1);
-    
+    char* value = GET_ARGP(1);   
+
     /*
-    * Now we need to figure out which attack
-    * type this defense entry applies to.
+    * First try to match the value using the attack type map.
     */
-
-    //printf("\n\t value: %s", value);
-
-#define tempdef(x, y) \
-					    x(stricmp(value, #y)==0) \
-					    { \
-                            defense_apply_setup_to_property(filename, command, &target_defense[ATK_##y], arglist, target_parameter); \
-					    }
-
-    tempdef(if, NORMAL)
-        tempdef(else if, NORMAL2)
-        tempdef(else if, NORMAL3)
-        tempdef(else if, NORMAL4)
-        tempdef(else if, NORMAL5)
-        tempdef(else if, NORMAL6)
-        tempdef(else if, NORMAL7)
-        tempdef(else if, NORMAL8)
-        tempdef(else if, NORMAL9)
-        tempdef(else if, NORMAL10)
-        tempdef(else if, BLAST)
-        tempdef(else if, STEAL)
-        tempdef(else if, BURN)
-        tempdef(else if, SHOCK)
-        tempdef(else if, FREEZE)
-
-        tempdef(else if, BOSS_DEATH)
-        tempdef(else if, ITEM)
-        tempdef(else if, LAND)
-        tempdef(else if, LIFESPAN)
-        tempdef(else if, LOSE)
-        tempdef(else if, PIT)
-        tempdef(else if, SUB_ENTITY_PARENT_KILL)
-        tempdef(else if, SUB_ENTITY_UNSUMMON)
-        tempdef(else if, TIMEOVER)
-
-        else if (starts_with(value, "normal"))
+    for (i = 0; i < ATTACK_TYPE_MAP_SIZE; i++)
+    {
+        if (stricmp(value, attack_type_map[i].name) == 0)
         {
-            get_tail_number(tempInt, value, "normal");
-
-            defense_apply_setup_to_property(filename, command, &target_defense[tempInt + STA_ATKS - 1], arglist, target_parameter);
+            defense_apply_setup_to_property(
+                filename,
+                command,
+                command_line,
+                &target_defense[attack_type_map[i].attack_type],
+                arglist,
+                target_parameter
+            );
+            return;
         }
-        else if (stricmp(value, "ALL") == 0)
-        {
-            /*
-            * "All" is a convenience feature so the creator
-            * doesn't need a defense entry for every type
-            * when they want to set up a generic defense
-            * across all attack types.
-            *
-            * To handle this we want to apply defense on
-            * all the attack types other than special types
-            * not normally used by creator. They may say
-            * �all� but they probably don�t mean get stuck
-            * in a pit forever because they're immune to
-            * pit damage! Loop through all types and type
-            * check function. If the type is special, we
-            * skip to the next. Otherwise apply the temporary
-            * values to that attack type to defense.
-            */
+    }
 
-            for (i = 0; i < max_attack_types; i++)
+    /*
+    * If no direct match, check for dynamic "normalN" pattern.
+    */
+    if (starts_with(value, "normal"))
+    {
+        get_tail_number(tempInt, value, "normal");
+
+        defense_apply_setup_to_property(
+            filename,
+            command,
+            command_line,
+            &target_defense[tempInt + STA_ATKS - 1],
+            arglist,
+            target_parameter
+        );
+    }
+    /*
+    * Handle "ALL" case - apply to all non-special attack types.
+    */
+    else if (stricmp(value, "ALL") == 0)
+    {
+        for (i = 0; i < max_attack_types; i++)
+        {
+            if (is_attack_type_special(i))
             {
-                if (is_attack_type_special(i))
-                {
-                    continue;
-                }
-
-                defense_apply_setup_to_property(filename, command, &target_defense[i], arglist, target_parameter);
+                continue;
             }
+
+            defense_apply_setup_to_property(
+                filename,
+                command,
+                command_line,
+                &target_defense[i],
+                arglist,
+                target_parameter
+            );
         }
-
-#undef tempdef
-
+    }
 }
 
 /*
@@ -33648,7 +38639,7 @@ void defense_setup_from_arg(char* filename, char* command, s_defense* target_def
 * 
 * Dump object data to log.
 */
-void defense_dump_object(s_defense* object)
+void defense_dump_object(const s_defense* object)
 {
     const int space_label = 20;
 
@@ -33683,23 +38674,22 @@ void defense_dump_object(s_defense* object)
 *
 * Allocate an offense object and return pointer.
 */
-s_offense* offense_allocate_object()
-{
-    int i = 0;
-    s_offense* result;
-
-    /* Allocate memory with 0 values and get the pointer. */
-    result = calloc(max_attack_types + 1, sizeof(*result));
+s_offense* offense_allocate_object(void) {
+    int attack_type;
+    s_offense* result = NULL;
 
     /*
-    * Default values.
-    *
-    * -- Copy the global default to each attack type.
+    * Allocate one extra slot because several legacy paths
+    * historically expect max_attack_types + 1 storage.
     */
+    result = calloc(max_attack_types + 1, sizeof(*result));
 
-    for (i = 0; i < max_attack_types; i++)
-    {
-        result[i] = default_offense;
+    if (!result) {
+        borShutdown(1, E_OUT_OF_MEMORY);
+    }
+
+    for (attack_type = 0; attack_type < max_attack_types + 1; attack_type++) {
+        result[attack_type] = default_offense;
     }
 
     return result;
@@ -33729,81 +38719,71 @@ void offense_free_object(s_offense* target)
 * for type, and determines which attack type or
 * attack types to assign an offense value.
 */
-void offense_setup_from_arg(char* filename, char* command, s_offense* target_offense, ArgList* arglist, e_offense_parameters target_parameter)
-{
+void offense_setup_from_arg(
+    char* filename,
+    char* command,
+    s_offense* target_offense,
+    ArgList* arglist,
+    e_offense_parameters target_parameter
+) {
     int tempInt = 0;
     int i = 0;
     char* value = GET_ARGP(1);
-    
+
     /*
-    * Now we need to figure out which attack
-    * type this offense entry applies to.
+    * First, try to match using the shared attack type map.
     */
-
-#define tempoff(x, y) \
-					    x(stricmp(value, #y)==0)\
-					    {\
-                            offense_apply_setup_to_property(filename, command, &target_offense[ATK_##y], arglist, target_parameter);\
-					    }
-
-    tempoff(if, NORMAL)
-        tempoff(else if, NORMAL2)
-        tempoff(else if, NORMAL3)
-        tempoff(else if, NORMAL4)
-        tempoff(else if, NORMAL5)
-        tempoff(else if, NORMAL6)
-        tempoff(else if, NORMAL7)
-        tempoff(else if, NORMAL8)
-        tempoff(else if, NORMAL9)
-        tempoff(else if, NORMAL10)
-        tempoff(else if, BLAST)
-        tempoff(else if, STEAL)
-        tempoff(else if, BURN)
-        tempoff(else if, SHOCK)
-        tempoff(else if, FREEZE)
-
-        tempoff(else if, BOSS_DEATH)
-        tempoff(else if, ITEM)
-        tempoff(else if, LAND)
-        tempoff(else if, LIFESPAN)
-        tempoff(else if, LOSE)
-        tempoff(else if, PIT)
-        tempoff(else if, SUB_ENTITY_PARENT_KILL)
-        tempoff(else if, SUB_ENTITY_UNSUMMON)
-        tempoff(else if, TIMEOVER)
-
-        else if (starts_with(value, "normal"))
+    for (i = 0; i < ATTACK_TYPE_MAP_SIZE; i++)
+    {
+        if (stricmp(value, attack_type_map[i].name) == 0)
         {
-            get_tail_number(tempInt, value, "normal");
-
-            offense_apply_setup_to_property(filename, command, &target_offense[tempInt + STA_ATKS - 1], arglist, target_parameter);
+            offense_apply_setup_to_property(
+                filename,
+                command,
+                &target_offense[attack_type_map[i].attack_type],
+                arglist,
+                target_parameter
+            );
+            return;
         }
-        else if (stricmp(value, "ALL") == 0)
-        {
-            /*
-            * "All" is a convenience feature so the creator
-            * doesn't need a defense entry for every type
-            * when they want to set up a generic defense
-            * across all attack types.
-            *
-            * To handle this we want to apply offense on
-            * all the attack types other than special types
-            * not normally used by creator. 
-            */
+    }
 
-            for (i = 0; i < max_attack_types; i++)
+    /*
+    * Handle dynamic "normalN" pattern.
+    */
+    if (starts_with(value, "normal"))
+    {
+        get_tail_number(tempInt, value, "normal");
+
+        offense_apply_setup_to_property(
+            filename,
+            command,
+            &target_offense[tempInt + STA_ATKS - 1],
+            arglist,
+            target_parameter
+        );
+    }
+    /*
+    * Handle "ALL" case - apply to all non-special attack types.
+    */
+    else if (stricmp(value, "ALL") == 0)
+    {
+        for (i = 0; i < max_attack_types; i++)
+        {
+            if (is_attack_type_special(i))
             {
-                if (is_attack_type_special(i))
-                {
-                    continue;
-                }
-
-                offense_apply_setup_to_property(filename, command, &target_offense[i], arglist, target_parameter);
+                continue;
             }
+
+            offense_apply_setup_to_property(
+                filename,
+                command,
+                &target_offense[i],
+                arglist,
+                target_parameter
+            );
         }
-
-#undef tempoff
-
+    }
 }
 
 /*
@@ -33811,7 +38791,7 @@ void offense_setup_from_arg(char* filename, char* command, s_offense* target_off
 * 2023-02-07
 *
 * Applies value to an attack type element
-* of defense.
+* of offense.
 */
 void offense_apply_setup_to_property(char* filename, char* command, s_offense* offense, ArgList* arglist, e_offense_parameters target_parameter)
 {
@@ -33820,8 +38800,7 @@ void offense_apply_setup_to_property(char* filename, char* command, s_offense* o
     * get out before we cause a NULL pointer
     * error
     */
-    if (!offense)
-    {
+    if (!offense) {
         return;
     }
 
@@ -33836,30 +38815,28 @@ void offense_apply_setup_to_property(char* filename, char* command, s_offense* o
     * but it still beats the legacy method.
     */
 
-    switch (target_parameter)
-    {
+    switch (target_parameter) {
     case OFFENSE_PARAMETER_DAMAGE_ADJUST:
-        offense->damage_adjust = GET_FLOAT_ARGP(2);
+        offense->damage_adjust = GET_INT_ARGP(2);
         break;
 
     case OFFENSE_PARAMETER_DAMAGE_MAX:
-        offense->damage_max = GET_FLOAT_ARGP(2);
+        offense->damage_max = GET_INT_ARGP(2);
         break;
 
     case OFFENSE_PARAMETER_DAMAGE_MIN:
-        offense->damage_min = GET_FLOAT_ARGP(2);
+        offense->damage_min = GET_INT_ARGP(2);
         break;
 
     case OFFENSE_PARAMETER_FACTOR:
     case OFFENSE_PARAMETER_LEGACY:
-        offense->factor = GET_INT_ARGP(2);
+        offense->factor = GET_FLOAT_ARGP(2);
         break;
     }
 }
 
-int calculate_force_damage(entity *target, entity *attacker, s_attack *attack_object, s_defense* defense_object)
-{
-    //printf("\n\n calculate_force_damage(%p, %p, %p, %p)", target, attacker, attack_object, defense_object);
+int calculate_force_damage(entity *target, entity *attacker, s_attack *attack_object, const s_defense* defense_object, const bool blocked) {
+    //printf("\n\n calculate_force_damage(%p, %p, %p, %p, %d)", target, attacker, attack_object, defense_object, blocked);
 
     int force = attack_object->attack_force;
     int type = attack_object->attack_type;
@@ -33872,23 +38849,28 @@ int calculate_force_damage(entity *target, entity *attacker, s_attack *attack_ob
     * games use defense to make entities immortal for special
     * uses and we don't want to break that.
     */
-    if (global_config.cheats & CHEAT_OPTIONS_TOD_ACTIVE && attacker->modeldata.type & TYPE_PLAYER)
-    {
-        if (force < target->energy_state.health_current)
-        {
+    if (global_config.cheats & CHEAT_OPTIONS_TOD_ACTIVE && attacker->modeldata.type & TYPE_PLAYER) {
+        if (force < target->energy_state.health_current) {
             force = target->energy_state.health_current;
         }
     }
 
-    if(target->modeldata.guardpoints > 0 && target->guardpoints <= 0)
-    {
-        return 0;    //guardbreak does not deal damage.
+    /*
+    * Guard-break damage paths do not deal damage. This 
+    * matches typical fighting game behavior where guard-breaks 
+    * are meant to open up the opponent for follow-up attacks, 
+    * not to inflict damage directly.
+    */
+    if(!blocked && target->modeldata.guardpoints > 0 && target->guardpoints <= 0){
+        return 0;    
     }
 
     //printf("\n\t force: %d", force);
 
-    if(type >= 0 && type < max_attack_types && attacker->offense)
-    {
+    /*
+    * Apply the attacker's offense first.
+    */
+    if(type >= 0 && type < max_attack_types && attacker->offense) {
         force = offense_result_damage(&attacker->offense[type], force);
     }
 
@@ -33896,34 +38878,42 @@ int calculate_force_damage(entity *target, entity *attacker, s_attack *attack_ob
     //printf("\n\t defense_object: %p", defense_object);
     //printf("\n\t defense_object->factor: %f", defense_object->factor);
 
-    if (!defense_object)
-    {
-        defense_object = target->defense;
+    /*
+    * If we are not supplied a defense object, then we will 
+    * use the target's defense property. This allows us to
+    * use defense from a body object if we have one, or fall 
+    * back to model level defense if we don't.
+    */
+
+    if (!defense_object) {
+        defense_object = defense_find_current_object(
+            target,
+            NULL,
+            attack_object->attack_type
+        );
     }
 
-    force = defense_result_damage(defense_object, force, 0);
+    force = defense_result_damage(defense_object, force, blocked);
 
     //printf("\n\t force: %d", force);
 
     return force;
 }
 
-void checkdamageonlanding(entity* acting_entity)
-{
+void checkdamageonlanding(entity* acting_entity) {
+
     //printf("\n\n checkdamageonlanding(%p)", acting_entity);
 
-    s_defense* defense_object = NULL;
     s_attack attack = emptyattack;
     entity* other = NULL;
     int didhit = 0;
 
-    if (acting_entity->energy_state.health_current <= 0)
-    {
+    if (acting_entity->energy_state.health_current <= 0) {
         return;
     }
 
-    if((acting_entity->damage_on_landing.attack_force > 0 && !(acting_entity->death_state & DEATH_STATE_DEAD)))
-    {    
+    if((acting_entity->damage_on_landing.attack_force > 0 && !(acting_entity->death_state & DEATH_STATE_DEAD))) {    
+        
         //##################
         attack.attack_force = acting_entity->damage_on_landing.attack_force;
         
@@ -33933,12 +38923,10 @@ void checkdamageonlanding(entity* acting_entity)
         * fall back to ATK_LAND.
         */
 
-        if (attack.damage_on_landing.attack_type >= 0)
-        {
+        if (attack.damage_on_landing.attack_type >= 0) {
             attack.attack_type = acting_entity->damage_on_landing.attack_type;
-        }
-        else
-        {
+        
+        } else {
             attack.attack_type = ATK_LAND;
         }
 
@@ -33948,12 +38936,10 @@ void checkdamageonlanding(entity* acting_entity)
         * not, we use ourselves.
         */
 
-        if (acting_entity->opponent && acting_entity->opponent->exists && !(acting_entity->opponent->death_state & DEATH_STATE_DEAD) && acting_entity->opponent->energy_state.health_current > 0)
-        {
+        if (acting_entity->opponent && acting_entity->opponent->exists && !(acting_entity->opponent->death_state & DEATH_STATE_DEAD) && acting_entity->opponent->energy_state.health_current > 0) {
             other = acting_entity->opponent;
-        }
-        else
-        {
+        
+        } else {
             other = acting_entity;
         }
 
@@ -33963,7 +38949,7 @@ void checkdamageonlanding(entity* acting_entity)
         lasthit.position.y = acting_entity->position.y;
         lasthit.position.z = acting_entity->position.z;
 
-        defense_object = defense_find_current_object(acting_entity, NULL, attack.attack_type);
+        const s_defense* defense_object = defense_find_current_object(acting_entity, NULL, attack.attack_type);
 
         //defense_dump_object(defense_object);
 
@@ -33976,8 +38962,7 @@ void checkdamageonlanding(entity* acting_entity)
         //printf("\n\tattack.attack_type: %d", attack.attack_type);
         //printf("\n\tattack.attack_force: %d", attack.attack_force);
         
-        if(lasthit.confirm)
-        {
+        if(lasthit.confirm) {
             didhit = 1;
         }
 
@@ -33985,8 +38970,7 @@ void checkdamageonlanding(entity* acting_entity)
         * Can't take damage if we're dead.
         */
 
-        if(acting_entity->death_state & DEATH_STATE_DEAD)
-        {
+        if(acting_entity->death_state & DEATH_STATE_DEAD) {
             return;
         }
 
@@ -33995,44 +38979,40 @@ void checkdamageonlanding(entity* acting_entity)
         * landing. We don't want them to take damage.
         */
 
-        if(acting_entity->toexplode & (EXPLODE_DETONATE_HIT | EXPLODE_DETONATE_DAMAGED))
-        {
+        if(acting_entity->toexplode & (EXPLODE_DETONATE_HIT | EXPLODE_DETONATE_DAMAGED)) {
             return;
         }
 
         // fake 'grab', if failed, return as the attack hit nothing
-        if(!checkgrab(other, &attack))
-        {
+        if(!checkgrab(acting_entity, other, &attack))  {
             return;    // try to grab but failed, so return 0 means attack missed
         }
 
-        if(acting_entity != other)
-        {
+        if(acting_entity != other) {
             set_opponent(acting_entity, other);
         }
         
         //##################
 
-        if (didhit)
-        {           
+        if (didhit) {
+
             // pre-check drop
             checkdamagedrop(acting_entity, &attack, defense_object);
 
             // Drop Weapon due to being hit.
-            if(acting_entity->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_LAND_DAMAGE)
-            {
-                dropweapon(1);
+            if(acting_entity->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_LAND_DAMAGE) {
+                dropweapon(acting_entity, 1);
             }
+
             // check effects, e.g., frozen, blast, steal
-            if(!(acting_entity->modeldata.guardpoints > 0 && acting_entity->guardpoints <= 0))
-            {
-                checkdamageeffects(&attack);
+            if(!(acting_entity->modeldata.guardpoints > 0 && acting_entity->guardpoints <= 0)) {
+                checkdamageeffects(acting_entity, &attack);
             }
 
             // mprate can also control the MP recovered per hit.
-            checkmpadd();
+            checkmpadd(acting_entity);
             //damage score
-            checkhitscore(other, &attack);
+            checkhitscore(acting_entity, other, &attack);
 
             /*
             * Applies the damage. Send NULL as body object so
@@ -34042,13 +39022,12 @@ void checkdamageonlanding(entity* acting_entity)
             checkdamage(acting_entity, other, &attack, defense_object);            
 
             // is it dead now?
-            checkdeath();
+            checkdeath(acting_entity);
 
             execute_didhit_script(other, acting_entity, &attack, 0);
         }
 
-        if (acting_entity->energy_state.health_current <= 0)
-        {
+        if (acting_entity->energy_state.health_current <= 0) {
             acting_entity->die_on_landing = 1;
         }
 
@@ -34060,39 +39039,39 @@ void checkdamageonlanding(entity* acting_entity)
     if( (acting_entity->die_on_landing && !(acting_entity->death_state & DEATH_STATE_DEAD)) &&
         ((!tobounce(acting_entity) && acting_entity->modeldata.bounce) || !acting_entity->modeldata.bounce) &&
         (acting_entity->velocity.x == 0 && acting_entity->velocity.z == 0 && acting_entity->velocity.y == 0)
-      )
-    {
-        if(acting_entity->takedamage)
-        {
+      ) {
+        
+        if(acting_entity->takedamage) {
+
             //##################
             s_attack attack = emptyattack;
             entity *other;
 
             attack.attack_force = acting_entity->damage_on_landing.attack_force;
-            if (attack.damage_on_landing.attack_type >= 0) attack.attack_type  = acting_entity->damage_on_landing.attack_type;
-            else attack.attack_type  = ATK_LAND;
-
-            if (acting_entity->opponent && acting_entity->opponent->exists && !(acting_entity->opponent->death_state & DEATH_STATE_DEAD) && acting_entity->opponent->energy_state.health_current > 0)
-            {
-                other = acting_entity->opponent;
+            if (attack.damage_on_landing.attack_type >= 0) { 
+                attack.attack_type  = acting_entity->damage_on_landing.attack_type;
+            
+            } else {
+                attack.attack_type  = ATK_LAND;
             }
-            else
-            {
+
+            if (acting_entity->opponent && acting_entity->opponent->exists && !(acting_entity->opponent->death_state & DEATH_STATE_DEAD) && acting_entity->opponent->energy_state.health_current > 0) {
+                other = acting_entity->opponent;
+            
+            } else {
                 other = acting_entity;
             }
             //##################
 
-            defense_object = defense_find_current_object(other, NULL, attack.attack_type);
+            const s_defense* other_defense_object = defense_find_current_object(other, NULL, attack.attack_type);
             
-            acting_entity->takedamage(other, &attack, 1, defense_object);
-        }
-        else
-        {
+            acting_entity->takedamage(acting_entity, other, &attack, 1, other_defense_object);
+        
+        } else {
             kill_entity(acting_entity, KILL_ENTITY_TRIGGER_DAMAGE_ON_LANDING);
         }
         
-        if (acting_entity)
-        {
+        if (acting_entity) {
             acting_entity->damage_on_landing.attack_force = 0;
             acting_entity->damage_on_landing.attack_type = ATK_NONE;
             acting_entity->die_on_landing = 0;
@@ -34104,30 +39083,44 @@ void checkdamageonlanding(entity* acting_entity)
 
 /*
 * Caskey, Damon V.
+* 2025-05-09
+* 
+* LUT of "special" attack types, as
+* in, types normally for internal engine
+* use only.
+*/
+static const int special_attack_table[MAX_ATKS] = {
+    [ATK_BOSS_DEATH] = 1,
+    [ATK_ITEM] = 1,
+    [ATK_LIFESPAN] = 1,
+    [ATK_LOSE] = 1,
+    [ATK_SUB_ENTITY_PARENT_KILL] = 1,
+    [ATK_SUB_ENTITY_UNSUMMON] = 1,
+    [ATK_TIMEOVER] = 1,
+    [ATK_PIT] = 1,
+};
+
+/*
+* Caskey, Damon V.
 * 2019-12-26
 *
 * Return true if attack type is one of the 
 * types not included in normal use by creators.
 */
-int is_attack_type_special(e_attack_types type)
+int is_attack_type_special(attack_type_t type)
 {
-	switch (type)
-	{
-	default:
-		return 0;
-        break;
-
-	case ATK_BOSS_DEATH:
-	case ATK_ITEM:
-	case ATK_LIFESPAN:
-	case ATK_LOSE:
-	case ATK_SUB_ENTITY_PARENT_KILL:
-	case ATK_SUB_ENTITY_UNSUMMON:
-	case ATK_TIMEOVER:
-	case ATK_PIT:
-		return 1;
-        break;
-	}
+    /* 
+    * Anything outside of bounds is
+    * user defined and not special.
+    */
+    if (type >= MAX_ATKS) {
+        return 0;
+    }
+    
+    /*
+    * Check vs. LUT of special types.
+    */
+    return special_attack_table[type];
 }
 
 /*
@@ -34146,28 +39139,26 @@ int is_attack_type_special(e_attack_types type)
 * Accepts defense object to pass on into
 * total damage calculation functions.
 */
-void checkdamage(entity* target_entity, entity* attacking_entity, s_attack* attack_object, s_defense* defense_object)
+void checkdamage(entity* target_entity, entity* attacking_entity, s_attack* attack_object, const s_defense* defense_object)
 { 
     //printf("\n\n checkdamage(%p, %p, %p, %p)", target_entity, attacking_entity, attack_object, defense_object);
 
-	int	force = 0;
-	int	normal_damage = 0;    
+	int64_t	force = 0;
 
 	/* Get attack damage force after defense is applied. */
-    force = calculate_force_damage(target_entity, attacking_entity, attack_object, defense_object);
+    force = calculate_force_damage(target_entity, attacking_entity, attack_object, defense_object, false);
 
     /*
 	* Damage does not return HP and comes from
 	* a normal source?
 	*/
-    normal_damage = (!is_attack_type_special(attack_object->attack_type) && force >= 0);
+    const bool normal_damage = (!is_attack_type_special(attack_object->attack_type) && force >= 0) ? true : false;
 
 	/* 
     * If we're invincible to normal damage 
     * sources, laugh it off.
 	*/
-    if (target_entity->invincible & INVINCIBLE_HP_NULLIFY && normal_damage)
-	{
+    if (target_entity->invincible & INVINCIBLE_HP_NULLIFY && normal_damage)	{
 		force = 0;
 	}
 	
@@ -34182,13 +39173,11 @@ void checkdamage(entity* target_entity, entity* attacking_entity, s_attack* atta
 
     target_entity->energy_state.health_current -= force;
 
-	if (target_entity->energy_state.health_current > target_entity->modeldata.health)
-    {
+	if (target_entity->energy_state.health_current > target_entity->modeldata.health) {
         target_entity->energy_state.health_current = target_entity->modeldata.health;
     }
 
-    if(attack_object->no_kill && target_entity->energy_state.health_current <= 0)
-    {
+    if(attack_object->no_kill && target_entity->energy_state.health_current <= 0) {
         target_entity->energy_state.health_current = 1;
     }
 
@@ -34200,17 +39189,14 @@ void checkdamage(entity* target_entity, entity* attacking_entity, s_attack* atta
     * death script, but may reset HP according
     * to invincibility flags.
     */
-    if (target_entity->energy_state.health_current <= 0)
-    {
-		if(normal_damage)
-        {
-			if (target_entity->invincible & INVINCIBLE_HP_MINIMUM)
-            {
+    if (target_entity->energy_state.health_current <= 0) {
+		
+        if(normal_damage) {
+			if (target_entity->invincible & INVINCIBLE_HP_MINIMUM) {
                 target_entity->energy_state.health_current = 1;
             }
             
-			if(target_entity->invincible & INVINCIBLE_HP_RESET)
-            {
+			if(target_entity->invincible & INVINCIBLE_HP_RESET) {
                 target_entity->energy_state.health_current = target_entity->modeldata.health;
             }
         }
@@ -34219,15 +39205,15 @@ void checkdamage(entity* target_entity, entity* attacking_entity, s_attack* atta
     }
 }
 
-int checkgrab(entity *other, s_attack *attack)
+int checkgrab(entity* target_entity, entity* attacking_entity, s_attack* attack_object)
 {
     //if(attack->no_pain) return  0; //no effect, let modders to deside, don't bother check it here
-    if(self != other && attack->grab && check_cangrab(other, self))
+    if(target_entity != attacking_entity && attack_object->grab && check_cangrab(attacking_entity, target_entity))
     {
-        if(adjust_grabposition(other, self, attack->grab_distance, attack->grab))
+        if(adjust_grabposition(attacking_entity, target_entity, attack_object->grab_distance, attack_object->grab))
         {
-            ents_link(other, self);
-            self->position.y = other->position.y;
+            ents_link(attacking_entity, target_entity);
+            target_entity->position.y = attacking_entity->position.y;
         }
         else
         {
@@ -34237,107 +39223,118 @@ int checkgrab(entity *other, s_attack *attack)
     return 1;
 }
 
-int arrow_takedamage(entity *other, s_attack *attack, int fall_flag, s_defense* defense_object)
+int arrow_takedamage(entity* target_entity, entity* attacking_entity, s_attack* attack_object, int fall_flag, const s_defense* defense_object)
 {
-    self->modeldata.move_config_flags &= ~MOVE_CONFIG_NO_ADJUST_BASE;
-    self->modeldata.move_config_flags |= (MOVE_CONFIG_SUBJECT_TO_BASEMAP | MOVE_CONFIG_SUBJECT_TO_GRAVITY | MOVE_CONFIG_SUBJECT_TO_HOLE | MOVE_CONFIG_SUBJECT_TO_PLATFORM | MOVE_CONFIG_SUBJECT_TO_WALL);
+    target_entity->modeldata.move_config_flags &= ~MOVE_CONFIG_NO_ADJUST_BASE;
+    target_entity->modeldata.move_config_flags |= (MOVE_CONFIG_SUBJECT_TO_BASEMAP | MOVE_CONFIG_SUBJECT_TO_GRAVITY | MOVE_CONFIG_SUBJECT_TO_HOLE | MOVE_CONFIG_SUBJECT_TO_PLATFORM | MOVE_CONFIG_SUBJECT_TO_WALL);
 
-    if( common_takedamage(other, attack, 0, defense_object) && self->death_state & DEATH_STATE_DEAD)
+    if(common_takedamage(target_entity, attacking_entity, attack_object, 0, defense_object)
+        && target_entity->death_state & DEATH_STATE_DEAD)
     {
         return 1;
     }
     return 0;
 }
 
-int common_takedamage(entity *other, s_attack *attack, int fall_flag, s_defense* defense_object)
+int common_takedamage(entity* target_entity, entity* attacking_entity, s_attack* attack_object, int fall_flag, const s_defense* defense_object)
 {   
-    entity* acting_entity = self;
-
     int pain_check = 0; // React with pain animations (1) or ignore (0);
     e_death_config_flags death_config;
+
+    /*
+    * Resolve callers that do not supply a body-specific
+    * defense object through the target's current defense.
+    */
+    if (!defense_object) {
+        defense_object = defense_find_current_object(
+            target_entity,
+            NULL,
+            attack_object->attack_type
+        );
+    }
     
-    if(acting_entity->death_state & DEATH_STATE_DEAD)
+    if(target_entity->death_state & DEATH_STATE_DEAD)
     {
         return 0;
     }
 
-    if(acting_entity->toexplode & (EXPLODE_DETONATE_HIT | EXPLODE_DETONATE_DAMAGED))
+    if(target_entity->toexplode & (EXPLODE_DETONATE_HIT | EXPLODE_DETONATE_DAMAGED))
     {
         return 0;
     }    
     
     // fake 'grab', if failed, return as the attack hit nothing
-    if(!checkgrab(other, attack))
+    if(!checkgrab(target_entity, attacking_entity, attack_object))
     {
         return 0;    // try to grab but failed, so return 0 means attack missed
     }
    
     // set oppoent
-    if(acting_entity != other)
+    if(target_entity != attacking_entity)
     {
-        set_opponent(acting_entity, other);
+        set_opponent(target_entity, attacking_entity);
     }
     
     // adjust type
-    if(attack->attack_type >= 0 && attack->attack_type < max_attack_types)
+    if(attack_object->attack_type >= 0 && attack_object->attack_type < max_attack_types)
     {
-        acting_entity->last_damage_type = attack->attack_type;
+        target_entity->last_damage_type = attack_object->attack_type;
     }
     else
     {
-        acting_entity->last_damage_type = ATK_NORMAL;
+        target_entity->last_damage_type = ATK_NORMAL;
     }
 
-    if (!acting_entity->die_on_landing)
+    if (!target_entity->die_on_landing)
     {        
         // pre-check drop
-        checkdamagedrop(acting_entity, attack, defense_object);
+        checkdamagedrop(target_entity, attack_object, defense_object);
 
         // Drop Weapon due to being hit.
-        if(acting_entity->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_DAMAGE)
+        if(target_entity->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_DAMAGE)
         {
-            dropweapon(1);
+            dropweapon(target_entity, 1);
         }
         // check effects, e.g., frozen, blast, steal
-        if(!(acting_entity->modeldata.guardpoints > 0 && acting_entity->guardpoints <= 0))
+        if(!(target_entity->modeldata.guardpoints > 0 && target_entity->guardpoints <= 0))
         {
-            checkdamageeffects(attack);
+            checkdamageeffects(target_entity, attack_object);
         }
     }
 
     // check backpain
-    check_backpain(other,acting_entity);
+    check_backpain(attacking_entity, target_entity);
     
     /* Check and apply direction flip. */
-    checkdamageflip(acting_entity, other, attack, defense_object);
+    checkdamageflip(target_entity, attacking_entity, attack_object, defense_object);
 
-    if (!acting_entity->die_on_landing)
+    if (!target_entity->die_on_landing)
     {
         // mprate can also control the MP recovered per hit.
-        checkmpadd();
+        checkmpadd(target_entity);
         //damage score
-        checkhitscore(other, attack);        
+        checkhitscore(target_entity, attacking_entity, attack_object);
         
         // check damage, cost hp.
-        checkdamage(acting_entity, other, attack, defense_object);
+        checkdamage(target_entity, attacking_entity, attack_object, defense_object);
 
         // is it dead now?
-        checkdeath();
+        checkdeath(target_entity);
     }
 
-    if(acting_entity->modeldata.type & TYPE_PLAYER)
+    if(target_entity->modeldata.type & TYPE_PLAYER)
     {
-        if (savedata.joyrumble[acting_entity->playerindex]) control_rumble(acting_entity->playerindex, 1, attack->attack_force * 3);
+        if (savedata.joyrumble[target_entity->playerindex]) control_rumble(target_entity->playerindex, 1, attack_object->attack_force * 3);
     }
-    if(acting_entity->position.y <= PIT_DEPTH && acting_entity->death_state & DEATH_STATE_DEAD)
+    if(target_entity->position.y <= PIT_DEPTH && target_entity->death_state & DEATH_STATE_DEAD)
     {
-        if(acting_entity->modeldata.type & TYPE_PLAYER)
+        if(target_entity->modeldata.type & TYPE_PLAYER)
         {
-            player_die();
+            player_die_entity(target_entity);
         }
         else
         {
-            kill_entity(acting_entity, KILL_ENTITY_TRIGGER_TAKE_DAMAGE_COMMON_PIT);
+            kill_entity(target_entity, KILL_ENTITY_TRIGGER_TAKE_DAMAGE_COMMON_PIT);
         }
         return 1;
     }
@@ -34349,33 +39346,33 @@ int common_takedamage(entity *other, s_attack *attack, int fall_flag, s_defense*
         return 1;
     }*/
     // reset damageonlanding
-    acting_entity->damage_on_landing.attack_force = 0;
-    acting_entity->damage_on_landing.attack_type = ATK_NONE;
+    target_entity->damage_on_landing.attack_force = 0;
+    target_entity->damage_on_landing.attack_type = ATK_NONE;
 
 	// White Dragon: fix damage_on_landing bug
-	if(acting_entity->die_on_landing && acting_entity->energy_state.health_current <= 0)
+	if(target_entity->die_on_landing && target_entity->energy_state.health_current <= 0)
 	{
-		acting_entity->modeldata.death_config_flags |= DEATH_CONFIG_MACRO_DEATH_FALL_LAND;
+		target_entity->modeldata.death_config_flags |= DEATH_CONFIG_MACRO_DEATH_FALL_LAND;
 	}
 
     // unlink due to being hit
-    if((acting_entity->opponent && acting_entity->opponent->grabbing != acting_entity) // Have an opponent, but opponent is not grabbing me. 
-		|| acting_entity->death_state & DEATH_STATE_DEAD				// Dead.
-		|| acting_entity->frozen										// Frozen. 
-		|| acting_entity->drop)										// Knocked down.
+    if((target_entity->opponent && target_entity->opponent->grabbing != target_entity) // Have an opponent, but opponent is not grabbing me.
+		|| target_entity->death_state & DEATH_STATE_DEAD				// Dead.
+		|| target_entity->frozen										// Frozen.
+		|| target_entity->drop)										// Knocked down.
     {
-        ent_unlink(acting_entity);
+        ent_unlink(target_entity);
     }
     // Enemies can now use SPECIAL2 to escape cheap attack strings!
-    if(acting_entity->modeldata.escapehits)
+    if(target_entity->modeldata.escapehits)
     {
-        if(acting_entity->drop)
+        if(target_entity->drop)
         {
-            acting_entity->escapecount = 0;
+            target_entity->escapecount = 0;
         }
         else
         {
-            acting_entity->escapecount++;
+            target_entity->escapecount++;
         }
     }
 
@@ -34384,79 +39381,79 @@ int common_takedamage(entity *other, s_attack *attack, int fall_flag, s_defense*
     * May also not react at all if attack doesn't 
     * cause pain or defense is enough to ignore it.
     */
-    pain_check = defense_result_pain(attack, defense_object);
+    pain_check = defense_result_pain(attack_object, defense_object);
     
-    if(acting_entity->drop || acting_entity->energy_state.health_current <= 0)
+    if(target_entity->drop || target_entity->energy_state.health_current <= 0)
     {
-        acting_entity->takeaction = common_fall;
+        target_entity->takeaction = common_fall;
         
         // Drop Weapon due to death.
-        if(acting_entity->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_DEATH && acting_entity->energy_state.health_current <= 0)
+        if(target_entity->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_DEATH && target_entity->energy_state.health_current <= 0)
         {
-            dropweapon(1);
+            dropweapon(target_entity, 1);
         }
-        else if(acting_entity->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_FALL)
+        else if(target_entity->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_FALL)
         {
-            dropweapon(1);
+            dropweapon(target_entity, 1);
         }
 
         death_config = defense_object->death_config_flags;
 
         if (death_config & DEATH_CONFIG_SOURCE_MODEL)
         {
-            death_config = acting_entity->modeldata.death_config_flags;
+            death_config = target_entity->modeldata.death_config_flags;
         }
 
         /* We're alive, or death sequence wants us to handle falling. */
-        if(acting_entity->energy_state.health_current > 0 || !death_try_sequence_damage(acting_entity, death_config, DEATH_TRY_SEQUENCE_ACTING_EVENT_DAMAGE))
+        if(target_entity->energy_state.health_current > 0 || !death_try_sequence_damage(target_entity, death_config, DEATH_TRY_SEQUENCE_ACTING_EVENT_DAMAGE))
         {
             if (fall_flag >= 1) return 1;
-            acting_entity->velocity.x = attack->dropv.x;
-            acting_entity->velocity.z = attack->dropv.z;
-            if(acting_entity->direction == DIRECTION_RIGHT)
+            target_entity->velocity.x = attack_object->dropv.x;
+            target_entity->velocity.z = attack_object->dropv.z;
+            if(target_entity->direction == DIRECTION_RIGHT)
             {
-                acting_entity->velocity.x = -acting_entity->velocity.x;
+                target_entity->velocity.x = -target_entity->velocity.x;
             }
-            if(acting_entity->inbackpain) acting_entity->velocity.x *= -1;
-            toss(acting_entity, attack->dropv.y);
-            acting_entity->damage_on_landing.attack_force = attack->damage_on_landing.attack_force;
-            acting_entity->damage_on_landing.attack_type = attack->damage_on_landing.attack_type;
-            acting_entity->knockdowncount = acting_entity->modeldata.knockdowncount; // reset the knockdowncount
-            acting_entity->knockdowntime = 0;
+            if(target_entity->inbackpain) target_entity->velocity.x *= -1;
+            toss(target_entity, attack_object->dropv.y);
+            target_entity->damage_on_landing.attack_force = attack_object->damage_on_landing.attack_force;
+            target_entity->damage_on_landing.attack_type = attack_object->damage_on_landing.attack_type;
+            target_entity->knockdowncount = target_entity->modeldata.knockdowncount; // reset the knockdowncount
+            target_entity->knockdowntime = 0;
 
             // If no fall/die animations exist, entity simply disappears.
-            if(!set_fall(acting_entity, other, attack, 1))
+            if(!set_fall(target_entity, attacking_entity, attack_object, 1))
             {
-                if(acting_entity->modeldata.type & TYPE_PLAYER)
+                if(target_entity->modeldata.type & TYPE_PLAYER)
                 {
-                    player_die();
+                    player_die_entity(target_entity);
                 }
                 else
                 {
-                    kill_entity(acting_entity, KILL_ENTITY_TRIGGER_TAKE_DAMAGE_COMMON_FALL);
+                    kill_entity(target_entity, KILL_ENTITY_TRIGGER_TAKE_DAMAGE_COMMON_FALL);
                 }
                 return 1;
             }
         }
 
-        if(acting_entity->modeldata.type & TYPE_PLAYER)
+        if(target_entity->modeldata.type & TYPE_PLAYER)
         {
-            if (savedata.joyrumble[acting_entity->playerindex]) control_rumble(acting_entity->playerindex, 1, attack->attack_force * 3);
+            if (savedata.joyrumble[target_entity->playerindex]) control_rumble(target_entity->playerindex, 1, attack_object->attack_force * 3);
         }
     }
-    else if(attack->grab && !attack->no_pain)
+    else if(attack_object->grab && !attack_object->no_pain)
     {
-        acting_entity->takeaction = common_pain;
-        other->takeaction = common_grabattack;
-        other->stalltime = _time + GRAB_STALL;
-        acting_entity->releasetime = _time + (GAME_SPEED / 2);
-        set_pain(acting_entity, acting_entity->last_damage_type, 0);
+        target_entity->takeaction = common_pain;
+        attacking_entity->takeaction = common_grabattack;
+        attacking_entity->stalltime = _time + global_config.grab_stall;
+        target_entity->releasetime = _time + (global_config.game_speed / 2);
+        set_pain(target_entity, target_entity->last_damage_type, 0);
     }
     // Don't change to pain animation if frozen
-    else if(!acting_entity->frozen && !(acting_entity->modeldata.pain_config_flags & PAIN_CONFIG_PAIN_DISABLE) && !attack->no_pain && pain_check)
+    else if(!target_entity->frozen && !(target_entity->modeldata.pain_config_flags & PAIN_CONFIG_PAIN_DISABLE) && !attack_object->no_pain && pain_check)
     {
-        acting_entity->takeaction = common_pain;
-        set_pain(acting_entity, acting_entity->last_damage_type, 1);
+        target_entity->takeaction = common_pain;
+        set_pain(target_entity, target_entity->last_damage_type, 1);
     }
 
     return 1;
@@ -34503,43 +39500,43 @@ int common_try_runattack(entity *target)
 // 2. Target is within range of BLOCK animation.
 // 3. Target is actively attacking.
 // 4. Blocking chance passes (same rules as active blocking).
-int common_try_block(entity *target)
-{
-	// Must have block animation.
-	if (!validanim(self, ANI_BLOCK))
-	{
-		return 0;
+static bool common_try_block(entity *target) {
+
+	/* Only active AI may initiate blocking before impact. */
+	if (!(self->modeldata.block_config_flags & BLOCK_CONFIG_ACTIVE)
+		|| (self->modeldata.block_config_flags & BLOCK_CONFIG_DISABLED)) {
+		return false;
 	}
 
-	// Exit if we choose not to block. This function includes 
-	// the check for active blocking flag.
-	if (!check_blocking_decision(self))
-	{	
-		return 0;
+	// Must have block animation.
+	if (!validanim(self, ANI_BLOCK)) {
+		return false;
+	}
+
+	// Active blocking is enabled. Exit if the chance roll fails.
+	if (!check_blocking_decision(self))	{	
+		return false;
 	}
 
 	// If no current target, use block range.
-    if(!target)
-    {
+    if(!target) {
         target = block_find_target(ANI_BLOCK, 0);
     }
 
 	// Still no target? Nothing to do, so exit.
-	if (!target)
-	{
-		return 0;
+	if (!target) {
+		return false;
 	}
 
     // If target is attacking, let's block and return true.
-    if(target->attacking != ATTACKING_NONE)
-    {
+    if(target->attacking != ATTACKING_NONE) {
 		// Set up flags, action, and blocking animations.
 		do_active_block(self);
 
-        return 1;
+        return true;
     }
 
-    return 0;
+    return false;
 }
 
 // this logic could be used for multiple times, so make a function
@@ -34557,7 +39554,7 @@ int pick_random_attack(entity *target, int testonly)
         {
             for(j = ((5 - i) >= 0 ? (5 - i) : 0) * 3; j >= 0; j--)
             {
-                atkchoices[found++] = animattacks[i];
+                ai_attack_choice_append(&found, animattacks[i]);
             }
         }
     }
@@ -34568,21 +39565,21 @@ int pick_random_attack(entity *target, int testonly)
                  check_energy(ENERGY_TYPE_HP, animspecials[i])) &&
                 (!target || check_range_target_all(self, target, animspecials[i], 0, 0)))
         {
-            atkchoices[found++] = animspecials[i];
+            ai_attack_choice_append(&found, animspecials[i]);
         }
     }
     if( validanim(self, ANI_THROWATTACK) &&
             self->weapent && self->weapent->modeldata.subtype == SUBTYPE_PROJECTILE &&
             (!target || check_range_target_all(self, target, ANI_THROWATTACK, 0, 0) ))
     {
-        atkchoices[found++] = ANI_THROWATTACK;
+        ai_attack_choice_append(&found, ANI_THROWATTACK);
     }
 
     if(testonly)
     {
         if(found)
         {
-            return atkchoices[(rand32() & 0xffff) % found];
+            return ai_attack_choices[(rand32() & 0xffff) % found];
         }
         return -1;
     }
@@ -34594,7 +39591,7 @@ int pick_random_attack(entity *target, int testonly)
         {
             return ANI_JUMPATTACK;
         }
-        atkchoices[found++] = ANI_JUMPATTACK;
+        ai_attack_choice_append(&found, ANI_JUMPATTACK);
     }
     if( validanim(self, ANI_UPPER) &&
             (!target || check_range_target_all(self, target, ANI_UPPER, 0, 0)) )
@@ -34603,12 +39600,12 @@ int pick_random_attack(entity *target, int testonly)
         {
             return ANI_UPPER;
         }
-        atkchoices[found++] = ANI_UPPER;
+        ai_attack_choice_append(&found, ANI_UPPER);
     }
 
     if(found)
     {
-        return atkchoices[(rand32() & 0xffff) % found];
+        return ai_attack_choices[(rand32() & 0xffff) % found];
     }
 
     return -1;
@@ -34657,7 +39654,7 @@ int check_attack_chance(entity *target, float min, float max)
 //give it a chance to reset current noattack timer
 u32 recheck_nextattack(entity *target)
 {
-    if(target->blocking)
+    if(target->blocking & BLOCK_STATE_ACTIVE)
     {
         self->nextattack = 0;
     }
@@ -34709,7 +39706,7 @@ int common_try_normalattack(entity *target)
             }
             else
             {
-                self->stalltime = _time + (int)randf((float)MAX(1, GAME_SPEED * 3 / 4 - self->modeldata.aggression));
+                self->stalltime = _time + (int)randf((float)MAX(1, global_config.game_speed * 3 / 4 - self->modeldata.aggression));
             }
         }
 
@@ -34891,7 +39888,7 @@ int common_try_upper(entity *target)
         }
         else
         {
-            self->stalltime = _time + (int)randf((float)MAX(1, GAME_SPEED * 3 / 4 - self->modeldata.aggression));
+            self->stalltime = _time + (int)randf((float)MAX(1, global_config.game_speed * 3 / 4 - self->modeldata.aggression));
         }
 
         self->takeaction = upper_prepare;
@@ -34950,7 +39947,7 @@ int common_try_duckattack(entity *other)
     }
     else
     {
-        self->stalltime = _time + (int)randf((float)MAX(1, GAME_SPEED * 3 / 4 - self->modeldata.aggression));
+        self->stalltime = _time + (int)randf((float)MAX(1, global_config.game_speed * 3 / 4 - self->modeldata.aggression));
     }
 
     // finally attack!
@@ -35244,8 +40241,8 @@ int dograb(entity *attacker, entity *target, e_dograb_adjustcheck adjustcheck)
             }
             attacker->attacking = ATTACKING_NONE;
             memset(attacker->combostep, 0, 5 * sizeof(*attacker->combostep));
-            target->stalltime = _time + GRAB_STALL;
-            attacker->releasetime = _time + (GAME_SPEED / 2);
+            target->stalltime = _time + global_config.grab_stall;
+            attacker->releasetime = _time + (global_config.game_speed / 2);
             target->takeaction = common_grabbed;
             attacker->takeaction = common_grab;
             ent_set_anim(attacker, ANI_GRAB, 0);
@@ -35299,264 +40296,6 @@ int trygrab(entity *other)
     }
 
     return result;
-}
-
-int check_entity_collision(entity *ent, entity *target)
-{
-    s_hitbox *coords_col_entity_ent;
-    s_hitbox *coords_col_entity_target;
-    s_collision_entity  *col_entity_ent = NULL;
-    s_collision_entity  *col_entity_target = NULL;
-    int     x1,
-            x2,
-            y1,
-            y2,
-            z1,
-            z2;
-    int col_entity_ent_instance;
-    int     col_entity_ent_pos_x        = 0,
-            col_entity_ent_pos_y        = 0,
-            col_entity_ent_size_x       = 0,
-            col_entity_ent_size_y       = 0,
-            col_entity_target_pos_x     = 0,
-            col_entity_target_pos_y     = 0,
-            col_entity_target_size_x    = 0,
-            col_entity_target_size_y    = 0;
-    int     zdist = 0;
-    int     zdepth1 = 0, zdepth2 = 0;
-    int     entity_pushing = ent->modeldata.entitypushing;
-    float   PUSH_FACTOR = ent->modeldata.pushingfactor;
-
-    if(ent == target
-       || !target->animation->collision_entity
-       || !ent->animation->collision_entity
-       )
-    {
-        return 0;
-    }
-
-    if(ent->link || target->link)
-    {
-        return 0;
-    }
-
-    int col_entity_target_instance = 0;
-    int collision_found = 0;
-
-    if (entity_pushing && !PUSH_FACTOR) PUSH_FACTOR = 1.0f;
-
-    for(col_entity_ent_instance = 0; col_entity_ent_instance < max_collisons; col_entity_ent_instance++)
-    {
-        col_entity_ent  = ent->animation->collision_entity[ent->animpos]->instance[col_entity_ent_instance];
-        coords_col_entity_ent   = col_entity_ent->coords;
-
-        for(col_entity_target_instance = 0; col_entity_target_instance < max_collisons; col_entity_target_instance++)
-        {
-            col_entity_target          = target->animation->collision_entity[target->animpos]->instance[col_entity_target_instance];
-            coords_col_entity_target   = col_entity_target->coords;
-
-            z1      = ent->position.z + ent->movez;
-            z2      = target->position.z + target->movez;
-            zdist   = 0;
-
-            if(coords_col_entity_ent->z_foreground > coords_col_entity_ent->z_background)
-            {
-                zdepth1 = (coords_col_entity_ent->z_foreground - coords_col_entity_ent->z_background) / 2;
-                z1 += coords_col_entity_ent->z_background + zdepth1;
-                zdist += zdepth1;
-            }
-            else if(coords_col_entity_ent->z_background)
-            {
-                zdepth1 = coords_col_entity_ent->z_background;
-                zdist += coords_col_entity_ent->z_background;
-            }
-
-            if(coords_col_entity_target->z_foreground > coords_col_entity_target->z_background)
-            {
-                zdepth2 = (coords_col_entity_target->z_foreground - coords_col_entity_target->z_background) / 2;
-                z2 += coords_col_entity_target->z_background + zdepth2;
-                zdist += zdepth2;
-            }
-            else if(coords_col_entity_target->z_background)
-            {
-                zdepth2 = coords_col_entity_target->z_background;
-                zdist += coords_col_entity_target->z_background;
-            }
-
-            if(diff(z1, z2) > zdist)
-            {
-                continue;
-            }
-
-            x1 = (int)ent->position.x + ent->movex;
-            z1 = (int)ent->position.z + ent->movez;
-            y1 = (int)z1 - ent->position.y;
-            x2 = (int)target->position.x + target->movex;
-            z2 = (int)target->position.z + target->movez;
-            y2 = (int)z2 - target->position.y;
-
-            if(ent->direction == DIRECTION_LEFT)
-            {
-                col_entity_ent_pos_x   = x1 - coords_col_entity_ent->width;
-                col_entity_ent_size_x  = x1 - coords_col_entity_ent->x;
-            }
-            else
-            {
-                col_entity_ent_pos_x    = x1 + coords_col_entity_ent->x;
-                col_entity_ent_size_x   = x1 + coords_col_entity_ent->width;
-            }
-            col_entity_ent_pos_y    = y1 + coords_col_entity_ent->y;
-            col_entity_ent_size_y   = y1 + coords_col_entity_ent->height;
-
-            if(target->direction == DIRECTION_LEFT)
-            {
-                col_entity_target_pos_x    = x2 - coords_col_entity_target->width;
-                col_entity_target_size_x   = x2 - coords_col_entity_target->x;
-            }
-            else
-            {
-                col_entity_target_pos_x    = x2 + coords_col_entity_target->x;
-                col_entity_target_size_x   = x2 + coords_col_entity_target->width;
-            }
-            col_entity_target_pos_y    = y2 + coords_col_entity_target->y;
-            col_entity_target_size_y   = y2 + coords_col_entity_target->height;
-
-            if(col_entity_ent_pos_x > col_entity_target_size_x)
-            {
-                continue;
-            }
-            if(col_entity_target_pos_x > col_entity_ent_size_x)
-            {
-                continue;
-            }
-            if(col_entity_ent_pos_y > col_entity_target_size_y)
-            {
-                continue;
-            }
-            if(col_entity_target_pos_y > col_entity_ent_size_y)
-            {
-                continue;
-            }
-
-            // If we got this far, set collision flag
-            // and break this loop.
-            collision_found = 1;
-            break;
-        }
-
-        // If a collision was found
-        // break out of loop.
-        if(collision_found)
-        {
-            break;
-        }
-    }
-
-    if(!collision_found)
-    {
-        return 0;
-    }
-
-    // check on axis x
-    if(col_entity_ent_pos_x <= col_entity_target_pos_x)
-    {
-        if (!entity_pushing)
-        {
-            if (ent->movex > 0) ent->movex = 0;
-        }
-        else
-        {
-            // let to escape
-            if (ent->collided_entity && ent->collided_entity == target)
-            {
-                if (ent->movex > 0) ent->movex = 0;
-            }
-            if (ent->movex != -1 * target->movex || (!target->movex)) ent->movex -= PUSH_FACTOR;
-        }
-    }
-    else
-    {
-        if (!entity_pushing)
-        {
-            if (ent->movex < 0) ent->movex = 0;
-        }
-        else
-        {
-            // let to escape
-            if (ent->collided_entity && ent->collided_entity == target)
-            {
-                if (ent->movex < 0) ent->movex = 0;
-            }
-            if (ent->movex != -1 * target->movex || (!target->movex)) ent->movex += PUSH_FACTOR;
-        }
-    }
-
-    // check on axis z
-    if(z1 - zdepth1 <= z2 + zdepth2 &&
-       z1 - zdepth1 >= z2)
-    {
-        if (!entity_pushing)
-        {
-            if (ent->movez < 0) ent->movez = 0;
-        }
-        else
-        {
-            // let to escape
-            if (ent->collided_entity && ent->collided_entity == target)
-            {
-                if (ent->movez < 0) ent->movez = 0;
-            }
-            if (ent->movez != -1 * target->movez || (!target->movez)) ent->movez += PUSH_FACTOR;
-        }
-    }
-    else if(z1 + zdepth1 >= z2 - zdepth2 &&
-            z1 + zdepth1 <= z2)
-    {
-        if (!entity_pushing)
-        {
-            if (ent->movez > 0) ent->movez = 0;
-        }
-        else
-        {
-            // let to escape
-            if (ent->collided_entity && ent->collided_entity == target)
-            {
-                if (ent->movez > 0) ent->movez = 0;
-            }
-            if (ent->movez != -1 * target->movez || (!target->movez)) ent->movez -= PUSH_FACTOR;
-        }
-    }
-
-    // execute event
-    execute_onentitycollision_script(ent, target, col_entity_ent, col_entity_target);
-
-    return 1;
-}
-
-void check_entity_collision_for(entity* ent)
-{
-    // Animation has collision?
-    if (ent && ent->animation && ent->animation->collision_entity)
-    {
-        int i;
-        for(i = 0; i < ent_max; i++)
-        {
-            //s_anim *a = ent->animation[ent->animnum];
-            entity* target = ent_list[i];
-            if(target->exists && target != ent)
-            {
-                if (check_entity_collision(ent, target))
-                {
-                    ent->collided_entity = target;
-                    target->collided_entity = ent;
-                    return;
-                }
-            }
-        }
-    }
-
-    ent->collided_entity = NULL;
-    return;
 }
 
 int common_trymove(float xdir, float zdir)
@@ -35772,13 +40511,13 @@ int common_trymove(float xdir, float zdir)
         {
             xdir = 0;
             if ( self->falling && (self->modeldata.hitwalltype < 0 || (self->modeldata.hitwalltype >= 0 && level->walls[wall].type == self->modeldata.hitwalltype)) ) hit |= 1;
-            execute_onblockw_script(self, &level->walls[wall], PLANE_X, wall);
+            execute_onblockw_script(self, &level->walls[wall], wall, PLANE_X);
         }
         if(zdir && (wall = checkwall_below(self->position.x, z, T_MAX_CHECK_ALTITUDE)) >= 0 && level->walls[wall].height > self->position.y)
         {
             zdir = 0;
             if ( self->falling && (self->modeldata.hitwalltype < 0 || (self->modeldata.hitwalltype >= 0 && level->walls[wall].type == self->modeldata.hitwalltype)) ) hit |= 1;
-            execute_onblockw_script(self, &level->walls[wall], PLANE_Z, wall);
+            execute_onblockw_script(self, &level->walls[wall], wall, PLANE_Z);
         }
 
         if ( hit && !self->hitwall && validanim(self, ANI_HITWALL) ) ent_set_anim(self, ANI_HITWALL, 0);
@@ -35954,10 +40693,10 @@ void common_attack_finish()
         }
     }
 
-    stall = GAME_SPEED - self->modeldata.aggression;
-    if (stall < GAME_SPEED / 2)
+    stall = global_config.game_speed - self->modeldata.aggression;
+    if (stall < global_config.game_speed / 2)
     {
-        stall = GAME_SPEED / 2;
+        stall = global_config.game_speed / 2;
     }
     self->stalltime = _time + MAX(0, stall);
 }
@@ -36063,7 +40802,7 @@ int common_try_jump()
     float rmax = 0.0;
     float initial_z_velocity = 0.0;
 
-    e_animations jump_animation = ANI_JUMP;
+    animation_id_t jump_animation = ANI_JUMP;
 
     /*
     * If we can't jump at all, return false now.
@@ -36743,7 +41482,7 @@ int checkpathblocked()
                 self->velocity.x = (1.0f - randf(2)) * self->modeldata.speed.x;
             }
             self->running = RUN_STATE_NONE; // TODO: re-adjust walk speed
-            self->stalltime = _time + GAME_SPEED / 2;
+            self->stalltime = _time + global_config.game_speed / 2;
             adjust_walk_animation(NULL);
             self->pathblocked = 0;
 
@@ -36848,12 +41587,28 @@ int common_try_chase(entity* acting_entity, const entity *target, const bool axi
         ////////////
     }
 
-    if(axis_z)
+    if (axis_z)
     {
-        acting_entity->destz = target->position.z ;
+        acting_entity->destz = target->position.z;
         dz = diff(acting_entity->position.z, acting_entity->destz);
 
-        if(dz > 100 && acting_entity->modeldata.runupdown && validanim(acting_entity, ANI_RUN))
+        int going_up = (acting_entity->destz < acting_entity->position.z);
+        int run_flag_check = 0;
+
+        if (going_up)
+        {
+            run_flag_check =
+                (acting_entity->modeldata.run_config_flags & RUN_CONFIG_Z_UP_ENABLED) &&
+                (acting_entity->modeldata.run_config_flags & RUN_CONFIG_Z_UP_INITIAL);
+        }
+        else
+        {
+            run_flag_check =
+                (acting_entity->modeldata.run_config_flags & RUN_CONFIG_Z_DOWN_ENABLED) &&
+                (acting_entity->modeldata.run_config_flags & RUN_CONFIG_Z_DOWN_INITIAL);
+        }
+
+        if (dz > 100 && run_flag_check && validanim(acting_entity, ANI_RUN))
         {
             acting_entity->velocity.z = acting_entity->modeldata.runspeed / 2;
             acting_entity->running &= ~RUN_STATE_START_X;
@@ -36864,7 +41619,7 @@ int common_try_chase(entity* acting_entity, const entity *target, const bool axi
             acting_entity->velocity.z = acting_entity->modeldata.speed.x / 2;
         }
 
-        if(acting_entity->destz < acting_entity->position.z)
+        if (going_up)
         {
             acting_entity->velocity.z = -acting_entity->velocity.z;
         }
@@ -37614,7 +42369,7 @@ void common_pickupitem(entity *other)
     if(self->weapent == NULL && isSubtypeWeapon(other) && validanim(self, ANI_GET))
     {
         self->takeaction = common_get;
-        dropweapon(0);  //don't bother dropping the previous one though, scine it won't pickup another
+        dropweapon(self, 0);  //don't bother dropping the previous one though, scine it won't pickup another
         self->weapent = other;
         
         set_weapon(self, other->modeldata.weapon_properties.weapon_index, 0);
@@ -37630,12 +42385,18 @@ void common_pickupitem(entity *other)
             self->position.z = other->position.z;
         }
 
-        if (other->nextanim != DELAY_INFINITE)
+        if(!(other->nextanim & DELAY_FLAG_INFINITE))
         {
-            other->nextanim = _time + GAME_SPEED * 999999;
+            other->nextanim = animation_timestamp_add_bounded(
+                _time,
+                delay_multiply_bounded(
+                    global_config.game_speed,
+                    UINT64_C(999999)
+                )
+            );
         }
             
-        other->nextthink = _time + GAME_SPEED * 999999;
+        other->nextthink = _time + global_config.game_speed * 999999;
         ent_set_anim(self, ANI_GET, 0);
         pickup = 1;
     }
@@ -37643,14 +42404,22 @@ void common_pickupitem(entity *other)
     else if(self->weapent == NULL && isSubtypeProjectile(other) && validanim(self, ANI_GET))
     {
         self->takeaction = common_get;
-        dropweapon(0);
+        dropweapon(self, 0);
         self->weapent = other;
         set_getting(self);
         self->velocity.x = self->velocity.z = 0; //stop moving
-        if (other->nextanim != DELAY_INFINITE) { other->nextanim = _time + GAME_SPEED * 999999; }
+        if(!(other->nextanim & DELAY_FLAG_INFINITE)) {
+            other->nextanim = animation_timestamp_add_bounded(
+                _time,
+                delay_multiply_bounded(
+                    global_config.game_speed,
+                    UINT64_C(999999)
+                )
+            );
+        }
             
             
-        other->nextthink = _time + GAME_SPEED * 999999;
+        other->nextthink = _time + global_config.game_speed * 999999;
         ent_set_anim(self, ANI_GET, 0);
         pickup = 1;
     }
@@ -37677,7 +42446,7 @@ void common_pickupitem(entity *other)
         // else if, TODO: other effects
         // kill that item
         other->takeaction = suicide;
-        other->nextthink = _time + GAME_SPEED * 3;
+        other->nextthink = _time + global_config.game_speed * 3;
         pickup = 1;
     }
     // hide it
@@ -37954,7 +42723,7 @@ int bomb_try_detonate(entity* acting_entity)
             ent_set_anim(acting_entity, ANI_ATTACK2, 0);
             //acting_entity->animation->move_config_flags &= ~MOVE_CONFIG_SUBJECT_TO_GRAVITY;
         }
-        else if(acting_entity->modeldata.remove && acting_entity->toexplode & EXPLODE_DETONATE_HIT)
+        else if(acting_entity->modeldata.remove_config & REMOVE_CONFIG_HIT && acting_entity->toexplode & EXPLODE_DETONATE_HIT)
         {
             kill_entity(acting_entity, KILL_ENTITY_TRIGGER_BOMB_EXPLODE_ANIMATION_UNAVAILABLE);
         }
@@ -38317,7 +43086,7 @@ int common_move()
         if (acting_entity->custom_target == NULL || !acting_entity->custom_target->exists) target = normal_find_target(-1, 0); // confirm the target again
         else target = acting_entity->custom_target;
 
-        other = ((_time / GAME_SPEED + acting_entity->energy_state.health_current / 3 + 1000) % 15 < 10) ? normal_find_item() : NULL; // find an item
+        other = ((_time / global_config.game_speed + acting_entity->energy_state.health_current / 3 + 1000) % 15 < 10) ? normal_find_item() : NULL; // find an item
         owner = acting_entity->parent;
 
         // temporary solution to turn off running if xdir is not set
@@ -38654,10 +43423,10 @@ int common_move()
             set_idle(acting_entity);
             if(makestop)
             {
-                stall = (GAME_SPEED - acting_entity->modeldata.aggression) / 2;
-                if(stall < GAME_SPEED / 5)
+                stall = (global_config.game_speed - acting_entity->modeldata.aggression) / 2;
+                if(stall < global_config.game_speed / 5)
                 {
-                    stall = GAME_SPEED / 5;
+                    stall = global_config.game_speed / 5;
                 }
                 acting_entity->stalltime = _time + MAX(0, stall);
             }
@@ -38681,7 +43450,7 @@ int common_move()
                 }
                 else
                 {
-                    stall = GAME_SPEED / 2;
+                    stall = global_config.game_speed / 2;
                 }
                 acting_entity->stalltime = _time + MAX(0, stall);
             }
@@ -38690,13 +43459,13 @@ int common_move()
         //target is moving?  readjust destination sooner
         if(aimove != AIMOVE1_WANDER && !acting_entity->waypoints && ent && (acting_entity->velocity.x || acting_entity->velocity.z) && (ent->velocity.x || ent->velocity.z))
         {
-            if(acting_entity->running && acting_entity->stalltime > _time + GAME_SPEED / 2)
+            if(acting_entity->running && acting_entity->stalltime > _time + global_config.game_speed / 2)
             {
-                acting_entity->stalltime = _time + GAME_SPEED / 2;
+                acting_entity->stalltime = _time + global_config.game_speed / 2;
             }
-            else if(!acting_entity->running && acting_entity->stalltime > _time + GAME_SPEED / 5)
+            else if(!acting_entity->running && acting_entity->stalltime > _time + global_config.game_speed / 5)
             {
-                acting_entity->stalltime = _time + GAME_SPEED / 5;
+                acting_entity->stalltime = _time + global_config.game_speed / 5;
             }
         }
 
@@ -39136,9 +43905,9 @@ void suicide()
 
 // Re-enter playfield
 // Used by player_fall and player_takedamage
-void player_die()
+void player_die_entity(entity* acting_entity)
 {
-    int playerindex = self->playerindex;
+    int playerindex = acting_entity->playerindex;
     int i = 0;
 
     if(!(global_config.cheats & CHEAT_OPTIONS_LIVES_ACTIVE))
@@ -39146,7 +43915,7 @@ void player_die()
         --player[playerindex].lives;
     }
 
-    if(firstplayer == self)
+    if(firstplayer == acting_entity)
     {
         firstplayer = NULL;
     }
@@ -39158,18 +43927,28 @@ void player_die()
         nomaxrushreset[playerindex] = player[playerindex].ent->rush.max;
     }
     player[playerindex].ent = NULL;
-    player[playerindex].spawnhealth = self->modeldata.health;
-    player[playerindex].spawnmp = self->modeldata.mp;
+    player[playerindex].spawnhealth = acting_entity->modeldata.health;
+    player[playerindex].spawnmp = acting_entity->modeldata.mp;
 
-    if(self->modeldata.death_config_flags & ~(DEATH_CONFIG_REMOVE_CORPSE_AIR | DEATH_CONFIG_REMOVE_CORPSE_GROUND))
-    {
-        kill_entity(self, KILL_ENTITY_TRIGGER_PLAYER_DEATH);
-    }
-    else
-    {
-        self->think = NULL;
-        self->takeaction = NULL;
-        self->death_state |= DEATH_STATE_CORPSE;
+    /* 
+    * Handle the body. If any corpse flags
+    * are set, we leave entity on screen 
+    * and make it inert. Otherwise we can
+    * just run kill function to remove.
+    * 
+    * REMOVE_CORPSE_* flags refer to how 
+    * the live entity is removed from the 
+    * game while leaving a corpse behind.
+    */
+
+    static const e_death_config_flags leave_corpse = DEATH_CONFIG_REMOVE_CORPSE_AIR | DEATH_CONFIG_REMOVE_CORPSE_GROUND;
+
+    if (acting_entity->modeldata.death_config_flags & leave_corpse) {
+        acting_entity->think = NULL;
+        acting_entity->takeaction = NULL;
+        acting_entity->death_state |= DEATH_STATE_CORPSE;
+    } else {
+        kill_entity(acting_entity, KILL_ENTITY_TRIGGER_PLAYER_DEATH);
     }
 
     if(player[playerindex].lives <= 0)
@@ -39222,7 +44001,7 @@ void player_die()
             all_p_nocredits = (all_p_nocredits >= MAX_PLAYERS) ? 1 : 0;
 
 			// Set the timer to a 10 second count down.
-            timeleft = 10 * COUNTER_SPEED;
+            timeleft = 10 * global_config.counter_speed;
 
 			// No one joining in?
             if(all_p_nojoin)
@@ -39237,20 +44016,20 @@ void player_die()
 				{
 					if (all_p_nocredits)
 					{
-						timeleft = COUNTER_SPEED / 2;
+						timeleft = global_config.counter_speed / 2;
 					}					
 				}
 				else
 				{
 					if (credits < 1)
 					{
-						timeleft = COUNTER_SPEED / 2;
+						timeleft = global_config.counter_speed / 2;
 					}
 				}
             }
         }
 
-        if(self->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_STAGE)
+        if(acting_entity->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_STAGE)
         {
             player[playerindex].weapnum = level->setweap;
         }
@@ -39275,9 +44054,14 @@ void player_die()
 
     if(!level->noreset)
     {
-        timeleft = level->settime * COUNTER_SPEED;    // Feb 24, 2005 - This line moved here to set custom time
+        timeleft = level->settime * global_config.counter_speed;    // Feb 24, 2005 - This line moved here to set custom time
     }
 
+}
+
+void player_die(void)
+{
+    player_die_entity(self);
 }
 
 
@@ -39365,12 +44149,12 @@ int check_energy(e_cost_check which, int ani)
 // Replaces unreadable check_range() macro. Runs individual
 // check range functions for each axis and returns true
 // if target is within range of ALL.
-int check_range_target_all(const entity *ent, const entity *target, const e_animations animation_id, const int range_min, const int range_max)
+bool check_range_target_all(const entity *ent, const entity *target, const animation_id_t animation_id, int64_t range_min, int64_t range_max)
 {
     // Must have a valid target entity.
     if(!target)
     {
-        return 0;
+        return false;
     }
 
     // Get pointer to animation.
@@ -39378,25 +44162,25 @@ int check_range_target_all(const entity *ent, const entity *target, const e_anim
 
     if (!check_range_target_x(ent, target, animation, range_min, range_max))
     {
-        return 0;
+        return false;
     }
 
     if (!check_range_target_y(ent, target, animation, range_min, range_max))
     {
-        return 0;
+        return false;
     }
 
     if (!check_range_target_z(ent, target, animation, range_min, range_max))
     {
-        return 0;
+        return false;
     }
 
     if (!check_range_target_base(ent, target, animation, range_min, range_max))
     {
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
 // Caskey, Damon V.
@@ -39404,7 +44188,7 @@ int check_range_target_all(const entity *ent, const entity *target, const e_anim
 //
 // Return true if target is within Base range
 // of entity's animation.
-int check_range_target_base(const entity *acting_entity, const entity *target, const s_anim *animation, const int range_min, const int range_max)
+bool check_range_target_base(const entity *acting_entity, const entity *target, const s_anim *animation, int64_t range_min, int64_t range_max)
 {
     int ent_base;
     int target_base;
@@ -39414,7 +44198,7 @@ int check_range_target_base(const entity *acting_entity, const entity *target, c
     // Must have a target.
     if(!acting_entity || !target)
     {
-        return 0;
+        return false;
     }
 
     range.max = range_max;
@@ -39436,7 +44220,7 @@ int check_range_target_base(const entity *acting_entity, const entity *target, c
     // Return true if final target location is
     // within range min and max.
     return (target_base >= range.min
-            && target_base <= range.max);
+            && target_base <= range.max) ? true : false;
 }
 
 // Caskey, Damon V.
@@ -39444,12 +44228,12 @@ int check_range_target_base(const entity *acting_entity, const entity *target, c
 //
 // Return true if target is within X range
 // of entity's animation.
-int check_range_target_x(const entity *acting_entity, const entity *target, const s_anim *animation, const int range_min, const int range_max)
+bool check_range_target_x(const entity *acting_entity, const entity *target, const s_anim *animation, int64_t range_min, int64_t range_max)
 {
     // Must have entities.
     if(!acting_entity || !target)
     {
-        return 0;
+        return false;
     }
 
     // Get positions cast as integers.
@@ -39478,7 +44262,7 @@ int check_range_target_x(const entity *acting_entity, const entity *target, cons
         range.max = ent_x + range.max;
 
         return (target_x >= range.min
-                && target_x <= range.max);
+                && target_x <= range.max) ? true : false;
     }
     else
     {
@@ -39488,7 +44272,7 @@ int check_range_target_x(const entity *acting_entity, const entity *target, cons
         range.max = ent_x - range.max;
 
         return (target_x <= range.min
-                && target_x >= range.max);
+                && target_x >= range.max) ? true : false;
     }
 }
 
@@ -39497,12 +44281,12 @@ int check_range_target_x(const entity *acting_entity, const entity *target, cons
 //
 // Return true if target is within Y range
 // of entity's animation.
-int check_range_target_y(const entity *acting_entity, const entity *target, const s_anim *animation, const int range_min, const int range_max)
+bool check_range_target_y(const entity *acting_entity, const entity *target, const s_anim *animation, int64_t range_min, int64_t range_max)
 {
     // Must have a target.
     if(!acting_entity || !target)
     {
-        return 0;
+        return false;
     }
 
     s_metric_range range;
@@ -39523,7 +44307,7 @@ int check_range_target_y(const entity *acting_entity, const entity *target, cons
     // Return true if final target location is
     // within range min and max.
     return (target_y >= range.min
-            && target_y <= range.max);
+            && target_y <= range.max) ? true : false;
 }
 
 // Caskey, Damon V.
@@ -39531,12 +44315,12 @@ int check_range_target_y(const entity *acting_entity, const entity *target, cons
 //
 // Return true if target is within Z range
 // of entity's animation.
-int check_range_target_z(const entity * acting_entity, const entity *target, const s_anim *animation, const int range_min, const int range_max)
+bool check_range_target_z(const entity * acting_entity, const entity *target, const s_anim *animation, int64_t range_min, int64_t range_max)
 {
     // Must have a target.
     if(!acting_entity || !target)
     {
-        return 0;
+        return false;
     }
 
     s_metric_range range;
@@ -39557,7 +44341,7 @@ int check_range_target_z(const entity * acting_entity, const entity *target, con
     // Return true if final target location is
     // within range min and max.
     return (target_z >= range.min
-            && target_z <= range.max);
+            && target_z <= range.max) ? true : false;
 }
 
 int check_special()
@@ -39651,8 +44435,8 @@ int check_special()
 // Kratus (10-2021) Added new flags to use with another ATTACK# keys as an new alternative
 int player_check_special()
 {
-    u64 thekey = 0;
-    e_key_def player_keys = player[self->playerindex].playkeys;
+    key_mask_t thekey = 0;
+    key_mask_t player_keys = player[self->playerindex].playkeys;
 
     switch (global_config.ajspecial)
     {
@@ -39673,7 +44457,7 @@ int player_check_special()
         }
         else if (player_keys & FLAG_JUMP && player_keys & FLAG_ATTACK)
         {
-            thekey = FLAG_SPECIAL;
+            thekey = FLAG_JUMP | FLAG_ATTACK;
         }
         break;
 
@@ -39681,7 +44465,7 @@ int player_check_special()
 
         if (player_keys & FLAG_ATTACK2)
         {
-            thekey = FLAG_SPECIAL;
+            thekey = FLAG_ATTACK2;
         }
         break;
 
@@ -39689,7 +44473,7 @@ int player_check_special()
 
         if (player_keys & FLAG_ATTACK3)
         {
-            thekey = FLAG_SPECIAL;
+            thekey = FLAG_ATTACK3;
         }
         break;
 
@@ -39697,7 +44481,7 @@ int player_check_special()
 
         if (player_keys & FLAG_ATTACK4)
         {
-            thekey = FLAG_SPECIAL;
+            thekey = FLAG_ATTACK4;
         }
         break;
     
@@ -39900,7 +44684,7 @@ void common_prejump()
 }
 
 
-void tryjump(float jumpv, float jumpx, float jumpz, e_animations animation_id)
+void tryjump(float jumpv, float jumpx, float jumpz, animation_id_t animation_id)
 {
     self->jump.velocity.y = jumpv;
     self->jump.velocity.x = jumpx;
@@ -39923,7 +44707,7 @@ void tryjump(float jumpv, float jumpx, float jumpz, e_animations animation_id)
 }
 
 
-void dojump(float jumpv, float jumpx, float jumpz, e_animations animation_id)
+void dojump(float jumpv, float jumpx, float jumpz, animation_id_t animation_id)
 {
     entity *dust;
 
@@ -40039,7 +44823,7 @@ void didfind_item(entity *other)
     }
     else if(stricmp(other->modeldata.name, "Time") == 0)
     {
-        timeleft = level->settime * COUNTER_SPEED;    // Feb 24, 2005 - This line moved here to set custom time
+        timeleft = level->settime * global_config.counter_speed;    // Feb 24, 2005 - This line moved here to set custom time
 
         if(global_sample_list.get_2 >= 0)
         {
@@ -40070,7 +44854,7 @@ void didfind_item(entity *other)
     }
     else if(other->modeldata.subtype == SUBTYPE_WEAPON)
     {
-        dropweapon(0);
+        dropweapon(self, 0);
         self->weapent = other;
         set_weapon(self, other->modeldata.weapon_properties.weapon_index, 0);
 
@@ -40094,7 +44878,7 @@ void didfind_item(entity *other)
     }
     else if(other->modeldata.subtype == SUBTYPE_PROJECTILE)
     {
-        dropweapon(0);
+        dropweapon(self, 0);
         self->weapent = other;
 
         if(global_sample_list.get >= 0)
@@ -40134,13 +44918,21 @@ void didfind_item(entity *other)
         other->takeaction = suicide;
         if(!other->modeldata.instantitemdeath)
         {
-            other->nextthink = _time + GAME_SPEED * 3;
+            other->nextthink = _time + global_config.game_speed * 3;
         }
     }
     else
     {
-        if (other->nextanim != DELAY_INFINITE) { other->nextanim = _time + GAME_SPEED * 999999; }
-        other->nextthink = _time + GAME_SPEED * 999999;
+        if(!(other->nextanim & DELAY_FLAG_INFINITE)) {
+            other->nextanim = animation_timestamp_add_bounded(
+                _time,
+                delay_multiply_bounded(
+                    global_config.game_speed,
+                    UINT64_C(999999)
+                )
+            );
+        }
+        other->nextthink = _time + global_config.game_speed * 999999;
     }
     other->position.z = ITEM_HIDE_POSITION_Z;
 }
@@ -40179,7 +44971,7 @@ void player_grab_check()
 
     if(!nolost && self->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_GRABBING)
     {
-        dropweapon(1);
+        dropweapon(self, 1);
     }
 
     // grabturn code
@@ -40274,7 +45066,7 @@ void player_grab_check()
     }
     else
     {
-        self->releasetime = _time + (GAME_SPEED / 2);
+        self->releasetime = _time + (global_config.game_speed / 2);
     }
 
     if((player[self->playerindex].playkeys & FLAG_ATTACK) &&
@@ -40497,7 +45289,7 @@ void player_grab_check()
 
     if(self->attacking != ATTACKING_NONE)
     {
-        self->releasetime = _time + (GAME_SPEED / 2);    // reset releasetime when do collision
+        self->releasetime = _time + (global_config.game_speed / 2);    // reset releasetime when do collision
     }
 }
 
@@ -40938,84 +45730,852 @@ int check_costmove(int s, int fs, int jumphack)
     return 0;
 }
 
-int match_combo(const e_key_def sequence[], s_player *p, const int l)
-{
-    int j, step;
+/*
+* Caskey, Damon V.
+* 2026-07-17
+*
+* Record the starting time for every newly pressed
+* command input flag.
+*
+* Physical and direction-relative flags share the same
+* 64-bit namespace. Using the flag's bit index provides
+* hold timing without a parallel command-history ring.
+*/
+static void command_input_hold_start_update(
+    s_player* acting_player,
+    const key_mask_t pressed_flags,
+    const uint64_t event_time
+) {
+    key_mask_t scan_mask = pressed_flags;
 
-    for(j = 0; j < l; j++)
-    {
-        step = p->combostep - 1 - j;
-        step = (step + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
+    while(scan_mask) {
+        const uint64_t input_index =
+            bitmask64_get_lowest_index(scan_mask);
 
-        // old: !(a[l - 1 - j]&p->combokey[step])
-        if( ((sequence[l - 1 - j]&p->combokey[step]) ^ sequence[l - 1 - j]) ) // if input&combokey == 0 then not good btn
-        {
-            return 0;
+        const key_mask_t input_flag =
+            bitmask64_from_index(input_index);
+
+        acting_player->command_input_hold_start_time[
+            input_index
+        ] = event_time;
+
+        acting_player->command_input_hold_start_valid |=
+            input_flag;
+
+        /*
+        * A new press begins a new continuous hold. Clear
+        * the automatic-trigger record so time zero can
+        * trigger again for the new hold.
+        */
+        acting_player->command_input_hold_trigger_valid &=
+            ~input_flag;
+
+        scan_mask &= ~input_flag;
+    }
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-17
+*
+* Collect automatic held-input edges which reach their
+* configured threshold on this logical tick.
+*
+* Thresholds come from the acting entity's configurable
+* special commands. A per-input timestamp prevents a
+* second input refresh during the same tick from emitting
+* the same edge again. Different thresholds for the same
+* input remain independent because each is reached on a
+* different logical tick during one continuous hold.
+*/
+static key_mask_t command_input_hold_trigger_collect(
+    s_player* acting_player,
+    const key_mask_t held_flags,
+    const uint64_t event_time
+) {
+    const entity* acting_entity;
+
+    key_mask_t collected_flags = 0;
+
+    int special_index;
+
+    if(!acting_player || !acting_player->ent) {
+        return 0;
+    }
+
+    acting_entity = acting_player->ent;
+
+    for(special_index = 0;
+        special_index < acting_entity->modeldata.specials_loaded;
+        special_index++) {
+
+        const s_com* special_command =
+            &acting_entity->modeldata.special[special_index];
+
+        int step_index;
+
+        if(special_command->steps <= 0
+            || special_command->steps > MAX_SPECIAL_INPUTS) {
+            continue;
+        }
+
+        for(step_index = 0;
+            step_index < special_command->steps;
+            step_index++) {
+
+            const s_command_input_step* input_step =
+                &special_command->input[step_index];
+
+            key_mask_t scan_mask =
+                input_step->hold_trigger & held_flags;
+
+            while(scan_mask) {
+                const uint64_t input_index =
+                    bitmask64_get_lowest_index(scan_mask);
+
+                const key_mask_t input_flag =
+                    bitmask64_from_index(input_index);
+
+                const uint64_t hold_start_time =
+                    acting_player->command_input_hold_start_time[
+                        input_index
+                    ];
+
+                const bool already_emitted_this_tick =
+                    (acting_player->command_input_hold_trigger_valid
+                        & input_flag)
+                    && acting_player->command_input_hold_trigger_time[
+                        input_index
+                    ] == event_time;
+
+                if((acting_player->command_input_hold_start_valid
+                        & input_flag)
+                    && hold_start_time <= event_time
+                    && event_time - hold_start_time
+                        == input_step->hold_time
+                    && !already_emitted_this_tick) {
+
+                    collected_flags |= input_flag;
+                }
+
+                scan_mask &= ~input_flag;
+            }
         }
     }
 
-    return 1;
+    /*
+    * Record emitted flags only after scanning every
+    * command. Commands sharing the same input and
+    * threshold deliberately share one history edge.
+    */
+    {
+        key_mask_t scan_mask = collected_flags;
+
+        while(scan_mask) {
+            const uint64_t input_index =
+                bitmask64_get_lowest_index(scan_mask);
+
+            const key_mask_t input_flag =
+                bitmask64_from_index(input_index);
+
+            acting_player->command_input_hold_trigger_time[
+                input_index
+            ] = event_time;
+
+            acting_player->command_input_hold_trigger_valid |=
+                input_flag;
+
+            scan_mask &= ~input_flag;
+        }
+    }
+
+    return collected_flags;
 }
 
+/*
+* Caskey, Damon V.
+* 2026-07-17
+*
+* Append one event to a player's command history.
+*/
+static void command_input_history_push(s_player* acting_player, const s_command_input_event* input_event) {
+    
+    acting_player->command_input_history[acting_player->command_input_index] = *input_event;
 
-int check_combo()
-{
-    int i, maxstep = -1, maxkeys = -1, valid = -1;
+    acting_player->command_input_index = (acting_player->command_input_index + 1) & SPECIAL_INPUT_INDEX_MASK;
+
+    if(acting_player->command_input_count < MAX_SPECIAL_INPUTS) {
+        acting_player->command_input_count++;
+    }
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-17
+*
+* Consume the newest press edge from a player's command
+* history.
+*
+* Several hard-coded movement commands consume their
+* triggering press. A combined event may also contain a
+* release or automatic hold edge, so only remove the
+* complete entry when no other edge remains.
+*/
+static void command_input_history_consume_latest_press(
+    s_player* acting_player
+) {
+    s_command_input_event* input_event;
+
+    uint64_t input_index;
+
+    if(!acting_player || !acting_player->command_input_count) {
+        return;
+    }
+
+    input_index =
+        (acting_player->command_input_index - 1)
+        & SPECIAL_INPUT_INDEX_MASK;
+
+    input_event =
+        &acting_player->command_input_history[
+            input_index
+        ];
+
+    input_event->press = 0;
+    input_event->press_chord = 0;
+
+    if(input_event->hold || input_event->release) {
+        return;
+    }
+
+    acting_player->command_input_index = input_index;
+
+    memset(input_event, 0, sizeof(*input_event));
+
+    acting_player->command_input_count--;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-17
+*
+* Consume selected automatic held-input flags from the
+* event which triggered a configurable command.
+*
+* Other flags remain available when the same history
+* entry also contains a press, release, or another held
+* edge. Empty non-latest entries stay in place so ring
+* order and stored event ages do not need compaction.
+*/
+static void command_input_history_consume_hold_trigger(
+    s_player* acting_player,
+    const uint64_t event_age,
+    const key_mask_t trigger_flags
+) {
+    s_command_input_event* input_event;
+
+    uint64_t input_index;
+
+    if(!acting_player
+        || !trigger_flags
+        || event_age >= acting_player->command_input_count) {
+        return;
+    }
+
+    input_index =
+        (acting_player->command_input_index - event_age - 1)
+        & SPECIAL_INPUT_INDEX_MASK;
+
+    input_event =
+        &acting_player->command_input_history[input_index];
+
+    input_event->hold &= ~trigger_flags;
+
+    if(input_event->press
+        || input_event->hold
+        || input_event->release
+        || event_age) {
+        return;
+    }
+
+    acting_player->command_input_index = input_index;
+
+    memset(input_event, 0, sizeof(*input_event));
+
+    acting_player->command_input_count--;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-17
+*
+* Read the preceding valid event from a player's
+* command history.
+*/
+static const s_command_input_event* command_input_history_previous(
+    const s_player* acting_player,
+    uint64_t* history_index,
+    uint64_t* remaining_events
+) {
+    if(!*remaining_events) {
+        return NULL;
+    }
+
+    *history_index =
+        (*history_index - 1) & SPECIAL_INPUT_INDEX_MASK;
+
+    (*remaining_events)--;
+
+    return &acting_player->command_input_history[
+        *history_index
+    ];
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-17
+*
+* Read the preceding press event from a player's
+* command history.
+*
+* Non-press entries are skipped so release and timed
+* hold events can be added without changing legacy
+* hard-coded command behavior.
+*/
+static const s_command_input_event* command_input_history_previous_press(
+    const s_player* acting_player,
+    uint64_t* history_index,
+    uint64_t* remaining_events
+) {
+    const s_command_input_event* input_event;
+
+    while((input_event = command_input_history_previous(
+        acting_player,
+        history_index,
+        remaining_events
+    ))) {
+
+        if(input_event->press) {
+            return input_event;
+        }
+    }
+
+    return NULL;
+}
+
+/*
+* Check whether the player's most recent press
+* events satisfy a hard-coded command sequence.
+*
+* Each sequence entry is a bit mask of required
+* inputs. A recorded press may contain additional
+* flags and still match.
+*
+* Release and timed hold events are deliberately
+* ignored so existing hard-coded commands retain
+* their positive-edge behavior.
+*/
+static bool match_combo(const key_mask_t sequence[], const s_player* acting_player, const uint64_t length) {
+    const s_command_input_event* input_event;
+
+    uint64_t history_index;
+    uint64_t newer_event_time;
+    uint64_t remaining_events;
+    uint64_t sequence_index;
+
+    if(!sequence
+        || !acting_player
+        || !length
+        || length > MAX_SPECIAL_INPUTS) {
+        return false;
+    }
+
+    history_index = acting_player->command_input_index;
+    newer_event_time = _time;
+    remaining_events = acting_player->command_input_count;
+
+    for(sequence_index = length;
+        sequence_index > 0;
+        sequence_index--) {
+
+        const key_mask_t required_press =
+            sequence[sequence_index - 1];
+
+        input_event = command_input_history_previous_press(
+            acting_player,
+            &history_index,
+            &remaining_events
+        );
+
+        if(!input_event
+            || (input_event->press & required_press)
+                != required_press
+            || newer_event_time - input_event->time
+                > global_config.command_time) {
+            return false;
+        }
+
+        newer_event_time = input_event->time;
+    }
+
+    return true;
+}
+
+/*
+* Return the grace time used by one configurable command
+* sequence. Commands without an explicit override inherit
+* the engine-wide setting at match time.
+*/
+static uint64_t command_sequence_grace_time_get(
+    const s_com* special_command
+) {
+    assert(special_command);
+
+    return special_command->sequence_grace_time_override
+        ? special_command->sequence_grace_time
+        : global_config.command_time;
+}
+
+/*
+* Return the longest grace time needed by the acting
+* entity's configurable and hard-coded commands.
+*
+* Input history is shared by every command. Retaining it
+* for the longest configured grace prevents a command
+* with a longer local override from losing its earlier
+* steps to the global history timeout.
+*/
+static uint64_t command_input_history_grace_time_get(
+    const entity* acting_entity
+) {
+    uint64_t history_grace_time = global_config.command_time;
+
+    int special_index;
+
+    if(!acting_entity) {
+        return history_grace_time;
+    }
+
+    for(special_index = 0;
+        special_index < acting_entity->modeldata.specials_loaded;
+        special_index++) {
+
+        const s_com* special_command =
+            &acting_entity->modeldata.special[special_index];
+
+        const uint64_t sequence_grace_time =
+            command_sequence_grace_time_get(special_command);
+
+        if(sequence_grace_time > history_grace_time) {
+            history_grace_time = sequence_grace_time;
+        }
+    }
+
+    return history_grace_time;
+}
+
+/*
+* Return the absolute logical tick when shared command
+* history expires. Saturation preserves extremely large
+* creator-defined grace values without wrapping the
+* expiration time around to the beginning of the clock.
+*/
+static uint64_t command_input_history_expiration_time_get(
+    const entity* acting_entity,
+    const uint64_t event_time
+) {
+    const uint64_t history_grace_time =
+        command_input_history_grace_time_get(acting_entity);
+
+    if(history_grace_time > UINT64_MAX - event_time) {
+        return UINT64_MAX;
+    }
+
+    return event_time + history_grace_time;
+}
+
+/*
+* Return whether an input event satisfies the positive
+* edge requirement for one configurable command step.
+*
+* Single-key steps retain exact legacy behavior and use
+* only the physical press edge. Multi-key steps use the
+* chord snapshot and their configured chord_time. Zero
+* requires every member to begin on the same logical tick.
+* At least one required key must be physically pressed in
+* the triggering event, preventing an unrelated third key
+* from retriggering a chord which merely remains held.
+*/
+static bool command_input_event_matches_press(
+    const s_command_input_step* input_step,
+    const s_command_input_event* input_event,
+    const s_player* acting_player
+) {
+    const key_mask_t required_press = input_step->press;
+
+    key_mask_t scan_mask;
+
+    if(!required_press) {
+        return true;
+    }
+
+    /*
+    * A mask with one active bit has no second bit after
+    * removing its lowest bit.
+    */
+    if(!(required_press & (required_press - 1))) {
+        return (input_event->press & required_press)
+            == required_press;
+    }
+
+    if(!(input_event->press & required_press)
+        || (input_event->press_chord & required_press)
+            != required_press) {
+        return false;
+    }
+
+    scan_mask = required_press;
+
+    while(scan_mask) {
+        const uint64_t input_index =
+            bitmask64_get_lowest_index(scan_mask);
+
+        const key_mask_t input_flag =
+            bitmask64_from_index(input_index);
+
+        const uint64_t press_time =
+            acting_player->command_input_hold_start_time[
+                input_index
+            ];
+
+        if(!(acting_player->command_input_hold_start_valid
+                & input_flag)
+            || press_time > input_event->time
+            || input_event->time - press_time
+                > input_step->chord_time) {
+            return false;
+        }
+
+        scan_mask &= ~input_flag;
+    }
+
+    return true;
+}
+
+/*
+* Return whether an input event satisfies every passive
+* and automatic held requirement for one command step.
+*/
+static bool command_input_event_matches_hold(
+    const s_command_input_step* input_step,
+    const s_command_input_event* input_event,
+    const s_player* acting_player
+) {
+    const key_mask_t required_hold_flags =
+        input_step->hold | input_step->hold_trigger;
+
+    key_mask_t scan_mask;
+
+    if(!required_hold_flags) {
+        return true;
+    }
+
+    if((input_event->held & required_hold_flags)
+        != required_hold_flags) {
+        return false;
+    }
+
+    scan_mask = required_hold_flags;
+
+    while(scan_mask) {
+        const uint64_t input_index =
+            bitmask64_get_lowest_index(scan_mask);
+
+        const key_mask_t input_flag =
+            bitmask64_from_index(input_index);
+
+        const uint64_t hold_start_time =
+            acting_player->command_input_hold_start_time[
+                input_index
+            ];
+
+        if(!(acting_player->command_input_hold_start_valid
+                & input_flag)
+            || hold_start_time > input_event->time) {
+            return false;
+        }
+
+        {
+            const uint64_t held_time =
+                input_event->time - hold_start_time;
+
+            /*
+            * Passive holds accept the inclusive minimum
+            * through the optional inclusive maximum. A
+            * zero maximum leaves the upper bound open.
+            * Automatic holds match only their exact
+            * minimum threshold edge, preventing a later
+            * threshold for the same key from retriggering
+            * an earlier automatic command.
+            */
+            if(((input_step->hold & input_flag)
+                    && (held_time < input_step->hold_time
+                        || (input_step->hold_time_maximum
+                            && held_time
+                                > input_step->hold_time_maximum)))
+                || ((input_step->hold_trigger & input_flag)
+                    && held_time != input_step->hold_time)) {
+                return false;
+            }
+        }
+
+        scan_mask &= ~input_flag;
+    }
+
+    return true;
+}
+
+/*
+* Read the preceding event whose edge type is relevant
+* to a configurable command step.
+*
+* Release-only events do not disturb press-only steps,
+* and press-only events do not disturb release-only
+* steps. An event of a required type with the wrong key
+* is returned so it correctly interrupts the sequence.
+*/
+static const s_command_input_event* command_input_history_previous_for_step(
+    const s_player* acting_player,
+    const s_command_input_step* input_step,
+    uint64_t* history_index,
+    uint64_t* remaining_events
+) {
+    const s_command_input_event* input_event;
+
+    while((input_event = command_input_history_previous(
+        acting_player,
+        history_index,
+        remaining_events
+    ))) {
+
+        if((input_step->press && input_event->press)
+            || (input_step->release && input_event->release)
+            || (input_step->hold_trigger && input_event->hold)) {
+            return input_event;
+        }
+    }
+
+    return NULL;
+}
+
+/*
+* Check whether the player's most recent input events
+* satisfy a configurable special command.
+*
+* Press, release, and automatic hold masks are edge
+* requirements. Passive hold is a state and minimum
+* duration requirement evaluated at the triggering event.
+*/
+static bool match_special_command(
+    const s_command_input_step sequence[],
+    const s_player* acting_player,
+    const uint64_t length,
+    const uint64_t sequence_grace_time,
+    uint64_t* match_time,
+    uint64_t* match_age
+) {
+    const s_command_input_event* input_event;
+
+    uint64_t history_index;
+    uint64_t newer_event_time;
+    uint64_t remaining_events;
+    uint64_t sequence_index;
+
+    if(!sequence
+        || !acting_player
+        || !match_time
+        || !match_age
+        || !length
+        || length > MAX_SPECIAL_INPUTS) {
+        return false;
+    }
+
+    *match_time = 0;
+    *match_age = UINT64_MAX;
+
+    history_index = acting_player->command_input_index;
+    newer_event_time = _time;
+    remaining_events = acting_player->command_input_count;
+
+    for(sequence_index = length;
+        sequence_index > 0;
+        sequence_index--) {
+
+        const s_command_input_step* input_step =
+            &sequence[sequence_index - 1];
+
+        input_event = command_input_history_previous_for_step(
+            acting_player,
+            input_step,
+            &history_index,
+            &remaining_events
+        );
+
+        if(!input_event
+            || !command_input_event_matches_press(
+                input_step,
+                input_event,
+                acting_player
+            )
+            || (input_event->release & input_step->release)
+                != input_step->release
+            || (input_event->hold & input_step->hold_trigger)
+                != input_step->hold_trigger
+            || newer_event_time - input_event->time
+                > sequence_grace_time
+            || !command_input_event_matches_hold(
+                input_step,
+                input_event,
+                acting_player
+            )) {
+            return false;
+        }
+
+        if(sequence_index == length) {
+            *match_time = input_event->time;
+            *match_age =
+                acting_player->command_input_count
+                - remaining_events - 1;
+        }
+
+        newer_event_time = input_event->time;
+    }
+
+    return true;
+}
+
+bool check_combo(s_player* acting_player) {
+
+    unsigned int i;
+    int maxstep = -1;
+    int maxkeys = -1;
+    int valid = -1;
+
+    uint64_t min_match_age = UINT64_MAX;
+    uint64_t max_match_time = 0;
+    key_mask_t selected_hold_trigger_flags = 0;
+
+    bool match_found = false;
+
     s_com *com;
-    s_player *p;
 
-    p = player + self->playerindex;
+    for(i = 0; i < self->modeldata.specials_loaded; i++) {
 
-    for(i = 0; i < self->modeldata.specials_loaded; i++)
-    {
         com = self->modeldata.special + i;
 
         if(self->animation->cancel != ANIMATION_CANCEL_DISABLED &&
                 (self->animnum != com->cancel ||
                  com->frame.min > self->animpos ||
                  com->frame.max < self->animpos ||
-                 self->animation->hit_count < com->hits))
-        {
+                 self->animation->hit_count < com->hits)) {
+         
             continue;
-        }
-        else if(self->animation->cancel == ANIMATION_CANCEL_DISABLED &&
-                (com->cancel || !self->idling || diff(self->position.y, self->base) > 1) )
-        {
+        
+        } else if(self->animation->cancel == ANIMATION_CANCEL_DISABLED
+            && (com->cancel || !player_accepts_idle_input(self) || diff(self->position.y, self->base) > 1)) {
+            
             continue;
         }
 
-        // find the longest possible combo with more keys pressed concurrently
-        if( com->steps >= maxstep && com->numkeys > maxkeys &&
-                validanim(self, com->anim) &&
-                (check_energy(ENERGY_TYPE_MP, com->anim) || check_energy(ENERGY_TYPE_HP, com->anim)) &&
-                match_combo(com->input, p, com->steps))
         {
-            // combo valid! but which better? The longest combo that has with more keys pressed concurrently
-            valid = com->anim;
-            maxstep = com->steps;
-            maxkeys = com->numkeys;
-        }
-    }//end of for
+            uint64_t command_match_age;
+            uint64_t command_match_time;
 
-    if(valid >= 0 && check_costmove(valid, 1, self->jumping))
-    {
-        return 1;
+            const uint64_t sequence_grace_time =
+                command_sequence_grace_time_get(com);
+
+            if(validanim(self, com->anim)
+            && (check_energy(ENERGY_TYPE_MP, com->anim) || check_energy(ENERGY_TYPE_HP, com->anim))
+            && match_special_command(
+                com->input,
+                acting_player,
+                com->steps,
+                sequence_grace_time,
+                &command_match_time,
+                &command_match_age
+            )) {
+
+                /*
+                * Prefer the command triggered by the newest
+                * input event. Ring age resolves events recorded
+                * during the same logical tick. Commands sharing
+                * that event retain the existing longest-sequence,
+                * then greatest-chord-size ranking.
+                */
+                const bool better_match =
+                    !match_found
+                    || command_match_age < min_match_age
+                    || (command_match_age == min_match_age
+                        && (command_match_time > max_match_time
+                            || (command_match_time == max_match_time
+                                && (com->steps > maxstep
+                                    || (com->steps == maxstep
+                                        && com->numkeys > maxkeys)))));
+
+                if(!better_match) {
+                    continue;
+                }
+
+                valid = com->anim;
+                min_match_age = command_match_age;
+                max_match_time = command_match_time;
+                maxstep = com->steps;
+                maxkeys = com->numkeys;
+                selected_hold_trigger_flags =
+                    com->input[com->steps - 1].hold_trigger;
+                match_found = true;
+            }
+        }
+
     }
 
-    return 0;
+    if(valid >= 0 && check_costmove(valid, 1, self->jumping)) {
+        /*
+        * Automatic held edges are one-shot input events.
+        * Consume the selected final-step flags only after
+        * the move starts successfully. Press, release,
+        * and unrelated automatic flags remain available.
+        */
+        command_input_history_consume_hold_trigger(
+            acting_player,
+            min_match_age,
+            selected_hold_trigger_flags
+        );
+
+        return true;
+    }
+
+    return false;
 }
 
-int player_preinput()
-{
-    if(player[self->playerindex].playkeys)
-    {
-        if(check_combo())
-        {
-            player[self->playerindex].playkeys &= ~FLAG_CONTROLKEYS;
-            return 1;
-        }
+/*
+* Caskey, Damon V.
+* 2026-07-26 - Originally written by Fugue (unknown date).
+*
+* Rework evaluates whether a player 
+* has a pending command sequence to execute.
+*/
+bool player_preinput() {
+    
+    s_player *acting_player = player + self->playerindex;
+
+    if(check_combo(acting_player)) {
+        acting_player->playkeys &= ~FLAG_CONTROLKEYS;
+
+        return true;
     }
-    return 0;
+
+    return false;
 }
 
 
@@ -41121,7 +46681,32 @@ void run_try_runstop_player(entity* acting_entity, const s_player* acting_player
     }
 }
 
+/*
+* Caskey, Damon V.
+* 2026-07-16
+*
+* Return true when the entity may 
+* process ordinary idle-state player 
+* input.
+*/
+bool player_accepts_idle_input(const entity *acting_entity) {
+    
+    const s_anim *animation = acting_entity->animation;
 
+    if(acting_entity->idling) {
+        return true;
+    }
+
+    if(!animation
+        || !animation->idle
+        || animation->numframes <= 0
+        || acting_entity->animpos
+            >= (uint64_t)animation->numframes) {
+        return false;
+    }
+
+    return animation->idle[acting_entity->animpos] ? true : false;
+}
 
 void player_think()
 {
@@ -41135,22 +46720,17 @@ void player_think()
     } e_local_action_flags;
 
     e_local_action_flags action = 0;
-    int bkwalk = 0;   //backwalk
-    int t = 0;
-    int t2 = 0;    
+    bool back_walk = false;   //backwalk
+      
     entity *other = NULL;
-    float altdiff;
-    int notinair;
     float initial_jump_velocity_z = 0.0;
 
     entity* acting_entity = self;
 
-    const e_key_def sequence_left_left[] = {FLAG_MOVELEFT, FLAG_MOVELEFT};
-    const e_key_def sequence_right_right[] = {FLAG_MOVERIGHT, FLAG_MOVERIGHT};
-    const e_key_def sequence_up_up[] = {FLAG_MOVEUP, FLAG_MOVEUP};
-    const e_key_def sequence_down_down[] = {FLAG_MOVEDOWN, FLAG_MOVEDOWN};
-    const e_key_def sequence_back_attack[] = {FLAG_BACKWARD, FLAG_ATTACK};
-
+    const key_mask_t sequence_left_left[] = {FLAG_MOVELEFT, FLAG_MOVELEFT};
+    const key_mask_t sequence_right_right[] = {FLAG_MOVERIGHT, FLAG_MOVERIGHT};
+    const key_mask_t sequence_up_up[] = {FLAG_MOVEUP, FLAG_MOVEUP};
+    const key_mask_t sequence_down_down[] = {FLAG_MOVEDOWN, FLAG_MOVEDOWN};  
     
     int pli = acting_entity->playerindex;
     s_player *acting_player = player + pli;
@@ -41160,104 +46740,101 @@ void player_think()
         return;
     }
 
-    // check endlevel item
-    if((other = find_ent_here(acting_entity, acting_entity->position.x, acting_entity->position.z, TYPE_ENDLEVEL, NULL)) && diff(acting_entity->position.y, other->position.y) <= 0.1)
-    {
-        int no_reached_flag = 0, sum_reached = 0;;
-        int i;
+    /*
+    * Are we touching the end level entity?
+    */
+    if((other = find_ent_here(acting_entity, acting_entity->position.x, acting_entity->position.z, TYPE_ENDLEVEL, NULL)) 
+        && diff(acting_entity->position.y, other->position.y) <= 0.1) {
 
-        for (i = 0; i < MAX_PLAYERS; i++)
-        {
-            if (!reached[i]) ++no_reached_flag;
+        bool no_player_reached = false;
+        uint64_t sum_not_reached = 0;
+        uint64_t sum_reached = 0;
+        uint64_t i;
+        
+        for (i = 0; i < MAX_PLAYERS; i++) {
+            if (!reached[i]){
+                sum_not_reached++;
+            }
         }
-        no_reached_flag = (no_reached_flag >= MAX_PLAYERS) ? 1 : 0;
+        no_player_reached = (sum_not_reached >= MAX_PLAYERS) ? true : false;
 
-        if(no_reached_flag)
-        {
+        if(no_player_reached) {
             addscore(pli, other->modeldata.score);
         }
-        reached[pli] = 1;
+        reached[pli] = true;
 
-        for (i = 0; i < MAX_PLAYERS; i++)
-        {
+        for (i = 0; i < MAX_PLAYERS; i++) {
             sum_reached += reached[i];
         }
 
-        if (!other->modeldata.subtype || (other->modeldata.subtype == SUBTYPE_BOTH && sum_reached >= (count_ents(TYPE_PLAYER))))
-        {
+        if (!other->modeldata.subtype || (other->modeldata.subtype == SUBTYPE_BOTH && sum_reached >= (count_ents(TYPE_PLAYER)))) {
             level_completed = 1;
 
-            if(other->modeldata.branch)
-            {
+            if(other->modeldata.branch) {
                 strncpy( branch_name, other->modeldata.branch, MAX_NAME_LEN);    //now, you can branch to another level
             }
             return;
         }
     }
 
-    if(_time > acting_entity->rush.time)
-    {
+    /*
+    * Reset combo count if time has expired.
+    */
+    if(_time > acting_entity->rush.time) {
         acting_entity->rush.count = 0;
         acting_entity->rush.time = 0;
     }
 
-    if(player_preinput())
-    {
+    if(player_preinput()) {
         goto endthinkcheck;
     }
 
-    if(acting_entity->charging)
-    {
+    if(acting_entity->charging) {
         player_charge_check();
         goto endthinkcheck;
     }
 
-    if(acting_entity->inpain & ~IN_PAIN_NONE || (acting_entity->link && !acting_entity->grabbing))
-    {
+    if(acting_entity->inpain & ~IN_PAIN_NONE || (acting_entity->link && !acting_entity->grabbing)) {
         player_pain_check();
         goto endthinkcheck;
     }
 
     // falling? check for landing
-    if(acting_entity->projectile & BLAST_TOSS)
-    {
+    if(acting_entity->projectile & BLAST_TOSS) {
         player_fall_check();
         goto endthinkcheck;
     }
 
     // grab section, dont move if still animating
-    if(acting_entity->grabbing && acting_entity->attacking == ATTACKING_NONE && acting_entity->takeaction != common_throw_wait)
-    {
+    if(acting_entity->grabbing && acting_entity->attacking == ATTACKING_NONE && acting_entity->takeaction != common_throw_wait) {
         player_grab_check();
         goto endthinkcheck;
     }
 
     // jump section
-    if(acting_entity->jumping)
-    {
+    if(acting_entity->jumping) {
         player_jump_check();
         goto endthinkcheck;
     }
 
-    if(acting_entity->animnum == ANI_WALKOFF)
-    {
+    if(acting_entity->animnum == ANI_WALKOFF) {
         player_walkoff_check();
         goto endthinkcheck;
     }
 
-    if(acting_entity->drop && acting_entity->position.y == acting_entity->base && !acting_entity->velocity.y)
-    {
+    if(acting_entity->drop && acting_entity->position.y == acting_entity->base && !acting_entity->velocity.y) {
         player_lie_check();
         goto endthinkcheck;
     }
 
-
-    // cant do anything if busy
-    if(!acting_entity->idling && !(acting_entity->animation->idle && acting_entity->animation->idle[acting_entity->animpos]))
-    {
+    /*
+    * Check if player is in a state that allows
+    * ordinary idle-state input processing. If not,
+    * skip the rest of the input checks.
+    */
+    if(!player_accepts_idle_input(acting_entity)) {
         goto endthinkcheck;
     }
-
 
     // Check if entity is under a platform
     /*if(acting_entity->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_PLATFORM && (heightvar = acting_entity->animation->size.y ? acting_entity->animation->size.y : acting_entity->modeldata.size.y) &&
@@ -41270,20 +46847,20 @@ void player_think()
         goto endthinkcheck;
     }*/
 
-    altdiff = diff(acting_entity->position.y, acting_entity->base);
-    notinair = (acting_entity->landed_on_platform ? altdiff < 5 : altdiff < 2);
+    const float altdiff = diff(acting_entity->position.y, acting_entity->base);
+    const bool notinair = (acting_entity->landed_on_platform ? altdiff < 5 : altdiff < 2);
 
-    if(acting_player->playkeys & FLAG_MOVEUP)
-    {
-        t = (notinair && match_combo(sequence_up_up, acting_player, 2));
-        if(t && (acting_entity->modeldata.run_config_flags & (RUN_CONFIG_Z_UP_ENABLED | RUN_CONFIG_Z_UP_INITIAL)) == (RUN_CONFIG_Z_UP_ENABLED | RUN_CONFIG_Z_UP_INITIAL) && validanim(acting_entity, ANI_RUN))
-        {
+    if(acting_player->playkeys & FLAG_MOVEUP) {
+
+        const bool command_match = (notinair && match_combo(sequence_up_up, acting_player, 2));
+
+        if(command_match && (acting_entity->modeldata.run_config_flags & (RUN_CONFIG_Z_UP_ENABLED | RUN_CONFIG_Z_UP_INITIAL)) == (RUN_CONFIG_Z_UP_ENABLED | RUN_CONFIG_Z_UP_INITIAL) && validanim(acting_entity, ANI_RUN)) {
             acting_player->playkeys &= ~FLAG_MOVEUP;
-            acting_player->combostep = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
+            command_input_history_consume_latest_press(acting_player);
             acting_entity->running |= RUN_STATE_START_X;    // Player begins to run
-        }
-        else if(t && validanim(acting_entity, ANI_ATTACKUP))
-        {
+        
+        } else if(command_match && validanim(acting_entity, ANI_ATTACKUP)) {
+
             // New u u combo attack
             acting_player->playkeys &= ~FLAG_MOVEUP;
             acting_entity->takeaction = common_attack_proc;
@@ -41291,11 +46868,10 @@ void player_think()
             acting_entity->combostep[0] = 0;
             acting_entity->velocity.x = acting_entity->velocity.z = 0;
             ent_set_anim(acting_entity, ANI_ATTACKUP, 0);
-            acting_player->combostep = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS; // this workaround deals default freespecial2
+            command_input_history_consume_latest_press(acting_player); // this workaround deals default freespecial2
             goto endthinkcheck;
-        }
-        else if(t && validanim(acting_entity, ANI_DODGE))
-        {
+        
+        } else if(command_match && validanim(acting_entity, ANI_DODGE)) {
             // New dodge move like on SOR3
             acting_player->playkeys &= ~FLAG_MOVEUP;
             acting_entity->takeaction = common_dodge;
@@ -41304,22 +46880,20 @@ void player_think()
             acting_entity->velocity.z = -acting_entity->modeldata.speed.x * 1.75;
             acting_entity->velocity.x = 0;// OK you can use jumpframe to modify this anyway
             ent_set_anim(acting_entity, ANI_DODGE, 0);
-            acting_player->combostep = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
+            command_input_history_consume_latest_press(acting_player);
             goto endthinkcheck;
         }
     }
 
-    if(acting_player->playkeys & FLAG_MOVEDOWN)
-    {
-        t = (notinair && match_combo(sequence_down_down, acting_player, 2));
-        if(t && (acting_entity->modeldata.run_config_flags & (RUN_CONFIG_Z_DOWN_ENABLED | RUN_CONFIG_Z_DOWN_INITIAL)) == (RUN_CONFIG_Z_DOWN_ENABLED | RUN_CONFIG_Z_DOWN_INITIAL) && validanim(acting_entity, ANI_RUN))
-        {
+    if(acting_player->playkeys & FLAG_MOVEDOWN) {
+        const bool command_match = (notinair && match_combo(sequence_down_down, acting_player, 2));
+
+        if(command_match && (acting_entity->modeldata.run_config_flags & (RUN_CONFIG_Z_DOWN_ENABLED | RUN_CONFIG_Z_DOWN_INITIAL)) == (RUN_CONFIG_Z_DOWN_ENABLED | RUN_CONFIG_Z_DOWN_INITIAL) && validanim(acting_entity, ANI_RUN)) {
             acting_player->playkeys &= ~FLAG_MOVEDOWN;
-            acting_player->combostep = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
+            command_input_history_consume_latest_press(acting_player);
             acting_entity->running |= RUN_STATE_START_Z;    // Player begins to run
-        }
-        else if(t && validanim(acting_entity, ANI_ATTACKDOWN))
-        {
+        
+        } else if(command_match && validanim(acting_entity, ANI_ATTACKDOWN)) {
             // New d d combo attack
             acting_player->playkeys &= ~FLAG_MOVEDOWN;
             acting_entity->takeaction = common_attack_proc;
@@ -41327,11 +46901,10 @@ void player_think()
             acting_entity->velocity.x = acting_entity->velocity.z = 0;
             acting_entity->combostep[0] = 0;
             ent_set_anim(acting_entity, ANI_ATTACKDOWN, 0);
-            acting_player->combostep = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
+            command_input_history_consume_latest_press(acting_player);
             goto endthinkcheck;
-        }
-        else if(t && validanim(acting_entity, ANI_DODGE))
-        {
+        
+        } else if(command_match && validanim(acting_entity, ANI_DODGE)) {
             // New dodge move like on SOR3
             acting_player->playkeys &= ~FLAG_MOVEDOWN;
             acting_entity->takeaction = common_dodge;
@@ -41340,47 +46913,46 @@ void player_think()
             acting_entity->velocity.z = acting_entity->modeldata.speed.x * 1.75;
             acting_entity->velocity.x = 0;
             ent_set_anim(acting_entity, ANI_DODGE, 0);
-            acting_player->combostep = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
+            command_input_history_consume_latest_press(acting_player);
             goto endthinkcheck;
         }
     }
 
-    if((acting_player->playkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT)))
-    {
-        int t3;
-        const unsigned int command_match_left = (notinair && (acting_entity->direction == DIRECTION_LEFT && match_combo(sequence_left_left, acting_player, 2)));
-        const unsigned int command_match_right = (notinair && (acting_entity->direction == DIRECTION_RIGHT && match_combo(sequence_right_right, acting_player, 2)));
-
-        t = (notinair && ((acting_entity->direction == DIRECTION_RIGHT && match_combo(sequence_right_right, acting_player, 2)) || (acting_entity->direction == DIRECTION_LEFT && match_combo(sequence_left_left, acting_player, 2))));
-        t3 = (notinair && acting_entity->modeldata.facing && ((acting_entity->direction == DIRECTION_RIGHT && match_combo(sequence_left_left, acting_player, 2)) || (acting_entity->direction == DIRECTION_LEFT && match_combo(sequence_right_right, acting_player, 2))));
-
+    if((acting_player->playkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT))) {
+        
+        const bool command_match_left = (notinair && (acting_entity->direction == DIRECTION_LEFT && match_combo(sequence_left_left, acting_player, 2)));
+        const bool command_match_right = (notinair && (acting_entity->direction == DIRECTION_RIGHT && match_combo(sequence_right_right, acting_player, 2)));
+        const bool command_match_forward = command_match_left || command_match_right;
+        const bool command_match_back = notinair
+            && acting_entity->modeldata.facing
+            && ((acting_entity->direction == DIRECTION_RIGHT && match_combo(sequence_left_left, acting_player, 2))
+            || (acting_entity->direction == DIRECTION_LEFT && match_combo(sequence_right_right, acting_player, 2))); 
+        
         if (command_match_left && (acting_entity->modeldata.run_config_flags & (RUN_CONFIG_X_LEFT_ENABLED | RUN_CONFIG_X_LEFT_INITIAL)) == (RUN_CONFIG_X_LEFT_ENABLED | RUN_CONFIG_X_LEFT_INITIAL) && validanim(acting_entity, ANI_RUN)) {
 
             acting_player->playkeys &= ~(FLAG_MOVELEFT | FLAG_MOVERIGHT); // usually left + right is not acceptable, so it is OK to null both
-            acting_player->combostep = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
+            command_input_history_consume_latest_press(acting_player);
             acting_entity->running |= RUN_STATE_START_X;    // Player begins to run
-        }
-        else if(command_match_right && (acting_entity->modeldata.run_config_flags & (RUN_CONFIG_X_RIGHT_ENABLED | RUN_CONFIG_X_RIGHT_INITIAL)) == (RUN_CONFIG_X_RIGHT_ENABLED | RUN_CONFIG_X_RIGHT_INITIAL) && validanim(acting_entity, ANI_RUN)) {
+        
+        } else if(command_match_right && (acting_entity->modeldata.run_config_flags & (RUN_CONFIG_X_RIGHT_ENABLED | RUN_CONFIG_X_RIGHT_INITIAL)) == (RUN_CONFIG_X_RIGHT_ENABLED | RUN_CONFIG_X_RIGHT_INITIAL) && validanim(acting_entity, ANI_RUN)) {
             
             acting_player->playkeys &= ~(FLAG_MOVELEFT | FLAG_MOVERIGHT); // usually left + right is not acceptable, so it is OK to null both
-            acting_player->combostep = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
+            command_input_history_consume_latest_press(acting_player);
             acting_entity->running |= RUN_STATE_START_X;    // Player begins to run
-        }
-        else if(t3 && validanim(acting_entity, ANI_BACKRUN))
-        {
+        
+        } else if(command_match_back && validanim(acting_entity, ANI_BACKRUN)) {
             acting_player->playkeys &= ~(FLAG_MOVELEFT | FLAG_MOVERIGHT); // usually left + right is not acceptable, so it is OK to null both
-            acting_player->combostep = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
+            command_input_history_consume_latest_press(acting_player);
             acting_entity->running |= RUN_STATE_START_X;    // Player begins to run
-        }
-        else if(t && validanim(acting_entity, ANI_ATTACKFORWARD))
-        {
+        
+        } else if(command_match_forward && validanim(acting_entity, ANI_ATTACKFORWARD)) {
             acting_player->playkeys &= ~(FLAG_MOVELEFT | FLAG_MOVERIGHT);
             acting_entity->takeaction = common_attack_proc;
             set_attacking(acting_entity);
             acting_entity->velocity.x = acting_entity->velocity.z = 0;
             acting_entity->combostep[0] = 0;
             ent_set_anim(acting_entity, ANI_ATTACKFORWARD, 0);
-            acting_player->combostep = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
+            command_input_history_consume_latest_press(acting_player);
             goto endthinkcheck;
         }
     }
@@ -41474,9 +47046,9 @@ void player_think()
     if((acting_player->releasekeys & FLAG_ATTACK))
     {
         if(acting_entity->stalltime && notinair &&
-                ((validanim(acting_entity, ANI_CHARGEATTACK) && acting_entity->stalltime + (GAME_SPEED * acting_entity->modeldata.animation[ANI_CHARGEATTACK]->charge_time) < _time) ||
+                ((validanim(acting_entity, ANI_CHARGEATTACK) && acting_entity->stalltime + (global_config.game_speed * acting_entity->modeldata.animation[ANI_CHARGEATTACK]->charge_time) < _time) ||
                  (!validanim(acting_entity, ANI_CHARGEATTACK) && validanim(acting_entity, animattacks[acting_entity->modeldata.atchain[acting_entity->modeldata.chainlength - 1] - 1])
-                  && acting_entity->modeldata.chainlength > 0 && acting_entity->stalltime + (GAME_SPEED * acting_entity->modeldata.animation[animattacks[acting_entity->modeldata.atchain[acting_entity->modeldata.chainlength - 1] - 1]]->charge_time) < _time)))
+                  && acting_entity->modeldata.chainlength > 0 && acting_entity->stalltime + (global_config.game_speed * acting_entity->modeldata.animation[animattacks[acting_entity->modeldata.atchain[acting_entity->modeldata.chainlength - 1] - 1]]->charge_time) < _time)))
         {
             acting_entity->takeaction = common_attack_proc;
             set_attacking(acting_entity);
@@ -41534,38 +47106,88 @@ void player_think()
             goto endthinkcheck;
         }
 
-        if(validanim(acting_entity, ANI_ATTACKBACKWARD) && match_combo(sequence_back_attack, acting_player, 2))
-        {
-            t = (acting_player->combostep - 1 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
-            t2 = (acting_player->combostep - 2 + MAX_SPECIAL_INPUTS) % MAX_SPECIAL_INPUTS;
-            if(acting_player->inputtime[t] - acting_player->inputtime[t2] < GAME_SPEED / 10)
-            {
+        /*
+        * Back attack. If player's command buffer matches 
+        * the back attack sequence, we'll attempt to do 
+        * a back attack.
+        */
+        const key_mask_t sequence_back_attack[] = {FLAG_BACKWARD, FLAG_ATTACK};
+
+        if(validanim(acting_entity, ANI_ATTACKBACKWARD) && match_combo(sequence_back_attack, acting_player, 2)) {
+            const s_command_input_event* attack_input_event;
+            const s_command_input_event* backward_input_event;
+
+            uint64_t history_index =
+                acting_player->command_input_index;
+
+            uint64_t remaining_events =
+                acting_player->command_input_count;
+
+            /*
+            * Get the last two press events. Reading through
+            * the compatibility helper prevents future release
+            * and timed hold events from disturbing back attack.
+            */
+            attack_input_event = command_input_history_previous_press(
+                acting_player,
+                &history_index,
+                &remaining_events
+            );
+
+            backward_input_event = command_input_history_previous_press(
+                acting_player,
+                &history_index,
+                &remaining_events
+            );
+
+            /*
+            * Did back attack inputs come within the
+            * time window? If so, we'll do a back attack.
+            */
+            if(attack_input_event
+                && backward_input_event
+                && attack_input_event->time
+                    - backward_input_event->time
+                    < global_config.game_speed / 10) {
+
                 acting_entity->takeaction = common_attack_proc;
                 set_attacking(acting_entity);
-                acting_entity->velocity.x = acting_entity->velocity.z = 0;
-                if(acting_entity->direction == DIRECTION_LEFT && (acting_player->combokey[t2]&FLAG_MOVELEFT))
-                {
+                acting_entity->velocity.x = 0;
+                acting_entity->velocity.z = 0;
+
+                if(acting_entity->direction == DIRECTION_LEFT
+                    && (backward_input_event->press & FLAG_MOVELEFT)) {
+                
                     acting_entity->direction = DIRECTION_RIGHT;
-                }
-                else if(acting_entity->direction == DIRECTION_RIGHT && (acting_player->combokey[t2]&FLAG_MOVERIGHT))
-                {
+                
+                } else if(acting_entity->direction == DIRECTION_RIGHT
+                    && (backward_input_event->press & FLAG_MOVERIGHT)) {
                     acting_entity->direction = DIRECTION_LEFT;
                 }
+
                 acting_entity->combostep[0] = 0;
                 ent_set_anim(acting_entity, ANI_ATTACKBACKWARD, 0);
                 goto endthinkcheck;
             }
         }
 
-        if( validanim(acting_entity, ANI_GET) && (other = find_ent_here(acting_entity, acting_entity->position.x, acting_entity->position.z, TYPE_ITEM, player_test_pickable)) )
-        {
+        /*
+        * Get item. If player is standing on an item
+        * and the get animation is valid, then
+        * we'll pick it up and run the get animation.
+        */
+        if(validanim(acting_entity, ANI_GET) 
+            && (other = find_ent_here(acting_entity, acting_entity->position.x, acting_entity->position.z, TYPE_ITEM, player_test_pickable))) {
+
             acting_entity->velocity.x = acting_entity->velocity.z = 0;
             set_getting(acting_entity);
             acting_entity->takeaction = common_get;
             ent_set_anim(acting_entity, ANI_GET, 0);
 
-            // Item "attacks" collector to make it
-            // easy to script actions on item pick up.
+            /*
+            * Item "attacks" collector to make it
+            * easy to script actions on item pick up. 
+            */
             do_item_script(acting_entity, other);
 
             didfind_item(other);
@@ -41960,40 +47582,37 @@ void player_think()
     {
     case ACTION_WALK:
         // back walk feature
-        if(level && validanim(acting_entity, ANI_BACKWALK))
-        {
-            if(acting_entity->modeldata.facing == FACING_ADJUST_RIGHT || level->facing == FACING_ADJUST_RIGHT)
-            {
-                bkwalk = !acting_entity->direction;
+        if(level && validanim(acting_entity, ANI_BACKWALK)) {
+
+            if(acting_entity->modeldata.facing == FACING_ADJUST_RIGHT || level->facing == FACING_ADJUST_RIGHT) {
+
+                back_walk = !acting_entity->direction;
+
+            } else if(acting_entity->modeldata.facing == FACING_ADJUST_LEFT || level->facing == FACING_ADJUST_LEFT) {
+
+                back_walk = acting_entity->direction;
+
+            } else if((acting_entity->modeldata.facing == FACING_ADJUST_LEVEL || level->facing == FACING_ADJUST_LEVEL) && (level->scrolldir & SCROLL_LEFT) && acting_entity->direction == DIRECTION_LEFT) {
+
+                back_walk = true;
+
+            } else if((acting_entity->modeldata.facing == FACING_ADJUST_LEVEL || level->facing == FACING_ADJUST_LEVEL) && (level->scrolldir & SCROLL_RIGHT) && acting_entity->direction == DIRECTION_RIGHT) {
+
+                back_walk = true;
+
+            } else if(acting_entity->turntime && acting_entity->modeldata.turndelay) {
+
+                back_walk = true;
             }
-            else if(acting_entity->modeldata.facing == FACING_ADJUST_LEFT || level->facing == FACING_ADJUST_RIGHT)
-            {
-                bkwalk = acting_entity->direction;
+
+            if(back_walk) {
+                common_backwalk_anim(acting_entity);          
+            } else {
+                common_walk_anim(acting_entity);
             }
-            else if((acting_entity->modeldata.facing == FACING_ADJUST_LEVEL || level->facing == FACING_ADJUST_LEVEL) && (level->scrolldir & SCROLL_LEFT) && acting_entity->direction == DIRECTION_LEFT)
-            {
-                bkwalk = 1;
-            }
-            else if((acting_entity->modeldata.facing == FACING_ADJUST_LEVEL || level->facing == FACING_ADJUST_LEVEL) && (level->scrolldir & SCROLL_RIGHT) && acting_entity->direction == DIRECTION_RIGHT)
-            {
-                bkwalk = 1;
-            }
-            else if(acting_entity->turntime && acting_entity->modeldata.turndelay)
-            {
-                bkwalk = 1;
-            }
-            if(bkwalk)
-            {
-                common_backwalk_anim(acting_entity);    //ent_set_anim(acting_entity, ANI_BACKWALK, 0);
-            }
-            else
-            {
-                common_walk_anim(acting_entity);    //ent_set_anim(acting_entity, ANI_WALK, 0);    // If neither up nor down exist, set to walk
-            }
-        }
-        else
-        {
-            common_walk_anim(acting_entity);    //ent_set_anim(acting_entity, ANI_WALK, 0);    // If neither up nor down exist, set to walk
+        
+        } else {
+            common_walk_anim(acting_entity);  
         }
         break;
     case ACTION_UP:
@@ -42050,13 +47669,13 @@ void subtract_shot()
         if(!self->weapent->modeldata.weapon_properties.use_count)
         {
             self->weapent->modeldata.weapon_properties.loss_count = 0;
-            dropweapon(0);
+            dropweapon(self, 0);
         }
     }
 }
 
 
-void dropweapon(int flag)
+void dropweapon(entity* acting_entity, int flag)
 {
     int wall = 0;
     entity *other = NULL;
@@ -42064,7 +47683,7 @@ void dropweapon(int flag)
     s_weapon* weapon_properties = NULL;
 
 	// If we already have a weapon, we'll need to discard it.
-    if(self->weapent)
+    if(acting_entity->weapent)
     {
         /*
         * Dump pointers to self's weapon entity and the 
@@ -42073,8 +47692,8 @@ void dropweapon(int flag)
         * reading downstream.
         */
 
-        weapon_entity = *&self->weapent;
-        weapon_properties = &self->weapent->modeldata.weapon_properties;
+        weapon_entity = acting_entity->weapent;
+        weapon_properties = &acting_entity->weapent->modeldata.weapon_properties;
 
 		// 2019-09-29 - Not sure about this logic. It appears that only type shot
 		// weapons or weapons with shot ammo are dropped.  Anything else is simply discarded.
@@ -42089,13 +47708,13 @@ void dropweapon(int flag)
             }
             
 			// We're going to use our own position for the weapon.
-            weapon_entity->direction = self->direction;
-            weapon_entity->position.z = self->position.z;
-            weapon_entity->position.x = self->position.x;
-            weapon_entity->position.y = self->position.y;
+            weapon_entity->direction = acting_entity->direction;
+            weapon_entity->position.z = acting_entity->position.z;
+            weapon_entity->position.x = acting_entity->position.x;
+            weapon_entity->position.y = acting_entity->position.y;
 
 			// Get any walls and platforms.
-            other = check_platform(weapon_entity->position.x, weapon_entity->position.z, self);
+            other = check_platform(weapon_entity->position.x, weapon_entity->position.z, acting_entity);
             wall = checkwall_index(weapon_entity->position.x, weapon_entity->position.z);
 
 			// Place onto wall or platform.
@@ -42128,7 +47747,7 @@ void dropweapon(int flag)
 			// Otherwise the weapon blinks out.
             if(!weapon_properties->loss_count)
             {
-                if(!(self->modeldata.weapon_properties.weapon_state & WEAPON_STATE_ANIMAL))
+                if(!(acting_entity->modeldata.weapon_properties.weapon_state & WEAPON_STATE_ANIMAL))
                 {
                     weapon_entity->blink = 1;
                     weapon_entity->takeaction = common_lie;
@@ -42143,7 +47762,7 @@ void dropweapon(int flag)
         }
 
 		// Clear our tracking variable that keeps the weapon entity pointer.
-        self->weapent = NULL;
+        acting_entity->weapent = NULL;
     }
 
 	// Flag 2 means we're probably setting the weapon directly (ex: setweapon command). 
@@ -42151,50 +47770,50 @@ void dropweapon(int flag)
 	// to the weapon model.
     if(flag < 2)
     {
-        if(self->modeldata.type & TYPE_PLAYER)
+        if(acting_entity->modeldata.type & TYPE_PLAYER)
         {
-            if(player[self->playerindex].weapnum)
+            if(player[acting_entity->playerindex].weapnum)
             {
-                set_weapon(self, player[self->playerindex].weapnum, 0);
+                set_weapon(acting_entity, player[acting_entity->playerindex].weapnum, 0);
             }
             else
             {
-                set_weapon(self, level->setweap, 0);
+                set_weapon(acting_entity, level->setweap, 0);
             }
         }
         else
         {
-            set_weapon(self, 0, 0);
+            set_weapon(acting_entity, 0, 0);
         }
     }
 
 	// Model override. If this is populated, we use its value
 	// to locate a model by index and revert to that instead 
 	// of the default model when a weapon is lost.
-    if(self->modeldata.weapon_properties.loss_index != MODEL_INDEX_NONE)
+    if(acting_entity->modeldata.weapon_properties.loss_index != MODEL_INDEX_NONE)
     {
-        set_weapon(self, self->modeldata.weapon_properties.loss_index, 0);
+        set_weapon(acting_entity, acting_entity->modeldata.weapon_properties.loss_index, 0);
     }
 }
 
 
-int player_takedamage(entity *other, s_attack *attack, int fall_flag, s_defense* defense_object)
+int player_takedamage(entity* target_entity, entity* attacking_entity, s_attack* attack_object, int fall_flag, const s_defense* defense_object)
 {
-    s_attack atk = *attack;
+    s_attack atk = *attack_object;
     //printf("damaged by: '%s' %d\n", other->name, attack->attack_force);
 
 	// Kratus (10-2021) Now the "infinite health cheat" will check the damage source, it will avoid some "special" damage sources
-	bool normal_damage;
 
 	// Damage comes from a normal source?
-	normal_damage = (!is_attack_type_special(atk.attack_type));
+	const bool normal_damage = (!is_attack_type_special(atk.attack_type)) ? true : false;
 
-    if((global_config.cheats & CHEAT_OPTIONS_HEALTH_ACTIVE && normal_damage) || (level->nohurt == DAMAGE_FROM_ENEMY_OFF && (other->modeldata.type & TYPE_ENEMY)))
+    if((global_config.cheats & CHEAT_OPTIONS_HEALTH_ACTIVE && normal_damage)
+        || (level->nohurt == DAMAGE_FROM_ENEMY_OFF && (attacking_entity->modeldata.type & TYPE_ENEMY)))
     {
         atk.attack_force = 0;
     }
     
-    return common_takedamage(other, &atk, fall_flag, defense_object);
+    return common_takedamage(target_entity, attacking_entity, &atk, fall_flag, defense_object);
 }
 
 ////////////////////////////////
@@ -42229,7 +47848,7 @@ void drop_all_enemies()
             
             if(ent_list[i]->modeldata.weapon_properties.loss_condition & WEAPON_LOSS_CONDITION_STAGE)
             {
-                dropweapon(1);
+                dropweapon(self, 1);
             }
 
             toss(ent_list[i], 2.5 + randf(1));
@@ -42278,7 +47897,7 @@ void kill_all_enemies()
             self = ent_list[i];
 
             attack.attack_force = self->energy_state.health_current;
-            self->takedamage(self, &attack, 0, self->defense);           
+            self->takedamage(self, self, &attack, 0, self->defense);
         }
     }
 
@@ -42287,20 +47906,19 @@ void kill_all_enemies()
 
 
 
-void smart_bomb(entity *e, s_attack *attack)    // New method for smartbombs
-{
+void smart_bomb(entity *e, s_attack *attack) {   // New method for smartbombs
+
     int i, hit = 0;
     entity *tmpself = NULL;
-    s_defense* defense_object = NULL;
 
     tmpself = self;
-    for(i = 0; i < ent_max; i++)
-    {
+    for(i = 0; i < ent_max; i++) {
+
         if( ent_list[i]->exists
                 && ent_list[i] != e
                 && ent_list[i]->energy_state.health_current > 0
-                && faction_check_is_hostile(e, ent_list[i]))
-        {
+                && faction_check_is_hostile(e, ent_list[i])) {
+                    
             self = ent_list[i];
             hit = 1; // for nocost, if the bomb doesn't hit, it won't cost energy
 
@@ -42316,19 +47934,17 @@ void smart_bomb(entity *e, s_attack *attack)    // New method for smartbombs
             lasthit.position.z = self->position.z;
             lasthit.target = self;
 
-            if(self->takedamage)
-            {
+            if(self->takedamage) {
 
-                defense_object = defense_find_current_object(self, NULL, attack->attack_type);
+                const s_defense* defense_object = defense_find_current_object(self, NULL, attack->attack_type);
                 
                 //attack.attack_drop = self->modeldata.knockdowncount+1;
-                self->takedamage(e, attack, 0, defense_object);
-            }
-            else
-            {
+                self->takedamage(self, e, attack, 0, defense_object);
+            
+            } else {
                 self->energy_state.health_current -= attack->attack_force;
-                if(self->energy_state.health_current <= 0)
-                {
+                
+                if(self->energy_state.health_current <= 0) {
                     kill_entity(self, KILL_ENTITY_TRIGGER_SMARTBOMB);
                 }
             }
@@ -42337,20 +47953,18 @@ void smart_bomb(entity *e, s_attack *attack)    // New method for smartbombs
             
         }
     }
-    if(nocost && hit && smartbomber) // don't use e, because this can be an item-bomb
-    {
+
+    if(nocost && hit && smartbomber) { // don't use e, because this can be an item-bomb
         self = smartbomber;
         
-        if(check_energy(ENERGY_TYPE_MP, ANI_SPECIAL))
-        {
+        if(check_energy(ENERGY_TYPE_MP, ANI_SPECIAL)) {
             self->energy_state.mp_current -= self->modeldata.animation[ANI_SPECIAL]->energy_cost.cost;
-        }
-        else
-        {
+        } else {
             self->energy_state.health_current -= self->modeldata.animation[ANI_SPECIAL]->energy_cost.cost;
         }
         
     }
+
     self = tmpself;
 
 }
@@ -42437,9 +48051,15 @@ void faction_copy_all(entity* dest, entity* source)
 * Copy faction properties if 
 * conditions pass.
 */
-void faction_copy_data(s_faction* dest, s_faction* source)
-{
-    
+void faction_copy_data(s_faction* dest, s_faction* source) {
+
+    /*
+    * The destination is always a faction
+    * object, regardless of which faction
+    * properties qualify for copying.
+    */
+    dest->object_type = OBJECT_TYPE_FACTION;
+
     /*
     * Faction groups. Only copy if source or 
     * destination has a value and does not
@@ -42452,23 +48072,27 @@ void faction_copy_data(s_faction* dest, s_faction* source)
     * keep it here and maintainable. 
     */
 
-    if (source->damage_direct != FACTION_GROUP_NONE && !(source->damage_direct & FACTION_GROUP_NO_COPY) && !(dest->damage_direct & FACTION_GROUP_NO_COPY))
-    { 
+    if (source->damage_direct != FACTION_GROUP_NONE 
+        && !(source->damage_direct & FACTION_GROUP_NO_COPY) 
+        && !(dest->damage_direct & FACTION_GROUP_NO_COPY)) {
         dest->damage_direct = source->damage_direct; 
     }
 
-    if (source->damage_indirect != FACTION_GROUP_NONE && !(source->damage_indirect & FACTION_GROUP_NO_COPY) && !(dest->damage_indirect & FACTION_GROUP_NO_COPY))
-    { 
+    if (source->damage_indirect != FACTION_GROUP_NONE 
+        && !(source->damage_indirect & FACTION_GROUP_NO_COPY) 
+        && !(dest->damage_indirect & FACTION_GROUP_NO_COPY)) {
         dest->damage_indirect = source->damage_indirect; 
     }
     
-    if (source->hostile != FACTION_GROUP_NONE && !(source->hostile & FACTION_GROUP_NO_COPY) && !(dest->hostile & FACTION_GROUP_NO_COPY))
-    { 
+    if (source->hostile != FACTION_GROUP_NONE 
+        && !(source->hostile & FACTION_GROUP_NO_COPY) 
+        && !(dest->hostile & FACTION_GROUP_NO_COPY)) {
         dest->hostile = source->hostile; 
     }
     
-    if (source->member != FACTION_GROUP_NONE && !(source->member & FACTION_GROUP_NO_COPY) && !(dest->member & FACTION_GROUP_NO_COPY))
-    { 
+    if (source->member != FACTION_GROUP_NONE 
+        && !(source->member & FACTION_GROUP_NO_COPY) 
+        && !(dest->member & FACTION_GROUP_NO_COPY)) {
         dest->member = source->member; 
     }
 
@@ -42476,20 +48100,24 @@ void faction_copy_data(s_faction* dest, s_faction* source)
     * Types. Same rule as faction groups.
     */
 
-    if (source->type_damage_direct != TYPE_UNDELCARED && !(source->type_damage_direct & TYPE_NO_COPY) && !(dest->type_damage_direct & TYPE_NO_COPY))
-    { 
+    if (source->type_damage_direct != TYPE_UNDECLARED 
+        && !(source->type_damage_direct & TYPE_NO_COPY) 
+        && !(dest->type_damage_direct & TYPE_NO_COPY)) {
+    
         dest->type_damage_direct = source->type_damage_direct; 
     }
 
-    if (source->type_damage_indirect != TYPE_UNDELCARED && !(source->type_damage_indirect & TYPE_NO_COPY) && !(dest->type_damage_indirect & TYPE_NO_COPY))
-    { 
+    if (source->type_damage_indirect != TYPE_UNDECLARED 
+        && !(source->type_damage_indirect & TYPE_NO_COPY) 
+        && !(dest->type_damage_indirect & TYPE_NO_COPY)) {
         dest->type_damage_indirect = source->type_damage_indirect; 
     }
 
-    if (source->type_hostile != TYPE_UNDELCARED && !(source->type_hostile & TYPE_NO_COPY) && !(dest->type_hostile & TYPE_NO_COPY))
-    { 
+    if (source->type_hostile != TYPE_UNDECLARED 
+        && !(source->type_hostile & TYPE_NO_COPY) 
+        && !(dest->type_hostile & TYPE_NO_COPY)) {
         dest->type_hostile = source->type_hostile; 
-    }
+    }    
 }
 
 /*
@@ -42497,19 +48125,19 @@ void faction_copy_data(s_faction* dest, s_faction* source)
 * 2022-05-24
 *
 * Read a text argument for model copy flag
-* and output appropriate constant. If input
-* is legacy integer, we just pass it on.
+* and output appropriate constant.
 */
-e_faction_group faction_get_flag_from_string(const char* value)
-{   
-    const struct 
-    {
+faction_group_mask_t faction_get_flag_from_string(const char* value) {
+
+    const struct {
         const char* text_name;
-        e_faction_group flag;
+        faction_group_mask_t flag;
 
     } flag_lookup_table[] = {
         { "none", FACTION_GROUP_NONE },
         { "all", FACTION_GROUP_ALL_NORMAL },
+        {"all0", FACTION_GROUP_ALL_NORMAL_0 },
+        {"all1", FACTION_GROUP_ALL_NORMAL_1 },
         { "neutral", FACTION_GROUP_NEUTRAL },
         { "no_copy", FACTION_GROUP_NO_COPY },
         { "player_verses", FACTION_GROUP_PLAYER_VERSES },
@@ -42540,45 +48168,71 @@ e_faction_group faction_get_flag_from_string(const char* value)
         { "w", FACTION_GROUP_W },
         { "x", FACTION_GROUP_X },
         { "y", FACTION_GROUP_Y },
-        { "z", FACTION_GROUP_Z }
+        { "z", FACTION_GROUP_Z },
+        { "a1", FACTION_GROUP_A1 },
+        { "b1", FACTION_GROUP_B1 },
+        { "c1", FACTION_GROUP_C1 },
+        { "d1", FACTION_GROUP_D1 },
+        { "e1", FACTION_GROUP_E1 },
+        { "f1", FACTION_GROUP_F1 },
+        { "g1", FACTION_GROUP_G1 },
+        { "h1", FACTION_GROUP_H1 },
+        { "i1", FACTION_GROUP_I1 },
+        { "j1", FACTION_GROUP_J1 },
+        { "k1", FACTION_GROUP_K1 },
+        { "l1", FACTION_GROUP_L1 },
+        { "m1", FACTION_GROUP_M1 },
+        { "n1", FACTION_GROUP_N1 },
+        { "o1", FACTION_GROUP_O1 },
+        { "p1", FACTION_GROUP_P1 },
+        { "q1", FACTION_GROUP_Q1 },
+        { "r1", FACTION_GROUP_R1 },
+        { "s1", FACTION_GROUP_S1 },
+        { "t1", FACTION_GROUP_T1 },
+        { "u1", FACTION_GROUP_U1 },
+        { "v1", FACTION_GROUP_V1 },
+        { "w1", FACTION_GROUP_W1 },
+        { "x1", FACTION_GROUP_X1 },
+        { "y1", FACTION_GROUP_Y1 },
+        { "z1", FACTION_GROUP_Z1 }
     };
 
     const size_t list_count = sizeof(flag_lookup_table) / sizeof(*flag_lookup_table);
 
-    for (size_t i = 0; i < list_count; i++)
-    {
-        if (stricmp(value, flag_lookup_table[i].text_name) == 0)
-        {
+    for (size_t i = 0; i < list_count; i++) {
+        if (stricmp(value, flag_lookup_table[i].text_name) == 0) {
             return flag_lookup_table[i].flag;
         }
     }
-    
+
     /*
     * Couldn't find a match in the lookup
     * table. Send alert to log and return
     * none flag.
     */
 
-    printf("\n\n Unknown faction (%s). \n", value);    
+    printf("\n\n Unknown faction (%s). \n", value);
     return FACTION_GROUP_NONE;
 }
 
 /*
-* Caskey, Damon V.
-* 2022-05-24
-*
-* Populate faction property from
-* text arguments.
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Read faction arguments directly from the source line and
+  combine their corresponding group flags.
 */
-e_faction_group faction_get_flags_from_arglist(const ArgList* arglist)
+faction_group_mask_t faction_get_flags_from_command_line(
+    const char* command_line
+)
 {
-    int i = 0;
-    char* value = "";
+    const char* value;
+    s_command_argument_reader reader;
+    faction_group_mask_t result = FACTION_GROUP_NONE;
 
-    e_faction_group result = FACTION_GROUP_NONE;
+    command_argument_reader_initialize(&reader, command_line, 1);
 
-    for (i = 1; (value = GET_ARGP(i)) && value[0]; i++)
-    {
+    while(command_argument_reader_next(&reader, &value)) {
         result |= faction_get_flag_from_string(value);
     }
 
@@ -42592,17 +48246,16 @@ e_faction_group faction_get_flags_from_arglist(const ArgList* arglist)
 * Return true if acting entity can 
 * hit target entity with attacks.
 */
-int faction_check_can_damage(entity* acting_entity, entity* target_entity, int indirect)
-{
+bool faction_check_can_damage(entity* acting_entity, entity* target_entity, const bool indirect) {
+
     e_entity_type acting_type;
     e_entity_type target_type;
-    e_faction_group acting_faction;
-    e_faction_group acting_faction_filtered;
-    e_faction_group target_faction;
+    faction_group_mask_t acting_faction;
+    faction_group_mask_t acting_faction_filtered;
+    faction_group_mask_t target_faction;
 
-    if (!acting_entity || !target_entity)
-    {
-        return 0;
+    if (!acting_entity || !target_entity) {
+        return false;
     }
 
     /*
@@ -42610,13 +48263,11 @@ int faction_check_can_damage(entity* acting_entity, entity* target_entity, int i
     * and type if the indirect flag is set.
     */
 
-    if (indirect)
-    {
+    if (indirect) {
         acting_faction = acting_entity->faction.damage_indirect;
         acting_type = acting_entity->faction.type_damage_indirect;
-    }
-    else
-    {
+    
+    } else {
         acting_faction = acting_entity->faction.damage_direct;
         acting_type = acting_entity->faction.type_damage_direct;
     }
@@ -42634,9 +48285,8 @@ int faction_check_can_damage(entity* acting_entity, entity* target_entity, int i
     * Check player interaction.
     */
 
-    if (faction_check_player_verses(acting_entity, target_entity, acting_faction))
-    {
-        return 0;
+    if (faction_check_player_verses(acting_entity, target_entity, acting_faction)) {
+        return false;
     }
 
     target_type = target_entity->modeldata.type;
@@ -42648,15 +48298,12 @@ int faction_check_can_damage(entity* acting_entity, entity* target_entity, int i
     * and ignore other factions.
     */
 
-    if (acting_faction & FACTION_GROUP_TYPE_EXCLUSIVE)
-    {
-        if (acting_type & target_type)
-        {
-            return 1;
-        }
-        else
-        {
-            return 0;
+    if (acting_faction & FACTION_GROUP_TYPE_EXCLUSIVE) {
+        
+        if (acting_type & target_type) {
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -42667,8 +48314,7 @@ int faction_check_can_damage(entity* acting_entity, entity* target_entity, int i
 
     target_faction = target_entity->faction.member;
 
-    if (acting_faction_filtered & target_faction)
-    {
+    if (acting_faction_filtered & target_faction) {
         /*
         * If one of the acting factions is
         * the tye inclusing group, then we
@@ -42676,22 +48322,20 @@ int faction_check_can_damage(entity* acting_entity, entity* target_entity, int i
         * target's type.
         */
 
-        if (acting_faction & FACTION_GROUP_TYPE_INCLUSIVE)
-        {
-            if (acting_type & target_type)
-            {
-                return 1;
-            }
-            else
-            {
-                return 0;
+        if (acting_faction & FACTION_GROUP_TYPE_INCLUSIVE) {
+            
+            if (acting_type & target_type) {
+                return true;
+            
+            } else {
+                return false;
             }
         }
 
-        return 1;
+        return true;
     }
 
-    return 0;
+    return false;
 }
 
 /*
@@ -42707,9 +48351,9 @@ int faction_check_is_hostile(entity* acting_entity, entity* target_entity)
 
     e_entity_type acting_type;
     e_entity_type target_type;
-    e_faction_group acting_faction;
-    e_faction_group filtered_faction;
-    e_faction_group target_faction;
+    faction_group_mask_t acting_faction;
+    faction_group_mask_t filtered_faction;
+    faction_group_mask_t target_faction;
 
     if (!acting_entity || !target_entity)
     {
@@ -42824,7 +48468,7 @@ int faction_check_is_hostile(entity* acting_entity, entity* target_entity)
 * property. Ex. Hostile, direct damage, 
 * indirect damage.
 */
-int faction_check_player_verses(entity* acting_entity, entity* target_entity, e_faction_group faction_property)
+int faction_check_player_verses(entity* acting_entity, entity* target_entity, faction_group_mask_t faction_property)
 {
     if (!acting_entity || !target_entity)
     {
@@ -43097,7 +48741,7 @@ entity *knife_spawn(entity *parent, s_projectile *projectile)
     }	
     
 	/* Kill self when we hit. */
-	if (projectile_entity->modeldata.remove)
+	if (projectile_entity->modeldata.remove_config & REMOVE_CONFIG_HIT)
 	{
         projectile_entity->autokill |= AUTOKILL_ATTACK_HIT;
 	}
@@ -43366,7 +49010,7 @@ entity *bomb_spawn(entity *parent, s_projectile *projectile)
 // Caskey, Damon V.
 // 2019-12-17
 //
-// Spawn three �star� projectiles. Meant for Eiji enemies in 
+// Spawn three "star" projectiles. Meant for Eiji enemies in 
 // original Beats of Rage, who would jump and throw three star 
 // shuriken diagonally downward at players. Original author 
 // Roel, but modified several times by unknown parties. Refactored 
@@ -43509,7 +49153,7 @@ int star_spawn(entity *parent, s_projectile *projectile)
         ent->modeldata.aiattack = AIATTACK1_NOATTACK;
         
 		// Remove star on contact.
-		if (ent->modeldata.remove)
+		if (ent->modeldata.remove_config & REMOVE_CONFIG_HIT)
 		{
 			ent->autokill |= AUTOKILL_ATTACK_HIT;
 		}
@@ -43588,7 +49232,7 @@ void steam_spawn(float x, float z, float a)
 void steamer_think()
 {
     steam_spawn(self->position.x, self->position.z, self->position.y);
-    self->nextthink = _time + (GAME_SPEED / 10) + (rand32() & 31);
+    self->nextthink = _time + (global_config.game_speed / 10) + (rand32() & 31);
 }
 
 
@@ -43670,64 +49314,59 @@ void bike_crash()
 
 
 
-int biker_takedamage(entity *other, s_attack *attack, int fall_flag, s_defense* defense_object)
+int biker_takedamage(entity* target_entity, entity* attacking_entity, s_attack* attack_object, int fall_flag, const s_defense* defense_object)
 {
     entity *driver = NULL;
-    entity *tempself = NULL;
 
-    if(self->death_state & DEATH_STATE_DEAD)
+    if(target_entity->death_state & DEATH_STATE_DEAD)
     {
         return 0;
     }
     // Fell in a hole
-    if(self->position.y < PIT_DEPTH)
+    if(target_entity->position.y < PIT_DEPTH)
     {
-        kill_entity(self, KILL_ENTITY_TRIGGER_TAKE_DAMAGE_BIKER_PIT);
+        kill_entity(target_entity, KILL_ENTITY_TRIGGER_TAKE_DAMAGE_BIKER_PIT);
         return 0;
     }
-    if(other != self)
+    if(attacking_entity != target_entity)
     {
-        set_opponent(other, self);
+        set_opponent(attacking_entity, target_entity);
     }
 
-    if(attack->no_pain) // don't drop driver until it is dead, because the attack has no pain effect
+    if(attack_object->no_pain) // don't drop driver until it is dead, because the attack has no pain effect
     {
-        checkdamage(self, other, attack, defense_object);
-        if(self->energy_state.health_current > 0)
+        checkdamage(target_entity, attacking_entity, attack_object, defense_object);
+        if(target_entity->energy_state.health_current > 0)
         {
             return 1;    // not dead yet
         }
     }
 
-    check_backpain(other,self);
-    set_pain(self,  self->last_damage_type, 1);
-    self->attacking = ATTACKING_ACTIVE;
-    if(!self->modeldata.offscreenkill)
+    check_backpain(attacking_entity, target_entity);
+    set_pain(target_entity, target_entity->last_damage_type, 1);
+    target_entity->attacking = ATTACKING_ACTIVE;
+    if(!target_entity->modeldata.offscreenkill)
     {
-        self->modeldata.offscreenkill = 100;
+        target_entity->modeldata.offscreenkill = 100;
     }
-    self->think = bike_crash;
+    target_entity->think = bike_crash;
     // well, this is the real entity, the driver who take the damage
-    if((driver = drop_driver(self)))
+    if((driver = drop_driver(target_entity)))
     {
-        driver->position.y = self->position.y;
-        tempself = self;
-        self = driver;
-        self->drop = 1;
-        self->direction = tempself->direction;
-        if(self->takedamage)
+        driver->position.y = target_entity->position.y;
+        driver->drop = 1;
+        driver->direction = target_entity->direction;
+        if(driver->takedamage)
         {
-            self->takedamage(other, attack, fall_flag, defense_object);
+            driver->takedamage(driver, attacking_entity, attack_object, fall_flag, defense_object);
         }
         else
         {
-            self->energy_state.health_current -= attack->attack_force;
+            driver->energy_state.health_current -= attack_object->attack_force;
         }
-        self = tempself;
-
     }
-    self->energy_state.health_current = 0;
-    checkdeath();
+    target_entity->energy_state.health_current = 0;
+    checkdeath(target_entity);
     return 1;
 }
 
@@ -43760,70 +49399,70 @@ void obstacle_fly()    // Now obstacles can fly when hit like on Simpsons/TMNT
 
 
 
-int obstacle_takedamage(entity *other, s_attack *attack, int fall_flag, s_defense* defense_object)
+int obstacle_takedamage(entity* target_entity, entity* attacking_entity, s_attack* attack_object, int fall_flag, const s_defense* defense_object)
 {
-    if(self->position.y <= PIT_DEPTH)
+    if(target_entity->position.y <= PIT_DEPTH)
     {
-        kill_entity(self, KILL_ENTITY_TRIGGER_TAKE_DAMAGE_OBSTACLE_PIT);
+        kill_entity(target_entity, KILL_ENTITY_TRIGGER_TAKE_DAMAGE_OBSTACLE_PIT);
         return 0;
     }
 
-    set_opponent(other, self);
-    if(self->opponent && (self->opponent->modeldata.type & TYPE_PLAYER))
+    set_opponent(attacking_entity, target_entity);
+    if(target_entity->opponent && (target_entity->opponent->modeldata.type & TYPE_PLAYER))
     {
-        if (savedata.joyrumble[self->opponent->playerindex]) control_rumble(self->opponent->playerindex, 1, 75);
+        if (savedata.joyrumble[target_entity->opponent->playerindex]) control_rumble(target_entity->opponent->playerindex, 1, 75);
     }
     
     /* Calculate and apply HP damage. */
-    checkdamage(self, other, attack, defense_object);
+    checkdamage(target_entity, attacking_entity, attack_object, defense_object);
 
-    self->playerindex = other->playerindex;    // Added so points go to the correct player
-    addscore(other->playerindex, attack->attack_force * self->modeldata.multiple);  // Points can now be given for hitting an obstacle
+    target_entity->playerindex = attacking_entity->playerindex;    // Added so points go to the correct player
+    addscore(attacking_entity->playerindex, attack_object->attack_force * target_entity->modeldata.multiple);  // Points can now be given for hitting an obstacle
 
-    if(self->energy_state.health_current <= 0)
+    if(target_entity->energy_state.health_current <= 0)
     {
 
-        checkdeath();
+        checkdeath(target_entity);
 
-        if(other->position.x < self->position.x)
+        if(attacking_entity->position.x < target_entity->position.x)
         {
-            self->velocity.x = 1;
+            target_entity->velocity.x = 1;
         }
         else
         {
-            self->velocity.x = -1;
+            target_entity->velocity.x = -1;
         }
 
-        self->attacking = ATTACKING_ACTIVE;    // So obstacles can explode and hurt players/enemies
+        target_entity->attacking = ATTACKING_ACTIVE;    // So obstacles can explode and hurt players/enemies
 
-        if(self->modeldata.subtype == SUBTYPE_FLYDIE)     // Now obstacles can fly like on Simpsons/TMNT
+        if(target_entity->modeldata.subtype == SUBTYPE_FLYDIE)     // Now obstacles can fly like on Simpsons/TMNT
         {
-            self->velocity.x *= 4;
-            self->think = obstacle_fly;
-            ent_set_anim(self, ANI_FALL, 0);
+            target_entity->velocity.x *= 4;
+            target_entity->think = obstacle_fly;
+            ent_set_anim(target_entity, ANI_FALL, 0);
         }
         else
         {
-            self->think = obstacle_fall;
+            target_entity->think = obstacle_fall;
 
-            if(validanim(self, ANI_DIE))
+            if(validanim(target_entity, ANI_DIE))
             {
-                ent_set_anim(self, ANI_DIE, 0);    //  LTB 1-13-05  Die before toss
+                ent_set_anim(target_entity, ANI_DIE, 0);    //  LTB 1-13-05  Die before toss
             }
             else
             {
-                toss(self, self->modeldata.jumpheight / 1.333);
-                ent_set_anim(self, ANI_FALL, 0);
+                toss(target_entity, target_entity->modeldata.jumpheight / 1.333);
+                ent_set_anim(target_entity, ANI_FALL, 0);
             }
 
-            if(self->modeldata.death_config_flags & DEATH_CONFIG_MACRO_BLINK)
+            if(target_entity->modeldata.death_config_flags & DEATH_CONFIG_MACRO_BLINK)
             {
-                self->blink = 1;
+                target_entity->blink = 1;
             }
         }
     }
 
-    self->nextthink = _time + 1;
+    target_entity->nextthink = _time + 1;
     return 1;
 }
 
@@ -43835,7 +49474,7 @@ int obstacle_takedamage(entity *other, s_attack *attack, int fall_flag, s_defens
 void initialize_item_carry(entity *ent, s_spawn_entry *spawn_entry)
 {
     // It's possible to call this from script, so if
-    // if there is already memory for an item allocated
+    // there is already memory for an item allocated
     // here, clear it out to make sure we don't end up
     // with any memory leaks.
     if(ent->item_properties)
@@ -44112,7 +49751,7 @@ void spawnplayer(int index)
     //////////////////checking holes/ walls///////////////////////////////////
     for(xc = 0; xc < videomodes.hRes / 4; xc++)
     {
-        if(p.position.x > videomodes.hRes)
+        if(p.position.x >= videomodes.hRes)
         {
             p.position.x -= videomodes.hRes;
         }
@@ -44189,9 +49828,28 @@ void spawnplayer(int index)
         player[index].ent->rush.max = 0;
     }
 
-    memset(player[index].combokey, 0, sizeof(*player[index].combokey)*MAX_SPECIAL_INPUTS);
-    memset(player[index].inputtime, 0, sizeof(*player[index].inputtime)*MAX_SPECIAL_INPUTS);
-    player[index].combostep = 0;
+    memset(
+        player[index].command_input_history,
+        0,
+        sizeof(player[index].command_input_history)
+    );
+
+    memset(
+        player[index].command_input_hold_start_time,
+        0,
+        sizeof(player[index].command_input_hold_start_time)
+    );
+
+    memset(
+        player[index].command_input_hold_trigger_time,
+        0,
+        sizeof(player[index].command_input_hold_trigger_time)
+    );
+
+    player[index].command_input_hold_start_valid = 0;
+    player[index].command_input_hold_trigger_valid = 0;
+    player[index].command_input_count = 0;
+    player[index].command_input_index = 0;
 
     if(player[index].spawnhealth)
     {
@@ -44245,7 +49903,7 @@ void kill_all_players_by_timeover()
     int i;
     s_attack attack_timeover = emptyattack;
     s_attack attack_lose = emptyattack;
-    s_defense* defense_object = NULL;
+    const s_defense* defense_object = NULL;
 
     attack_timeover.attack_type = ATK_TIMEOVER;
     attack_timeover.dropv.y = default_model_dropv.y;
@@ -44267,7 +49925,7 @@ void kill_all_players_by_timeover()
 
             defense_object = defense_find_current_object(self, NULL, attack_timeover.attack_type);
             
-            self->takedamage(self, &attack_timeover, 0, defense_object);
+            self->takedamage(self, self, &attack_timeover, 0, defense_object);
         }
         else if(self)
         {
@@ -44288,7 +49946,7 @@ void kill_all_players_by_timeover()
 
             defense_object = defense_find_current_object(self, NULL, attack_lose.attack_type);
            
-            self->takedamage(self, &attack_lose, 0, defense_object);
+            self->takedamage(self, self, &attack_lose, 0, defense_object);
         }
         self = tmp;
     }
@@ -44311,7 +49969,7 @@ void time_over()
                 sound_play_sample(global_sample_list.time_over, 0, savedata.effectvol, savedata.effectvol, 100);
             }
 
-            timeleft = level->settime * COUNTER_SPEED;    // Feb 24, 2005 - This line moved here to set custom time
+            timeleft = level->settime * global_config.counter_speed;    // Feb 24, 2005 - This line moved here to set custom time
             if(!endgame)
             {
                 showtimeover = 1;
@@ -44345,7 +50003,7 @@ void update_scroller()
     }
 
     /*
-    	//level->advancetime = _time + (GAME_SPEED/100);    // Changed so scrolling speeds up for faster players
+    	//level->advancetime = _time + (global_config.game_speed/100);    // Changed so scrolling speeds up for faster players
     	level->advancetime = _time  -
     		((player[0].ent && (player[0].ent->modeldata.speed.x >= 12 || player[0].ent->modeldata.runspeed >= 12)) ||
     		 (player[1].ent && (player[1].ent->modeldata.speed.x >= 12 || player[1].ent->modeldata.runspeed >= 12)) ||
@@ -44517,9 +50175,9 @@ void update_scroller()
             level->waiting = 0;
             if(level->noreset <= 1)
             {
-                timeleft = level->settime * COUNTER_SPEED;    // Feb 24, 2005 - This line moved here to set custom time
+                timeleft = level->settime * global_config.counter_speed;    // Feb 24, 2005 - This line moved here to set custom time
             }
-            go_time = _time + 3 * GAME_SPEED;
+            go_time = _time + 3 * global_config.game_speed;
         }
     }
 
@@ -44952,12 +50610,12 @@ void update_scrolled_bg()
         memcpy(neontable + 128 * pb, neonp + 2 * pb, 6 * pb);
         memcpy(neontable + (128 + 6)*pb, neonp, 2 * pb);
 
-        neon_time = _time + (GAME_SPEED / 3);
+        neon_time = _time + (global_config.game_speed / 3);
     }
 
     if(!freezeall)
     {
-        rocktravel = (level->rocking) ? ((_time - traveltime) / ((float)GAME_SPEED / 30)) : 0; // no like in real life, maybe
+        rocktravel = (level->rocking) ? ((_time - traveltime) / ((float)global_config.game_speed / 30)) : 0; // no like in real life, maybe
         if(level->bgspeed < 0)
         {
             rocktravel = -rocktravel;
@@ -44974,7 +50632,7 @@ void update_scrolled_bg()
 
     if(level->rocking)
     {
-        rockpos = (timevar / (GAME_SPEED / 8)) & 31;
+        rockpos = (timevar / (global_config.game_speed / 8)) & 31;
         if(level->rocking == 1)
         {
             gfx_y_offset = level->quake - 4 - rockoffssine[rockpos];
@@ -45008,7 +50666,7 @@ void update_scrolled_bg()
     if(_time >= level->quaketime)
     {
         level->quake /= 2;
-        level->quaketime = _time + (GAME_SPEED / 25);
+        level->quaketime = _time + (global_config.game_speed / 25);
     }
 }
 
@@ -45151,14 +50809,14 @@ void draw_scrolled_bg()
 
 u32 getinterval()
 {
-    interval = timer_getinterval(GAME_SPEED); // so interval can be logged into movie
-    if(interval > GAME_SPEED)
+    interval = timer_getinterval(global_config.game_speed); // so interval can be logged into movie
+    if(interval > global_config.game_speed)
     {
         interval = 1;
     }
-    if(interval > GAME_SPEED / 4)
+    if(interval > global_config.game_speed / 4)
     {
-        interval = GAME_SPEED / 4;
+        interval = global_config.game_speed / 4;
     }
     return interval;
 }
@@ -45194,11 +50852,53 @@ void execute_input_scripts(int player_index)
 	}
 }
 
-void inputrefresh(int playrecmode)
-{
+/*
+* Caskey, Damon V.
+* 2026-07-17
+*
+* Add direction-relative command flags to a physical
+* input mask.
+*
+* Left and right remain in the result so hard-coded
+* commands can continue to inspect the physical input.
+*/
+static key_mask_t command_input_resolve_direction(
+    const key_mask_t input_flags,
+    const entity* acting_entity
+) {
+    key_mask_t resolved_flags = input_flags;
+
+    if(!acting_entity) {
+        return resolved_flags;
+    }
+
+    if(input_flags & FLAG_MOVELEFT) {
+        resolved_flags |= acting_entity->direction
+            ? FLAG_BACKWARD
+            : FLAG_FORWARD;
+
+    } else if(input_flags & FLAG_MOVERIGHT) {
+        resolved_flags |= acting_entity->direction
+            ? FLAG_FORWARD
+            : FLAG_BACKWARD;
+    }
+
+    return resolved_flags;
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-17 - Orginal by Utunnels, unknow date.
+*
+* Update the input state for each player. This includes
+* physical keys, command input history, and automatic
+* held edges. Refactored to support direction-relative 
+* command flags and extensible command system.
+*/
+void inputrefresh(int playrecmode) {
+
     int p;
-    s_player *pl;
-    u64 k;
+    s_player *acting_player;
 
     control_update(playercontrolpointers, MAX_PLAYERS);
 
@@ -45207,62 +50907,127 @@ void inputrefresh(int playrecmode)
 
     for(p = 0; p < MAX_PLAYERS; p++)
     {
-        pl = player + p;
+        acting_player = player + p;
 
-        if ( playrecmode != A_REC_PLAY )
-        {
+        if (playrecmode != A_REC_PLAY) {
 
-            pl->releasekeys = (playercontrolpointers[p]->keyflags | pl->keys) - playercontrolpointers[p]->keyflags;
-            pl->releasekeys &= ~pl->disablekeys;
-            pl->keys = playercontrolpointers[p]->keyflags & ~pl->disablekeys;
-            pl->newkeys = playercontrolpointers[p]->newkeyflags & ~pl->disablekeys;
-            pl->playkeys |= pl->newkeys;
-            pl->playkeys &= pl->keys;
-            pl->playkeys &= ~pl->disablekeys;
-        }
-        else
-        {
+            acting_player->releasekeys = (playercontrolpointers[p]->keyflags | acting_player->keys) - playercontrolpointers[p]->keyflags;
+            acting_player->releasekeys &= ~acting_player->disablekeys;
+            acting_player->keys = playercontrolpointers[p]->keyflags & ~acting_player->disablekeys;
+            acting_player->newkeys = playercontrolpointers[p]->newkeyflags & ~acting_player->disablekeys;
+            acting_player->playkeys |= acting_player->newkeys;
+            acting_player->playkeys &= acting_player->keys;
+            acting_player->playkeys &= ~acting_player->disablekeys;
+        
+        } else {
             // in play mode: add pressed keys to rec keys
-            pl->releasekeys |= (playercontrolpointers[p]->keyflags | pl->prevkeys) - playercontrolpointers[p]->keyflags;
-            pl->releasekeys &= ~pl->disablekeys;
-            pl->keys |= playercontrolpointers[p]->keyflags & ~pl->disablekeys;
-            pl->newkeys |= playercontrolpointers[p]->newkeyflags & ~pl->disablekeys;
-            pl->playkeys |= pl->newkeys;
-            pl->playkeys &= pl->keys;
-            pl->playkeys &= ~pl->disablekeys;
+            acting_player->releasekeys |= (playercontrolpointers[p]->keyflags | acting_player->prevkeys) - playercontrolpointers[p]->keyflags;
+            acting_player->releasekeys &= ~acting_player->disablekeys;
+            acting_player->keys |= playercontrolpointers[p]->keyflags & ~acting_player->disablekeys;
+            acting_player->newkeys |= playercontrolpointers[p]->newkeyflags & ~acting_player->disablekeys;
+            acting_player->playkeys |= acting_player->newkeys;
+            acting_player->playkeys &= acting_player->keys;
+            acting_player->playkeys &= ~acting_player->disablekeys;
         }
 				
 		execute_input_scripts(p);		
 
-        if(pl->ent && pl->ent->movetime < _time)
-        {
-            memset(pl->combokey, 0, sizeof(*pl->combokey)*MAX_SPECIAL_INPUTS);
-            memset(pl->inputtime, 0, sizeof(*pl->inputtime)*MAX_SPECIAL_INPUTS);
-            pl->combostep = 0;
-        }
-        if(pl->newkeys)
-        {			
-            k = pl->newkeys;
-            if(pl->ent)
-            {
-                pl->ent->movetime = _time + GAME_SPEED / 4;
-                if(k & FLAG_MOVELEFT)
-                {
-                    k |= pl->ent->direction ? FLAG_BACKWARD : FLAG_FORWARD;
-                }
-                else if(k & FLAG_MOVERIGHT)
-                {
-                    k |= pl->ent->direction ? FLAG_FORWARD : FLAG_BACKWARD;
-                }
-            }
-            pl->inputtime[pl->combostep] = _time;
-            pl->combokey[pl->combostep] = k;
-            pl->combostep++;
-            pl->combostep %= MAX_SPECIAL_INPUTS;
+        /*
+        * Reset command sequence if the last command was
+        * too long ago.
+        */
+        if(acting_player->ent && acting_player->ent->command_time < _time) {
+            memset(
+                acting_player->command_input_history,
+                0,
+                sizeof(acting_player->command_input_history)
+            );
+
+            acting_player->command_input_count = 0;
+            acting_player->command_input_index = 0;
         }
 
-        bothkeys |= player[p].keys;
-        bothnewkeys |= player[p].newkeys;
+        /*
+        * Build one event every refresh so automatic held
+        * thresholds can create an edge without a physical
+        * button change. Store it only when at least one
+        * press, release, or automatic held edge exists.
+        */
+        {
+            s_command_input_event input_event = {0};
+
+            input_event.press = command_input_resolve_direction(
+                acting_player->newkeys,
+                acting_player->ent
+            );
+
+            input_event.release = command_input_resolve_direction(
+                acting_player->releasekeys,
+                acting_player->ent
+            );
+
+            /*
+            * Released keys were held immediately before this
+            * edge. Include them in the event snapshot so a
+            * command such as a[50] + ~a can test both facts.
+            */
+            input_event.held = command_input_resolve_direction(
+                acting_player->keys
+                    | acting_player->releasekeys,
+                acting_player->ent
+            );
+
+            input_event.time = _time;
+
+            command_input_hold_start_update(
+                acting_player,
+                input_event.press,
+                input_event.time
+            );
+
+            if(input_event.press) {
+                /*
+                * Capture inputs still held at this positive
+                * edge. The configurable command matcher
+                * applies each step's chord_time to their
+                * recorded press times. Hard-coded commands
+                * continue to inspect input_event.press only.
+                */
+                input_event.press_chord =
+                    command_input_resolve_direction(
+                        acting_player->keys,
+                        acting_player->ent
+                    );
+            }
+
+            input_event.hold =
+                command_input_hold_trigger_collect(
+                    acting_player,
+                    input_event.held,
+                    input_event.time
+                );
+
+            if(input_event.press
+                || input_event.hold
+                || input_event.release) {
+
+                input_event.ticks = timer_gettick();
+                command_input_history_push(acting_player, &input_event);
+
+                if(acting_player->ent) {
+                    acting_player->ent->command_time =
+                        command_input_history_expiration_time_get(
+                            acting_player->ent,
+                            input_event.time
+                        );
+                }
+            }
+
+        }
+
+        bothkeys |= acting_player->keys;
+        bothnewkeys |= acting_player->newkeys;
+        
     }
 
 }
@@ -45309,6 +51074,44 @@ void execute_updatedscripts()
     }
 }
 
+/*
+* Caskey, Damon V.
+* 2026-08-21
+*
+* Execute global and level scripts immediately before an
+* engine logical clock tick is processed.
+*/
+void execute_updatelogicscripts()
+{
+    if(Script_IsInitialized(&update_logic_script))
+    {
+        Script_Execute(&update_logic_script);
+    }
+    if(level && Script_IsInitialized(&level->update_logic_script))
+    {
+        Script_Execute(&level->update_logic_script);
+    }
+}
+
+/*
+* Caskey, Damon V.
+* 2026-08-21
+*
+* Execute global and level scripts after an engine logical
+* clock tick is processed, before its clock value advances.
+*/
+void execute_updatedlogicscripts()
+{
+    if(Script_IsInitialized(&updated_logic_script))
+    {
+        Script_Execute(&updated_logic_script);
+    }
+    if(level && Script_IsInitialized(&level->updated_logic_script))
+    {
+        Script_Execute(&level->updated_logic_script);
+    }
+}
+
 void draw_textobjs()
 {
     int i;
@@ -45338,7 +51141,14 @@ void draw_textobjs()
         {
             if(textobj->text)
             {
-                font_printf(textobj->position.x, textobj->position.y, textobj->font, textobj->position.z, "%s", textobj->text);
+                font_print_length(
+                    textobj->position.x,
+                    textobj->position.y,
+                    textobj->font,
+                    textobj->position.z,
+                    textobj->text,
+                    strlen(textobj->text)
+                );
             }
         }
     }
@@ -45348,8 +51158,8 @@ int recordInputs()
 {
     int p = 0;
     RecKeys reckey;
-    unsigned int window = 4096;
-    u32 max_rec_time = GAME_SPEED*60*10; // protection
+    uint64_t window = 4096;
+    u32 max_rec_time = global_config.game_speed*60*10; // protection
 
     if(playrecstatus->status != A_REC_REC) return 0;
     if ( !playrecstatus->begin )
@@ -45377,12 +51187,12 @@ int recordInputs()
     {
         if ( playrecstatus->synctime%window >= window-2 ) // last is NULL bytes
         {
-            playrecstatus->buffer = (RecKeys*)realloc(playrecstatus->buffer,sizeof(RecKeys)*((int)(trunc(playrecstatus->synctime/window)+1)*window+window));
+            playrecstatus->buffer = (RecKeys*)realloc(playrecstatus->buffer,sizeof(RecKeys)*((playrecstatus->synctime/window+1)*window+window));
             if (playrecstatus->buffer == NULL)
             {
                 printf("Error to allocate buffer in record inputs mode.\n");
                 return 0;
-            } else memset(playrecstatus->buffer+(playrecstatus->synctime+1),0,(int)(trunc(playrecstatus->synctime/window)+1)*window+window-(playrecstatus->synctime+1)-1); // -2 becouse -1 is to 0 to size-1
+            } else memset(playrecstatus->buffer+(playrecstatus->synctime+1),0,(playrecstatus->synctime/window+1)*window+window-(playrecstatus->synctime+1)-1); // -2 because -1 is to 0 to size-1
         }
     }
 
@@ -45465,7 +51275,7 @@ int playRecordedInputs()
         fread(&playrecstatus->endtime, sizeof(u32), 1, playrecstatus->handle);
         fread(&playrecstatus->totsynctime, sizeof(u32), 1, playrecstatus->handle);
         fread(&playrecstatus->cseed, sizeof(u32), 1, playrecstatus->handle);
-        fread(&playrecstatus->seed, sizeof(unsigned long), 1, playrecstatus->handle);
+        fread(&playrecstatus->seed, sizeof(uint64_t), 1, playrecstatus->handle);
         fread(&playrecstatus->ticks, sizeof(unsigned), 1, playrecstatus->handle);
         fread(playrecstatus->buffer, sizeof(RecKeys)*(playrecstatus->endtime+1), 1, playrecstatus->handle);
 
@@ -45577,7 +51387,7 @@ int stopRecordInputs()
                         fwrite(&playrecstatus->endtime, sizeof(u32), 1, playrecstatus->handle);
                         fwrite(&playrecstatus->synctime, sizeof(u32), 1, playrecstatus->handle);
                         fwrite(&playrecstatus->cseed, sizeof(u32), 1, playrecstatus->handle);
-                        fwrite(&playrecstatus->seed, sizeof(unsigned long), 1, playrecstatus->handle);
+                        fwrite(&playrecstatus->seed, sizeof(uint64_t), 1, playrecstatus->handle);
                         fwrite(&playrecstatus->ticks, sizeof(unsigned), 1, playrecstatus->handle);
                         fwrite(playrecstatus->buffer, sizeof(RecKeys)*(playrecstatus->synctime+1), 1, playrecstatus->handle);
                         fflush(playrecstatus->handle); // safe
@@ -45662,7 +51472,7 @@ void update(int ingame, int usevwait)
 #if SDL
     if (savedata.fpslimit == 1) // vsync enabled
     {
-        // To reduce input latency, wait until the last 4 ms (4000 μs) of the current
+        // To reduce input latency, wait until the last 4 ms (4000 us) of the current
         // frame to read inputs or do anything else. We can get away with this because
         // the CPUs of all modern computers - even phones and low-end, outdated PCs -
         // are complete overkill for OpenBOR's needs.
@@ -45679,6 +51489,11 @@ void update(int ingame, int usevwait)
     getinterval();
     if(playrecstatus->status == A_REC_PLAY && !_pause && level) if ( !playRecordedInputs() ) stopRecordInputs();
     inputrefresh(playrecstatus->status);
+#ifdef WEBM
+    movie_playback_update(
+        (bothnewkeys & (FLAG_ESC | FLAG_ANYBUTTON)) != 0
+    );
+#endif
     if(playrecstatus->status == A_REC_REC && !_pause && level) if ( !recordInputs() ) stopRecordInputs();
 
     if ((!_pause && ingame == 1) || alwaysupdate)
@@ -45722,6 +51537,11 @@ void update(int ingame, int usevwait)
 
         while(_time < newtime)
         {
+            if(ingame == 1 || alwaysupdate)
+            {
+                execute_updatelogicscripts();
+            }
+
             if(ingame == 1)
             {
                 update_scroller();
@@ -45775,6 +51595,12 @@ void update(int ingame, int usevwait)
             {
                 update_ents();
             }
+
+            if(ingame == 1 || alwaysupdate)
+            {
+                execute_updatedlogicscripts();
+            }
+
             ++_time;
         }
 
@@ -45864,7 +51690,7 @@ void update(int ingame, int usevwait)
     // Debug stuff, should not appear on screenshot
     if(debug_time == 0xFFFFFFFF)
     {
-        debug_time = _time + GAME_SPEED * 5;
+        debug_time = _time + global_config.game_speed * 5;
     }
     if(_time < debug_time && debug_msg[0])
     {
@@ -45904,9 +51730,9 @@ void update(int ingame, int usevwait)
 // ----------------------------------------------------------------------
 /* Plombo 9/4/2010: New function that can use brightness/gamma correction
  * independent from the global palette on platforms where it's available.
- * Hardware accelerated brightness/gamma correction is available on Wii and
- * OpenGL platforms using TEV and GLSL, respectively. Returns 1 on success, 0 on
- * error. */
+ * Hardware accelerated brightness/gamma correction is available on OpenGL
+ * platforms using GLSL. Returns 1 on success, 0 on error.
+ */
 int set_color_correction(int gm, int br)
 {
     video_set_color_correction(gm, br);
@@ -46025,7 +51851,7 @@ void apply_controls()
 
 void display_credits()
 {
-    u32 finishtime = _time + 10 * GAME_SPEED;
+    u32 finishtime = _time + 10 * global_config.game_speed;
     int done = 0;
     int s = videomodes.vShift / 2 + 3;
     int v = (videomodes.vRes - videomodes.vShift) / 24;
@@ -46058,42 +51884,37 @@ void display_credits()
         font_printf(col1, s + v * m,  0, 0, "Msmalik681");
         font_printf(col2, s + v * m,  0, 0, "Developer"); ++m;
 
-        font_printf(col1, s + v * m,  0, 0, "Plombo");
+        font_printf(col1, s + v * m,  0, 0, "Kratus");
         font_printf(col2, s + v * m,  0, 0, "Developer"); ++m;
 
         font_printf(_strmidx(1, "Former Staff"), s + v * m,  1, 0, "Former Staff"); ++m;
 
         font_printf(col1, s + v * m, 0, 0, "Fightn Words");
-        font_printf(col2, s + v * m,  0, 0, "Fugue"); ++m;
-        font_printf(col1, s + v * m, 0, 0, "KBAndressen");
-        font_printf(col2, s + v * m,  0, 0, "Kirby"); ++m;
-        font_printf(col1, s + v * m,  0, 0, "LordBall");
-        font_printf(col2, s + v * m, 0, 0, "Orochi_X");  ++m;
-        font_printf(col1, s + v * m, 0, 0, "SX");
-        font_printf(col2, s + v * m,  0, 0, "Tails"); ++m;
-        font_printf(col1, s + v * m,  0, 0, "uTunnels");
-		font_printf(col2, s + v * m,  0, 0, "White Dragon"); ++m;
+        font_printf(col2, s + v * m, 0, 0, "Fugue"); ++m;
 
-        font_printf(_strmidx(1, "Ports"), s + v * m,  1, 0, "Ports"); ++m;
-        font_printf(col1, s + v * m, 0, 0, "PSP/Linux/OSX");
+        font_printf(col1, s + v * m, 0, 0, "KBAndressen");
+        font_printf(col2, s + v * m, 0, 0, "Kirby"); ++m;
+
+        font_printf(col1, s + v * m, 0, 0, "LordBall");
+        font_printf(col2, s + v * m, 0, 0, "Orochi_X"); ++m;
+
+        font_printf(col1, s + v * m, 0, 0, "SX");
+        font_printf(col2, s + v * m, 0, 0, "Tails"); ++m;
+
+        font_printf(col1, s + v * m, 0, 0, "uTunnels");
+        font_printf(col2, s + v * m, 0, 0, "White Dragon"); ++m;
+
+        font_printf(col1, s + v * m, 0, 0, "Plombo"); ++m;
+
+        font_printf(_strmidx(1, "Ports"), s + v * m, 1, 0, "Ports"); ++m;
+
+        font_printf(col1, s + v * m, 0, 0, "Linux/OSX");
         font_printf(col2, s + v * m, 0, 0, "SX"); ++m;
-		/*
-        font_printf(col1, s + v * m, 0, 0, "OpenDingux");
-        font_printf(col2, s + v * m, 0, 0, "Shin-NiL"); ++m;
-        
-        font_printf(col1, s + v * m, 0, 0, "DreamCast");
-        font_printf(col2, s + v * m, 0, 0, "Neill Corlett, SX"); ++m;
-		*/
-        font_printf(col1, s + v * m, 0, 0, "Wii");
-        font_printf(col2, s + v * m, 0, 0, "Plombo, SX, Msmalik681"); ++m;
 
         font_printf(col1, s + v * m, 0, 0, "Android");
         font_printf(col2, s + v * m, 0, 0, "CRxTRDude, Plombo,"); ++m;
         font_printf(col2, s + v * m, 0, 0, "uTunnels, Msmalik681"); ++m;
         font_printf(col2, s + v * m, 0, 0, "White Dragon"); ++m;
-
-        font_printf(col1,  s + v * m, 0, 0, "PS Vita");
-        font_printf(col2, s + v * m, 0, 0, "Plombo"); ++m;
 
         update(2, 0);
 
@@ -46105,10 +51926,10 @@ void display_credits()
 }
 
 
-void borShutdown(int status, char *msg, ...)
+void borShutdown(int status, const char *msg, ...)
 {
-    char buf[1024] = "";
     va_list arglist;
+    va_list output_arguments;
     int i;
 
     static int shuttingdown = 0;
@@ -46119,12 +51940,9 @@ void borShutdown(int status, char *msg, ...)
     }
 
     shuttingdown = 1;
+    va_start(arglist, msg);
 
     //printf("savedata.logo %d\n", savedata.logo);
-
-    va_start(arglist, msg);
-    vsprintf(buf, msg, arglist);
-    va_end(arglist);
 
     if(!disablelog)
     {
@@ -46142,7 +51960,9 @@ void borShutdown(int status, char *msg, ...)
 
     if(!disablelog)
     {
-        printf("%s", buf);
+        va_copy(output_arguments, arglist);
+        writeToLogFileV(msg, output_arguments);
+        va_end(output_arguments);
     }
 
 
@@ -46336,10 +52156,17 @@ void borShutdown(int status, char *msg, ...)
     }
 
     freeModelList();
+    clear_saved_allowselect_arguments();
+    free(savelevel_allowselect_args);
+    savelevel_allowselect_args = NULL;
     if(savelevel)
     {
         free(savelevel);
+        savelevel = NULL;
     }
+    savelevel_count = 0;
+    free(allowselect_args);
+    allowselect_args = NULL;
     freefilenamecache();
     ob_termtrans();
 
@@ -46353,9 +52180,12 @@ void borShutdown(int status, char *msg, ...)
 
     if(!disablelog)
     {
-        printf("%s", buf);
+        va_copy(output_arguments, arglist);
+        writeToLogFileV(msg, output_arguments);
+        va_end(output_arguments);
     }
 
+    va_end(arglist);
     shuttingdown = 0;
     borExit(status);
 }
@@ -46425,7 +52255,7 @@ void startup()
     printf("Done!\n");
 
     printf("Initialize Sound.............\t");
-    if(sound_init(12))
+    if(sound_init())
     {
         if(load_special_sounds())
         {
@@ -46591,7 +52421,7 @@ int playgif(char *filename, int x, int y, int noskip)
         }
         else
         {
-            milliseconds += (_time - lasttime) * 1000 / GAME_SPEED;
+            milliseconds += (_time - lasttime) * 1000 / global_config.game_speed;
         }
 
         lasttime = _time;
@@ -46622,71 +52452,103 @@ playgif_end:
 
 
 #ifdef WEBM
-// Returns 0 on error, -1 on escape
+/*
+* Caskey, Damon V.
+* 2026-08-12
+*
+* Preserve blocking playwebm() behavior as a wrapper around
+* the reusable movie APIs. Return 1 on completion, 0 on error,
+* or -1 when creator-enabled input interrupts playback.
+*/
 int playwebm(const char *path, int noskip)
 {
     int retval = 1;
-    webm_context *ctx = NULL;
-    yuv_video_mode info;
-    s_screen *rgb_frame = NULL;
+    int source_id = -1;
+    s_movie_playback *playback = NULL;
+    s_screen *screenshot_frame = NULL;
 
-    ctx = webm_start_playback(path, savedata.musicvol);
-    if(ctx == NULL) {retval=0; goto quit;}
+    movie_playback_stop_all();
+    source_id = movie_source_load(path, MOVIE_LOADING_STREAM);
+    if(source_id < 0) {
+        return 0;
+    }
+    playback = movie_playback_play(
+        source_id,
+        MOVIE_CHANNEL_AUTO,
+        savedata.musicvol,
+        true
+    );
+    if(!playback) {
+        retval = 0;
+        goto quit;
+    }
+    if(!movie_playback_set_interrupt(playback, !noskip)) {
+        retval = 0;
+        goto quit;
+    }
 
-    // set video output to YUV mode
-    webm_get_video_info(ctx, &info);
-    int status = video_setup_yuv_overlay(&info);
-    if(!status) {retval=0; goto quit;}
+    /* Legacy playback uses the WebM display size and hardware YUV output. */
+    movie_playback_set_width(playback, MOVIE_SIZE_NATIVE);
+    movie_playback_set_height(playback, MOVIE_SIZE_NATIVE);
 
-    // allocate s_screen for screenshot capture
-    yuv_init(2);
-    rgb_frame = allocscreen(info.width, info.height, PIXEL_16);
-    if(!rgb_frame) {retval=0; goto quit;}
+    while(playback->active) {
+        int interrupt_requested;
+        int present_frame;
 
-    u64 start_time = timer_uticks();
-    u64 next_frame_time = 0;
-    yuv_frame *frame = NULL;
-
-    while(1)
-    {
         inputrefresh(playrecstatus->status);
-        if(!noskip && (bothnewkeys & (FLAG_ESC | FLAG_ANYBUTTON)))
-        {
+        interrupt_requested =
+            (bothnewkeys & (FLAG_ESC | FLAG_ANYBUTTON)) != 0;
+        if(interrupt_requested && playback->interrupt) {
             retval = -1;
-            yuv_frame_destroy(frame);
+        }
+        movie_playback_update(interrupt_requested);
+        if(!playback->active) {
             break;
         }
-        else if(frame && !noscreenshot && (bothnewkeys & FLAG_SCREENSHOT))
-        {
-            yuv_to_rgb(frame, rgb_frame);
-            screenshot(rgb_frame, NULL, 0);
-        }
-
-        u64 time_passed = timer_uticks() - start_time;
-
-        if(next_frame_time <= time_passed)
-        {
-            // display the current frame
-            if(frame)
-            {
-                video_display_yuv_frame();
-                yuv_frame_destroy(frame);
+        present_frame = playback->frame_dirty;
+        if(present_frame) {
+            if(!movie_playback_draw_to_yuv(playback->index)) {
+                retval = 0;
+                break;
             }
-
-            // prepare the next frame for display
-            frame = webm_get_next_frame(ctx);
-            if(frame == NULL) break;
-            video_prepare_yuv_frame(frame);
-            next_frame_time = frame->timestamp / 1000;
         }
-        else usleep(next_frame_time - time_passed);
+        if(playback->current_frame &&
+           !noscreenshot &&
+           (bothnewkeys & FLAG_SCREENSHOT)) {
+            if(!screenshot_frame ||
+               screenshot_frame->width != playback->current_frame->width ||
+               screenshot_frame->height != playback->current_frame->height) {
+                if(screenshot_frame) {
+                    freescreen(&screenshot_frame);
+                }
+                screenshot_frame = allocscreen(
+                    playback->current_frame->width,
+                    playback->current_frame->height,
+                    PIXEL_32
+                );
+            }
+            if(screenshot_frame) {
+                yuv_to_rgb(playback->current_frame, screenshot_frame);
+                screenshot(screenshot_frame, NULL, 0);
+            }
+        }
+        usleep(1000);
     }
 
 quit:
-    if(ctx) webm_close(ctx);
-    if(rgb_frame) freescreen(&rgb_frame);
-    yuv_clear();
-    video_set_mode(videomodes);
+    if(screenshot_frame) {
+        freescreen(&screenshot_frame);
+    }
+    if(playback && playback->failed && retval > 0) {
+        retval = 0;
+    }
+    if(playback && playback->active) {
+        movie_playback_stop(playback);
+    }
+    while(source_id >= 0 && !movie_source_unload(source_id)) {
+        movie_playback_update(0);
+        usleep(1000);
+    }
     return retval;
 }
 #endif
@@ -46819,7 +52681,7 @@ void gameover()
     while(!done)
     {
         font_printf(_strmidx(3, Tr("GAME OVER")), 110 + videomodes.vShift, 3, 0, Tr("GAME OVER"));
-        done |= (_time > GAME_SPEED * 8 && !sound_query_music(NULL, NULL));
+        done |= (_time > global_config.game_speed * 8 && !sound_query_music(NULL, NULL));
         done |= (bothnewkeys & (FLAG_ESC | FLAG_ANYBUTTON));
         update(0, 0);
     }
@@ -46834,7 +52696,7 @@ void hallfame(int addtoscore)
 {
     int done = 0;
     int topten[10] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    u32 score;
+    uint64_t score;
     char name[MAX_NAME_LEN + 1];
     int i, p, y;
     char tmpBuff[MAX_BUFFER_LEN] = {""};
@@ -46845,7 +52707,7 @@ void hallfame(int addtoscore)
 
     if(hiscorebg)
     {
-        // New alternative background path for PSP
+        // New alternative background path.
         if(custBkgrds != NULL)
         {
             strcpy(tmpBuff, custBkgrds);
@@ -46897,13 +52759,13 @@ void hallfame(int addtoscore)
         for(i = 0; i < 10; i++)
         {
             font_printf(_colx(topten[i], col1), y + videomodes.vShift, topten[i], 0, "%2i.  %s", i + 1, savescore.hscoren[i]);
-            font_printf(_colx(topten[i], col2), y + videomodes.vShift, topten[i], 0, (scoreformat ? "%09lu" : "%u"), savescore.highsc[i]);
+            font_printf(_colx(topten[i], col2), y + videomodes.vShift, topten[i], 0, (scoreformat ? "%09" PRIu64 : "%" PRIu64), savescore.highsc[i]);
             y += (videomodes.vRes - videomodes.vShift - 56 - 32) / 10; //font_heights[topten[i]] + 6;
         }
 
         // Kratus (01-2023) Added the "FLAG_ANYBUTTON" to exit the Hall of Fame screen
         update(0, 0);
-        done |= (_time > GAME_SPEED * 8);
+        done |= (_time > global_config.game_speed * 8);
         done |= (bothnewkeys & (FLAG_START | FLAG_ANYBUTTON | FLAG_ESC));
     }
     unload_background();
@@ -46930,7 +52792,7 @@ void showcomplete(int num)
 
     if(completebg)
     {
-        // New alternative background path for PSP
+        // New alternative background path.
         if(custBkgrds != NULL)
         {
             strcpy(tmpBuff, custBkgrds);
@@ -46999,14 +52861,14 @@ void showcomplete(int num)
         font_printf(videomodes.hShift + tscore[0], videomodes.vShift + tscore[1], 0, 0, Tr("Total Score"));
         for(i = 0, j = 2, k = 3; i < levelsets[current_set].maxplayers; i++, j = j + 2, k = k + 2) if(player[i].lives > 0)
             {
-                font_printf(videomodes.hShift + tscore[j], videomodes.vShift + tscore[k], 0, 0, (scoreformat ? "%09lu" : "%lu"), player[i].score);
+                font_printf(videomodes.hShift + tscore[j], videomodes.vShift + tscore[k], 0, 0, (scoreformat ? "%09" PRIu64 : "%" PRIu64), player[i].score);
             }
 
         while(_time > nexttime)
         {
             if(!finishtime)
             {
-                finishtime = _time + 4 * GAME_SPEED;
+                finishtime = _time + 4 * global_config.game_speed;
             }
 
             for(i = 0; i < levelsets[current_set].maxplayers; i++)
@@ -47096,8 +52958,7 @@ void savelevelinfo()
     save->stage = current_stage;
     save->which_set = current_set;
     strncpy(save->dName, set->name, MAX_NAME_LEN - 1);
-    for(i = 0; i < sizeof(allowselect_args); i++) save->allowSelectArgs[i] = '\0'; // clear
-    for(i = 0; i < sizeof(allowselect_args); i++) save->allowSelectArgs[i] = allowselect_args[i];
+    set_saved_allowselect_arguments(current_set, allowselect_args);
 }
 
 void tryvictorypose(entity *ent)
@@ -47262,7 +53123,7 @@ int playlevel(char *filename)
     {
         sound_close_music();
     }
-    sound_stopall_sample();
+    sound_stopall_sample(false);
 
     unload_level();
 
@@ -47375,8 +53236,7 @@ static void load_select_screen_info(s_savelevel *save)
 int selectplayer(int *players, char *filename, int useSavedGame)
 {
 	s_model *tempmodel;
-	s_model *model_old = NULL;
-	s_model *model_new = NULL;
+	s_model *model_new[MAX_PLAYERS] = { NULL };
 	int i;
 	int exit = 0;
 	int escape = 0;
@@ -47415,8 +53275,9 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 
 	// Allow select? 'a' is the first char of allowselect,
 	// if there's 'a' then there is allowselect.
-	if (allowselect_args[0] != 'a'
-		&& allowselect_args[0] != 'A')
+	if (!allowselect_args
+		|| (allowselect_args[0] != 'a'
+			&& allowselect_args[0] != 'A'))
 	{
 		reset_playable_list(1);
 	}
@@ -47430,7 +53291,9 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 		if (save->selectFlag)
 		{
 			load_select_screen_info(save);
-			load_playable_list(save->allowSelectArgs);
+			load_playable_list(
+				get_saved_allowselect_arguments(current_set)
+			);
 			saved_select_screen = 1;
 		}
 	}
@@ -47472,7 +53335,10 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 				else if (stricmp(command, "allowselect") == 0)
 				{
 					load_playable_list(buf + pos);
-					memcpy(&save->allowSelectArgs, &allowselect_args, sizeof(allowselect_args)); // SAVE
+					set_saved_allowselect_arguments(
+						current_set,
+						allowselect_args
+					);
 				}
 				else if (stricmp(command, "background") == 0)
 				{
@@ -47577,7 +53443,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 		{
 			if (unlockbg && bonus)
 			{
-				// New alternative background path for PSP
+				// New alternative background path.
 				if (custBkgrds != NULL)
 				{
 					strcpy(string, custBkgrds);
@@ -47591,7 +53457,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 			}
 			else
 			{
-				// New alternative background path for PSP
+				// New alternative background path.
 				if (custBkgrds != NULL)
 				{
 					strcpy(string, custBkgrds);
@@ -47721,10 +53587,11 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 						// Transition from select (player selected another model, and the
 						// select out transition is now finished). Repeat of left/right key 
 						// logic below and probably needs consolidation.
-						if (example[i]->animnum == ANI_SELECTOUT && model_new)
+						if (example[i]->animnum == ANI_SELECTOUT && model_new[i])
 						{
 							// Apply new model.
-							ent_set_model(example[i], model_new->name, 0);
+							ent_set_model(example[i], model_new[i]->name, 0);
+							model_new[i] = NULL;
 
 							// Copy example model name to player name variable.
 							strcpy(player[i].name, example[i]->model->name);
@@ -47798,7 +53665,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 					{
 						ent_set_anim(example[i], ANI_PICK, 0);
 					}
-					example[i]->stalltime = _time + GAME_SPEED * 2;
+					example[i]->stalltime = _time + global_config.game_speed * 2;
 					ready[i] = 1;
 				}
 				else if (player[i].newkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT) && example[i])
@@ -47810,17 +53677,15 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 					}
 
 					// Get model in use right now.
-					model_old = example[i]->model;
-
 					// Let's get the new model. Left key = previous model 
 					// in cycle. Right key = next.
 					if ((player[i].newkeys & FLAG_MOVELEFT))
 					{
-						model_new = prevplayermodeln(model_old, i);
+						model_new[i] = prevplayermodeln(example[i]->model, i);
 					}
 					else
 					{
-						model_new = nextplayermodeln(model_old, i);
+						model_new[i] = nextplayermodeln(example[i]->model, i);
 					}
 
 					// Do we have a select out transition? If so play it here. 
@@ -47832,7 +53697,8 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 					else
 					{
 						// Apply new model.
-						ent_set_model(example[i], model_new->name, 0);
+						ent_set_model(example[i], model_new[i]->name, 0);
+						model_new[i] = NULL;
 
 						// Copy example model name to player name variable.
 						strcpy(player[i].name, example[i]->model->name);
@@ -47864,7 +53730,7 @@ int selectplayer(int *players, char *filename, int useSavedGame)
 				if (((!validanim(example[i], ANI_PICK) || example[i]->modeldata.animation[ANI_PICK]->loop.mode) && _time > example[i]->stalltime) || !example[i]->animating)
 				{
 					ready[i] = 2;
-					exitdelay = _time + GAME_SPEED;
+					exitdelay = _time + global_config.game_speed;
 				}
 			}
 			else if (ready[i] == 2)
@@ -47966,7 +53832,9 @@ void playgame(int *players,  unsigned which_set, int useSavedGame)
             }
             credits = save->credits;
         }
-        load_playable_list(save->allowSelectArgs); //TODO: change sav format to support dynamic allowselect list.
+        load_playable_list(
+            get_saved_allowselect_arguments(current_set)
+        );
         //reset_playable_list(1); // add this because there's no select screen, temporary solution
     }
 
@@ -48578,16 +54446,6 @@ void init_videomodes(int log)
 #define tryfile(X) if((tmp=openpackfile(X,packfile))!=-1) { closepackfile(tmp); filename=X; goto readfile; }
 #if WIN || LINUX
     tryfile("data/videopc.txt");
-#elif WII
-    tryfile("data/videowii.txt");
-    if(CONF_GetAspectRatio() == CONF_ASPECT_16_9)
-    {
-        tryfile("data/video169.txt")
-    }
-    else
-    {
-        tryfile("data/video43.txt");
-    }
 #endif
 #undef tryfile
 
@@ -48655,7 +54513,7 @@ readfile:
             }
             else if(stricmp(command, "colourdepth") == 0)
             {
-                printf("\nColordepth is depreciated. All modules are displayed with a 32bit color screen.\n\n");
+                printf("\nColordepth is not supported anymore. All modules are displayed with a 32bit color screen.\n\n");
             }
             else if(stricmp(command, "forcemode") == 0) {}
             else if(command && command[0])
@@ -48678,7 +54536,7 @@ VIDEOMODES:
     videomodes.filter  = savedata.swfilter;
     switch (videoMode)
     {
-        // 320x240 - All Platforms
+        // 320x240 - QVGA
     case 0:
         videomodes.hRes    = 320;
         videomodes.vRes    = 240;
@@ -48692,7 +54550,7 @@ VIDEOMODES:
         BGHEIGHT           = 160;
         break;
 
-        // 480x272 - All Platforms
+        // 480x272 - WQVGA
     case 1:
         videomodes.hRes    = 480;
         videomodes.vRes    = 272;
@@ -48706,7 +54564,7 @@ VIDEOMODES:
         BGHEIGHT           = 182;
         break;
 
-        // 640x480 - PC, Dreamcast, Wii
+        // 640x480 - VGA
     case 2:
         videomodes.hRes    = 640;
         videomodes.vRes    = 480;
@@ -48720,7 +54578,7 @@ VIDEOMODES:
         BGHEIGHT           = 321;
         break;
 
-        // 720x480 - PC, Wii
+        // 720x480 - DVD
     case 3:
         videomodes.hRes    = 720;
         videomodes.vRes    = 480;
@@ -48734,7 +54592,7 @@ VIDEOMODES:
         BGHEIGHT           = 321;
         break;
 
-        // 800x480 - PC, Wii, Pandora
+        // 800x480 - WVGA
     case 4:
         videomodes.hRes    = 800;
         videomodes.vRes    = 480;
@@ -48748,7 +54606,7 @@ VIDEOMODES:
         BGHEIGHT           = 321;
         break;
 
-        // 800x600 - PC, Dreamcast, Wii
+        // 800x600 - SVGA
     case 5:
         videomodes.hRes    = 800;
         videomodes.vRes    = 600;
@@ -48762,7 +54620,7 @@ VIDEOMODES:
         BGHEIGHT           = 401;
         break;
 
-        // 960x540 - PC, Wii
+        // 960x540 - qHD
     case 6:
         videomodes.hRes    = 960;
         videomodes.vRes    = 540;
@@ -48776,6 +54634,7 @@ VIDEOMODES:
         BGHEIGHT           = 362;
         break;
 
+        // Custom video mode
     case 255:
         videomodes.dOffset = videomodes.vRes * 0.9625;
         printf("\nUsing debug video mode: %d x %d\n", videomodes.hRes, videomodes.vRes);
@@ -48829,8 +54688,6 @@ void safe_set(int *arr, int index, int newkey, int oldkey)
 
 void keyboard_setup(int player)
 {
-    const int btnnum = MAX_BTN_NUM;
-
     int quit = 0; 
     int sdid = 0;
     int selector = 0;
@@ -48849,13 +54706,13 @@ void keyboard_setup(int player)
     char* command;
     char* filename = "translation/menu.txt";
     
-    char  buttonnames[btnnum][32];
+    char  buttonnames[MAX_BTN_NUM][32];
     
     size_t size;
     ArgList arglist;
     
     char argbuf[MAX_ARG_LEN + 1] = "";
-    int OPTIONS_NUM = btnnum + 3;
+    int OPTIONS_NUM = MAX_BTN_NUM + 3;
 
     screen_status |= IN_SCREEN_BUTTON_CONFIG_MENU;
 
@@ -48949,13 +54806,13 @@ proceed:
 
 finish:
 
-    while(disabledkey[selector]) if(++selector > btnnum - 1) break;
+    while(disabledkey[selector]) if(++selector > MAX_BTN_NUM - 1) break;
 
     while(!quit)
     {
         voffset = -6;
         _menutextm(2, -8, 0, Tr("Player %i"), player + 1);
-        for(i = 0; i < btnnum; i++)
+        for(i = 0; i < MAX_BTN_NUM; i++)
         {
             if(!disabledkey[i])
             {
@@ -49016,14 +54873,14 @@ finish:
                         break;
                     }
                 }
-                while(selector < btnnum && disabledkey[selector]);
+                while(selector < MAX_BTN_NUM && disabledkey[selector]);
                 sound_play_sample(global_sample_list.beep, 0, savedata.effectvol, savedata.effectvol, 100);
             }
             if(bothnewkeys & FLAG_MOVEDOWN)
             {
                 do
                 {
-                    if(++selector > btnnum - 1) break;
+                    if(++selector > MAX_BTN_NUM - 1) break;
                 }
                 while(disabledkey[selector]);
                 sound_play_sample(global_sample_list.beep, 0, savedata.effectvol, savedata.effectvol, 100);
@@ -49035,7 +54892,7 @@ finish:
             if(selector > OPTIONS_NUM)
             {
                 selector = 0;
-                while(disabledkey[selector]) if(++selector > btnnum - 1) break;
+                while(disabledkey[selector]) if(++selector > MAX_BTN_NUM - 1) break;
             }
 
             if(bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
@@ -49110,17 +54967,6 @@ void menu_options_input()
     while(!quit)
     {
         _menutextm(2, x_pos-1, 0, Tr("Control Options"));
-                
-        #if WII
-        if(savedata.usejoy)
-        {
-            _menutext((selector == 0), -4, -2, Tr("Nunchuk Analog Enabled"));
-        }
-        else
-        {
-            _menutext((selector == 0), -4, -2, Tr("Nunchuk Analog Disabled"));
-        }
-        #else
         if(savedata.usejoy)
         {
             _menutext((selector == 0), x_pos, -2, Tr("GamePads Enabled"));
@@ -49133,8 +54979,6 @@ void menu_options_input()
         {
             _menutext((selector == 0), x_pos, -2, Tr("GamePads Disabled"));
         }
-        #endif
-
         _menutext((selector == 1), x_pos,-1, Tr("Setup Player 1..."));
         _menutext((selector == 2), x_pos, 0, Tr("Setup Player 2..."));
         _menutext((selector == 3), x_pos, 1, Tr("Setup Player 3..."));
@@ -49506,8 +55350,153 @@ void menu_options_config()     //  OX. Load from / save to default.cfg. Restore 
     bothnewkeys = 0;
 }
 
-void menu_options_debug()
-{
+/*
+* Caskey, Damon V.
+* 2026-07-06
+*
+* Return menu display text for a collision debug
+* display pair.
+*/
+static char* collision_debug_type_string(e_debug_display debug_field, e_debug_display flat_bit, e_debug_display projected_bit) {
+
+    if ((debug_field & flat_bit) && (debug_field & projected_bit)) {
+        return Tr("Flat + Projected");
+    } else if (debug_field & flat_bit) {
+        return Tr("Flat");
+    } else if (debug_field & projected_bit) {
+        return Tr("Projected");
+    } else {
+        return Tr("Disabled");
+    }
+}
+
+/*
+* Caskey, Damon V.
+* 2026-07-06
+*
+* Cycle collision debug display mode for one collision type.
+*
+* Each collision type uses two debug bits:
+*
+*   flat_bit      = draw the normal 2D rectangle overlay.
+*   projected_bit = draw the projected 3D cube overlay.
+*
+* The two bits combine into four possible states:
+*
+*   0 = None
+*   1 = Flat
+*   2 = Projected
+*   3 = Flat + Projected
+*
+* Direction controls cycle order:
+*
+*   TOGGLE_DIRECTION_BACKWARD = cycle backward.
+*   TOGGLE_DIRECTION_FORWARD  = cycle forward.
+*
+* Return value is the updated debug bitfield.
+*/
+static e_debug_display collision_debug_type_cycle(const e_debug_display debug_field, const e_debug_display flat_bit, const e_debug_display projected_bit, const e_menu_toggle_direction toggle_direction) {
+
+    /*
+    * Local only. Actual state is controlled by
+    * the savedata.debuginfo bitfield. This just
+    * gives us a simple linear value to work with 
+    * for cycling so we do't need a massive if/else
+    * chain.
+    */
+    #define COLLISION_DEBUG_DISPLAY_NONE      0
+    #define COLLISION_DEBUG_DISPLAY_FLAT      1
+    #define COLLISION_DEBUG_DISPLAY_PROJECTED 2
+    #define COLLISION_DEBUG_DISPLAY_BOTH      3    
+
+    /*
+    * Int scratchpads. These are enum values, but compiler
+    * will throw a fit if we try to use them in operations
+    * that cause implicit integer promotion.
+    */
+    int state;
+    int debug_flags;
+
+    /*
+    * Work in an int scratch value because enum values are
+    * still bitfields, and bitwise operators promote them
+    * to int anyway.
+    */
+    debug_flags = debug_field;
+
+    /*
+    * Convert current bitfield state into a compact
+    * display mode value.
+    *
+    * Bit 0 = flat display enabled.
+    * Bit 1 = projected display enabled.
+    */
+    state = COLLISION_DEBUG_DISPLAY_NONE;
+
+    if (debug_flags & flat_bit) {
+        state |= COLLISION_DEBUG_DISPLAY_FLAT;
+    }
+
+    if (debug_flags & projected_bit) {
+        state |= COLLISION_DEBUG_DISPLAY_PROJECTED;
+    }
+
+    /*
+    * Step through the four display modes.
+    *
+    * Backward:
+    *   None <- Flat <- Projected <- Both <- None
+    *
+    * Forward:
+    *   None -> Flat -> Projected -> Both -> None
+    */
+    switch(toggle_direction) {
+        case TOGGLE_DIRECTION_BACKWARD:
+            state--;
+
+            if (state < COLLISION_DEBUG_DISPLAY_NONE) {
+                state = COLLISION_DEBUG_DISPLAY_BOTH;
+            }
+
+            break;
+
+        case TOGGLE_DIRECTION_FORWARD:
+        default:
+            state++;
+
+            if (state > COLLISION_DEBUG_DISPLAY_BOTH) {
+                state = COLLISION_DEBUG_DISPLAY_NONE;
+            }
+
+            break;
+    }
+
+    /*
+    * Clear only the two bits managed by this collision
+    * debug option. Leave all other debug flags untouched.
+    */
+    debug_flags &= ~(flat_bit | projected_bit);
+
+    /*
+    * Expand compact state back into the debug bitfield.
+    */
+    if (state & COLLISION_DEBUG_DISPLAY_FLAT) {
+        debug_flags |= flat_bit;
+    }
+
+    if (state & COLLISION_DEBUG_DISPLAY_PROJECTED) {
+        debug_flags |= projected_bit;
+    }
+
+    return (e_debug_display)debug_flags;
+
+    #undef COLLISION_DEBUG_DISPLAY_NONE
+    #undef COLLISION_DEBUG_DISPLAY_FLAT
+    #undef COLLISION_DEBUG_DISPLAY_PROJECTED
+    #undef COLLISION_DEBUG_DISPLAY_BOTH
+}
+
+void menu_options_debug() {
     #define MENU_POS_Y              -4
     #define MENU_ITEMS_MARGIN_Y     2
     #define COLUMN_1_POS_X          -11
@@ -49517,8 +55506,8 @@ void menu_options_debug()
     // Selections enumerator. All
     // selection items should be placed
     // here first.
-    typedef enum
-    {
+    typedef enum {
+
         // First item can be
         // whatever we like,
         // but it must be set
@@ -49532,6 +55521,7 @@ void menu_options_debug()
         ITEM_POSITION,
         ITEM_COL_ATTACK,
         ITEM_COL_BODY,
+        ITEM_COL_SPACE,
         ITEM_COL_RANGE,
 
         // This is the "Back"
@@ -49544,9 +55534,11 @@ void menu_options_debug()
     int quit                = 0;
     e_selections selector   = 0;
     bothnewkeys             = 0;
+    
+    e_menu_toggle_direction toggle_direction = TOGGLE_DIRECTION_FORWARD;
 
-    while(!quit)
-    {
+    while(!quit) {
+
         // Display menu title.
         _menutextm(2, MENU_POS_Y, 0, Tr("Debug Settings"));
 
@@ -49568,14 +55560,18 @@ void menu_options_debug()
 
         _menutext((selector == ITEM_POSITION),       COLUMN_1_POS_X, pos_y, Tr("Basic Properties:"));
         _menutext((selector == ITEM_POSITION),       COLUMN_2_POS_X, pos_y, (savedata.debuginfo & DEBUG_DISPLAY_PROPERTIES ? Tr("Enabled") : Tr("Disabled")));
-        pos_y++;
+        pos_y++;        
 
-        _menutext((selector == ITEM_COL_ATTACK),     COLUMN_1_POS_X, pos_y, Tr("Collision Attack:"));
-        _menutext((selector == ITEM_COL_ATTACK),     COLUMN_2_POS_X, pos_y, (savedata.debuginfo & DEBUG_DISPLAY_COLLISION_ATTACK ? Tr("Enabled") : Tr("Disabled")));
+        _menutext((selector == ITEM_COL_ATTACK), COLUMN_1_POS_X, pos_y, Tr("Collision Attack:"));
+        _menutext((selector == ITEM_COL_ATTACK), COLUMN_2_POS_X, pos_y, collision_debug_type_string(savedata.debuginfo, DEBUG_DISPLAY_COLLISION_ATTACK_2D, DEBUG_DISPLAY_COLLISION_ATTACK_3D));
         pos_y++;
 
         _menutext((selector == ITEM_COL_BODY),       COLUMN_1_POS_X, pos_y, Tr("Collision Body:"));
-        _menutext((selector == ITEM_COL_BODY),       COLUMN_2_POS_X, pos_y, (savedata.debuginfo & DEBUG_DISPLAY_COLLISION_BODY ? Tr("Enabled") : Tr("Disabled")));
+        _menutext((selector == ITEM_COL_BODY),       COLUMN_2_POS_X, pos_y, collision_debug_type_string(savedata.debuginfo, DEBUG_DISPLAY_COLLISION_BODY_2D, DEBUG_DISPLAY_COLLISION_BODY_3D));
+        pos_y++;
+
+        _menutext((selector == ITEM_COL_SPACE),       COLUMN_1_POS_X, pos_y, Tr("Collision Space:"));
+        _menutext((selector == ITEM_COL_SPACE),       COLUMN_2_POS_X, pos_y, collision_debug_type_string(savedata.debuginfo, DEBUG_DISPLAY_COLLISION_SPACE_2D, DEBUG_DISPLAY_COLLISION_SPACE_3D));
         pos_y++;
 
         _menutext((selector == ITEM_COL_RANGE),      COLUMN_1_POS_X, pos_y, Tr("Range:"));
@@ -49589,41 +55585,34 @@ void menu_options_debug()
         update((level != NULL), 0);
 
         // If user presses up/down or esc, let's act accordingly.
-        if(bothnewkeys & (FLAG_MOVEUP | FLAG_MOVEDOWN | FLAG_ESC))
-        {
+        if(bothnewkeys & (FLAG_MOVEUP | FLAG_MOVEDOWN | FLAG_ESC)) {
+
             // If user presses escape, then set quit
             // flag immediately. Else wise, increment
             // or decrement selector as needed.
-            if(bothnewkeys & FLAG_ESC)
-            {
+            if(bothnewkeys & FLAG_ESC) {
                 quit = 1;
-            }
-            else if(bothnewkeys & FLAG_MOVEUP)
-            {
+            
+            } else if(bothnewkeys & FLAG_MOVEUP) {
                 // Play beep if available.
                 // Kratus (04-2022) Moved the BEEP sound to work only with UP/DOWN keys
-                if(global_sample_list.beep >= 0)
-                {
+                if(global_sample_list.beep >= 0) {
                     sound_play_sample(global_sample_list.beep, 0, savedata.effectvol, savedata.effectvol, 100);
                 }
 
                 // If we are at the top item, loop
                 // to last. Otherwise, move one up.
-                if(selector <= MENU_ITEM_FIRST_INDEX)
-                {
+                if(selector <= MENU_ITEM_FIRST_INDEX) {
                     selector = ITEM_EXIT;
-                }
-                else
-                {
+                } else {
                     --selector;
                 }
-            }
-            else if(bothnewkeys & FLAG_MOVEDOWN)
-            {
+
+            } else if(bothnewkeys & FLAG_MOVEDOWN) {
+
                 // Play beep if available.
                 // Kratus (04-2022) Moved the BEEP sound to work only with UP/DOWN keys
-                if(global_sample_list.beep >= 0)
-                {
+                if(global_sample_list.beep >= 0) {
                     sound_play_sample(global_sample_list.beep, 0, savedata.effectvol, savedata.effectvol, 100);
                 }
 
@@ -49631,12 +55620,10 @@ void menu_options_debug()
                 // (which should be "back"), then
                 // loop back to first. Otherwise
                 // move one down.
-                if(selector >= ITEM_EXIT)
-                {
+                if(selector >= ITEM_EXIT) {
                     selector = MENU_ITEM_FIRST_INDEX;
-                }
-                else
-                {
+                
+                } else {
                     ++selector;
                 }
             }
@@ -49645,16 +55632,16 @@ void menu_options_debug()
 
         // Toggle selection value on left/right or
         // trigger button press.
-        if(bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON))
-        {
-            if(global_sample_list.beep_2 >= 0)
-            {
+        if(bothnewkeys & (FLAG_MOVELEFT | FLAG_MOVERIGHT | FLAG_ANYBUTTON)) {
+            
+            if(global_sample_list.beep_2 >= 0) {
                 sound_play_sample(global_sample_list.beep_2, 0, savedata.effectvol, savedata.effectvol, 100);
             }
 
+            toggle_direction = (bothnewkeys & FLAG_MOVELEFT) ? TOGGLE_DIRECTION_BACKWARD : TOGGLE_DIRECTION_FORWARD;
+                    
             // This is where menu items are executed.
-            switch(selector)
-            {
+            switch(selector) {
                 case ITEM_PERFORMANCE:
                     savedata.debuginfo ^= DEBUG_DISPLAY_PERFORMANCE;
                     break;
@@ -49662,10 +55649,13 @@ void menu_options_debug()
                     savedata.debuginfo ^= DEBUG_DISPLAY_PROPERTIES;
                     break;                
                 case ITEM_COL_ATTACK:
-                    savedata.debuginfo ^= DEBUG_DISPLAY_COLLISION_ATTACK;
+                    savedata.debuginfo = collision_debug_type_cycle(savedata.debuginfo, DEBUG_DISPLAY_COLLISION_ATTACK_2D, DEBUG_DISPLAY_COLLISION_ATTACK_3D, toggle_direction);
                     break;
                 case ITEM_COL_BODY:
-                    savedata.debuginfo ^= DEBUG_DISPLAY_COLLISION_BODY;
+                    savedata.debuginfo = collision_debug_type_cycle(savedata.debuginfo, DEBUG_DISPLAY_COLLISION_BODY_2D, DEBUG_DISPLAY_COLLISION_BODY_3D, toggle_direction);
+                    break;
+                case ITEM_COL_SPACE:
+                    savedata.debuginfo = collision_debug_type_cycle(savedata.debuginfo, DEBUG_DISPLAY_COLLISION_SPACE_2D, DEBUG_DISPLAY_COLLISION_SPACE_3D, toggle_direction);
                     break;
                 case ITEM_COL_RANGE:
                     savedata.debuginfo ^= DEBUG_DISPLAY_RANGE;
@@ -49675,6 +55665,7 @@ void menu_options_debug()
             }
         }
     }
+
     savesettings();
     bothnewkeys = 0;
 
@@ -50115,20 +56106,6 @@ void menu_options_video()
         _menutext((selector == 2), col1, -1, Tr("Window Offset:"));
         _menutext((selector == 2), col2, -1, "%i", savedata.windowpos);
 
-#if WII
-        _menutext((selector == 3), col1, 0, Tr("Display Mode:"));
-        _menutext((selector == 3), col2, 0, (savedata.stretch ? Tr("Stretch to Screen") : Tr("Preserve Aspect Ratio")));
-        _menutextm((selector == 4), 6, 0, Tr("Back"));
-        if(selector < 0)
-        {
-            selector = 4;
-        }
-        if(selector > 4)
-        {
-            selector = 0;
-        }
-#endif
-
 #if SDL
         _menutext((selector == 3), col1, 0, Tr("Display Mode:"));
         _menutext((selector == 3), col2, 0, savedata.fullscreen ? Tr("Full") : Tr("Window"));
@@ -50290,12 +56267,7 @@ void menu_options_video()
                     savedata.windowpos = 20;
                 }
                 break;
-#if WII
-            case 3:
-                //video_fullscreen_flip();
-                video_stretch((savedata.stretch ^= 1));
-                break;
-#elif SDL
+#if SDL
             case 3:
                 video_fullscreen_flip();
                 break;
@@ -50531,7 +56503,7 @@ void openborMain(int argc, char **argv)
     if(skiptoset < 0)
     {
 
-        // New alternative background path for PSP
+        // New alternative background path.
         if(custBkgrds != NULL)
         {
             strcpy(tmpBuff, custBkgrds);
@@ -50543,14 +56515,14 @@ void openborMain(int argc, char **argv)
             load_cached_background("data/bgs/logo");
         }
 
-        while(_time < GAME_SPEED * 6 && !(bothnewkeys & (FLAG_ANYBUTTON | FLAG_ESC)))
+        while(_time < global_config.game_speed * 6 && !(bothnewkeys & (FLAG_ANYBUTTON | FLAG_ESC)))
         {
             update(0, 0);
         }
 
         music("data/music/remix", 1, 0);
 
-        // New alternative scene path for PSP
+        // New alternative scene path.
         if(custScenes != NULL)
         {
             strcpy(tmpBuff, custScenes);
@@ -50570,7 +56542,7 @@ void openborMain(int argc, char **argv)
         {
             if(_time >= introtime)
             {
-                // New alternative scene path for PSP
+                // New alternative scene path.
                 if(custScenes != NULL)
                 {
                     strcpy(tmpBuff, custScenes);
@@ -50582,7 +56554,7 @@ void openborMain(int argc, char **argv)
                     playscene("data/scenes/intro.txt");
                 }
                 update(0, 0);
-                introtime = _time + GAME_SPEED * 20;
+                introtime = _time + global_config.game_speed * 20;
                 relback = 1;
                 started = 0;
             }
@@ -50601,7 +56573,7 @@ void openborMain(int argc, char **argv)
         if (goto_mainmenu_flag != 0) goto_mainmenu_flag = 0;
         if(!started)
         {
-            if((_time % GAME_SPEED) < (GAME_SPEED / 2))
+            if((_time % global_config.game_speed) < (global_config.game_speed / 2))
             {
                 _menutextm(0, 0, 0, Tr("PRESS START"));
             }
@@ -50634,7 +56606,7 @@ void openborMain(int argc, char **argv)
 
             if(bothnewkeys)
             {
-                introtime = _time + GAME_SPEED * 20;
+                introtime = _time + global_config.game_speed * 20;
             }
 
             if(bothnewkeys & FLAG_MOVEUP)
@@ -50708,7 +56680,7 @@ void openborMain(int argc, char **argv)
                     quit = 1;
                     break;
                 }
-                introtime = _time + GAME_SPEED * 20;
+                introtime = _time + global_config.game_speed * 20;
             }
         }
         if(relback)

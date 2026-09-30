@@ -54,7 +54,7 @@ void *tlmalloc(int line, char *file, size_t size)
     tlInfo *mem = NULL;
     if(!size)
     {
-        fprintf(stderr, "tried to nallocate memory with size 0, called from %s:%d\n", file, line);
+        fprintf(stderr, "tried to allocate memory with size 0, called from %s:%d\n", file, line);
         return NULL;
     }
     mem = malloc(size + sizeof(tlInfo));

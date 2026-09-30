@@ -32,11 +32,6 @@
 #include <sys/stat.h>
 #endif
 
-#if WII
-#include "wiiport.h"
-#include "savepng.h"
-#endif
-
 #if ANDROID
 #include "sdlport.h"
 #include "savepng.h"
@@ -48,14 +43,7 @@
 #define MKDIR(x) mkdir(x, 0777)
 #endif
 
-#ifdef WII
-#define CHECK_LOGFILE(type)  type ? fileExists(getFullPath("Logs/OpenBorLog.txt")) : fileExists(getFullPath("Logs/ScriptLog.txt"))
-#define OPEN_LOGFILE(type)   type ? fopen(getFullPath("Logs/OpenBorLog.txt"), "wt") : fopen(getFullPath("Logs/ScriptLog.txt"), "wt")
-#define APPEND_LOGFILE(type) type ? fopen(getFullPath("Logs/OpenBorLog.txt"), "at") : fopen(getFullPath("Logs/ScriptLog.txt"), "at")
-#define READ_LOGFILE(type)   type ? fopen(getFullPath("Logs/OpenBorLog.txt"), "rt") : fopen(getFullPath("Logs/ScriptLog.txt"), "rt")
-#define COPY_ROOT_PATH(buf, name) strcpy(buf, rootDir); strcat(buf, name); strcat(buf, "/");
-#define COPY_PAKS_PATH(buf, name) strcpy(buf, paksDir); strcat(buf, "/"); strcat(buf, name);
-#elif ANDROID
+#if ANDROID
 //msmalik681 now using AndroidRoot fuction from sdlport.c to update all android paths.
 #define Alog AndroidRoot("Logs/OpenBorLog.txt")
 #define Aslog AndroidRoot("Logs/ScriptLog.txt")
@@ -208,9 +196,15 @@ CLOSE_AND_QUIT:
 }
 
 
-void writeToLogFile(const char *msg, ...)
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Write a formatted message to the engine log from an existing
+  variable-argument list without fixed-capacity staging.
+*/
+void writeToLogFileV(const char *message, va_list arguments)
 {
-    va_list arglist;
     if(openborLog == NULL)
     {
         openborLog = OPEN_LOGFILE(OPENBOR_LOG);
@@ -219,9 +213,43 @@ void writeToLogFile(const char *msg, ...)
             return;
         }
     }
+    vfprintf(openborLog, message, arguments);
+    fflush(openborLog);
+}
+
+void writeToLogFile(const char *msg, ...)
+{
+    va_list arglist;
+
     va_start(arglist, msg);
-    vfprintf(openborLog, msg, arglist);
+    writeToLogFileV(msg, arglist);
     va_end(arglist);
+}
+
+/*
+- Caskey, Damon V.
+- 2026-08-11
+-
+- Write a length-delimited message to the engine log without
+  treating creator-provided text as a format string.
+*/
+void writeToLogFileLength(const char *message, size_t length)
+{
+    if(!message)
+    {
+        return;
+    }
+
+    if(openborLog == NULL)
+    {
+        openborLog = OPEN_LOGFILE(OPENBOR_LOG);
+        if(openborLog == NULL)
+        {
+            return;
+        }
+    }
+
+    fwrite(message, 1, length, openborLog);
     fflush(openborLog);
 }
 
@@ -258,7 +286,7 @@ void *checkAlloc(void *ptr, size_t size, const char *func, const char *file, int
                        "\n*            Shutting Down            *\n\n");
         writeToLogFile("Out of memory!\n");
         writeToLogFile("Allocation of size %i failed in function '%s' at %s:%i.\n", size, func, file, line);
-#if LINUX && !DARWIN
+#if LINUX && !DARWIN && !ANDROID
         writeToLogFile("Memory usage at exit: %u\n", mallinfo2().arena);
 #else
         writeToLogFile("Memory usage at exit: %u\n", getUsedRam(BYTES));
@@ -359,7 +387,7 @@ void screenshot(s_screen *vscreen, unsigned char *pal, int ingame)
     getPakName(modname, 99);
     do
     {
-#if SDL || WII
+#if SDL
         sprintf(shotname, "%s/%s - %04u.png", screenShotsDir, modname, shotnum);
 #else
         sprintf(shotname, "./ScreenShots/%s - %04u.png", modname, shotnum);
@@ -487,8 +515,8 @@ char* multistrcatsp(char* buf, ...)
 char* safe_strncpy(char* dst, const char* src, size_t size)
 {
 	if (size > 0) {
-		register char *d = dst;
-		register const char *s = src;
+		char *d = dst;
+		const char *s = src;
 
 		do {
 			if ((*d++ = *s++) == 0) {
@@ -634,4 +662,3 @@ void Array_Check_Size( const char *f_caller, char **array, int new_size, int *cu
     // ReAssign the new allocated array
     *array = copy;
 }
-

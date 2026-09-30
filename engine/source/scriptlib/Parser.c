@@ -7,6 +7,7 @@
  */
 
 #include "Parser.h"
+#include <limits.h>
 
 Parser *pcurParser = NULL;
 
@@ -152,10 +153,32 @@ void Parser_ParseExpression(Parser *pparser, List *pIList, LPSTR scriptText,
 
 void Parser_AddInstructionViaToken(Parser *pparser, OpCode pCode, Token *pToken, Label label )
 {
+    HRESULT result;
     Instruction *pInstruction = NULL;
     pInstruction = (Instruction *)malloc(sizeof(Instruction));
-    Instruction_InitViaToken(pInstruction, pCode, pToken);
+    result = Instruction_InitViaToken(pInstruction, pCode, pToken);
     List_InsertAfter(pparser->pIList, pInstruction, label);
+
+    if(FAILED(result))
+    {
+        if(pCode == CONSTSTR)
+        {
+            pp_error(
+                &(pparser->theLexer.preprocessor),
+                "String literal exceeds the maximum length of %u characters",
+                MAX_SCRIPT_STRING_LENGTH
+            );
+        }
+        else
+        {
+            pp_error(
+                &(pparser->theLexer.preprocessor),
+                "Unable to create script instruction"
+            );
+        }
+
+        pparser->errorFound = TRUE;
+    }
 }
 
 /******************************************************************************
@@ -546,46 +569,67 @@ void Parser_Param_list(Parser *pparser )
     }
 }
 
-void Parser_Param_list2(Parser *pparser )
+void Parser_Param_list2(Parser *pparser)
 {
     int i;
-    CHAR buf[4];
+    CHAR buffer[sizeof(int) * CHAR_BIT + 2U];
     Instruction *pinstruction;
-    if (Parser_Check(pparser, TOKEN_COMMA ))
-    {
+
+    while(Parser_Check(pparser, TOKEN_COMMA)) {
         Parser_Match(pparser);
-        Parser_Parm_decl(pparser );
+        Parser_Parm_decl(pparser);
+
+        /*
+         * Protect the count representation itself.
+         * This is not a creator-facing parameter limit.
+         */
+        if(pparser->paramCount == INT_MAX) {
+            Parser_Error(pparser, param_list2);
+            return;
+        }
+
         pparser->paramCount++;
-        Parser_Param_list2(pparser );
-    }
-    else if (ParserSet_Follow(&(pparser->theParserSet), param_list2, pparser->theNextToken.theType ))
-    {
-        //Walk back up the Instruction list and insert before the first PARAM
-        //instruction.
-        for(i = 1; i < pparser->paramCount; i++ )
-        {
-            List_GotoPrevious(pparser->pIList);
-        }
-
-        sprintf( buf, "%d", pparser->paramCount );
-        pinstruction = (Instruction *)malloc(sizeof(Instruction));
-        Instruction_InitViaLabel(pinstruction, CHECKARG, buf);
-
-        List_InsertBefore(pparser->pIList, pinstruction, NULL );
-
-        //Walk back down the InstructionList to reset the insertion point
-        for (i = 0; i < pparser->paramCount; i++ )
-        {
-            List_GotoNext(pparser->pIList);
-        }
-
-        //pparser->paramCount = 1;
     }
 
-    else
-    {
-        Parser_Error(pparser, param_list2 );
-        //pparser->paramCount =1 ;
+    if(!ParserSet_Follow(
+        &(pparser->theParserSet),
+        param_list2,
+        pparser->theNextToken.theType)) {
+        Parser_Error(pparser, param_list2);
+        return;
+    }
+
+    /*
+     * Walk back to the first PARAM instruction.
+     */
+    for(i = 1; i < pparser->paramCount; i++) {
+        List_GotoPrevious(pparser->pIList);
+    }
+
+    snprintf(buffer, sizeof(buffer), "%d", pparser->paramCount);
+
+    pinstruction = malloc(sizeof(*pinstruction));
+
+    if(!pinstruction) {
+        Parser_Error(pparser, param_list2);
+        return;
+    }
+
+    Instruction_InitViaLabel(
+        pinstruction,
+        CHECKARG,
+        buffer);
+
+    List_InsertBefore(
+        pparser->pIList,
+        pinstruction,
+        NULL);
+
+    /*
+     * Restore the insertion position.
+     */
+    for(i = 0; i < pparser->paramCount; i++) {
+        List_GotoNext(pparser->pIList);
     }
 }
 
@@ -783,6 +827,10 @@ void Parser_Select_stmt(Parser *pparser )
         int opcode = pToken->theType == TOKEN_STRING_LITERAL ? CONSTSTR : CONSTINT;
         Parser_AddInstructionViaToken(pparser, opcode, pToken, NULL );
             Parser_AddInstructionViaLabel(pparser, Branch_EQUAL, List_GetName(&cases), NULL );
+            if(pToken->theType == TOKEN_STRING_LITERAL)
+            {
+                free((void *)pToken->theStringLiteralSource);
+            }
             free(pToken);
         }
         else
@@ -877,6 +925,20 @@ void Parser_Case_label(Parser *pparser, List *pCases )
         }
         token = malloc(sizeof(Token));
         memcpy(token, &pparser->theNextToken, sizeof(Token));
+
+        if(token->theType == TOKEN_STRING_LITERAL && token->theStringLiteralSource)
+        {
+            CHAR *literal_source = malloc(token->theStringLiteralLength + 1);
+
+            memcpy(
+                literal_source,
+                token->theStringLiteralSource,
+                token->theStringLiteralLength
+            );
+            literal_source[token->theStringLiteralLength] = '\0';
+            token->theStringLiteralSource = literal_source;
+        }
+
         List_InsertAfter(pCases, token, label);
         Parser_Match(pparser);
         Parser_Check(pparser, TOKEN_COLON );
@@ -915,28 +977,29 @@ void Parser_Iter_stmt(Parser *pparser )
     if (Parser_Check(pparser, TOKEN_WHILE ))
     {
         Parser_Match(pparser);
-        Parser_AddInstructionViaToken(pparser, NOOP, (Token *)NULL, startLabel );
+        Parser_AddInstructionViaToken(pparser, NOOP, (Token *)NULL, continueLabel );
         Parser_Check(pparser, TOKEN_LPAREN );
         Parser_Match(pparser);
         Parser_Expr(pparser );
         Parser_Check(pparser, TOKEN_RPAREN );
         Parser_AddInstructionViaLabel(pparser, Branch_FALSE, endLabel, NULL );
-        Stack_Push(&(pparser->LabelStack), startLabel ); //*****
+        Stack_Push(&(pparser->LabelStack), continueLabel ); //*****
         Stack_Push(&(pparser->LabelStack), endLabel ); //*****
         Parser_Match(pparser);
         Parser_Stmt(pparser );
         Stack_Pop(&(pparser->LabelStack)); //*****
         Stack_Pop(&(pparser->LabelStack)); //*****
-        Parser_AddInstructionViaLabel(pparser, JUMP, startLabel, NULL );
+        Parser_AddInstructionViaLabel(pparser, JUMP, continueLabel, NULL );
         Parser_AddInstructionViaToken(pparser, NOOP, (Token *)NULL, endLabel );
     }
     else if (Parser_Check(pparser, TOKEN_DO ))
     {
         Parser_Match(pparser);
         Parser_AddInstructionViaToken(pparser, NOOP, (Token *)NULL, startLabel );
-        Stack_Push(&(pparser->LabelStack), startLabel ); //*****
+        Stack_Push(&(pparser->LabelStack), continueLabel ); //*****
         Stack_Push(&(pparser->LabelStack), endLabel ); //*****
         Parser_Stmt(pparser );
+        Parser_AddInstructionViaToken(pparser, NOOP, (Token *)NULL, continueLabel );
         Parser_Check(pparser, TOKEN_WHILE );
         Parser_Match(pparser);
         Parser_Check(pparser, TOKEN_LPAREN );
@@ -1821,9 +1884,39 @@ void Parser_Unary_expr(Parser *pparser )
         }
         else if(pInstruction->OpCode == CONSTSTR)
         {
-            //convert to negative constant
-            sprintf(buf, "!%s", pInstruction->theToken->theSource);
-            strcpy(pInstruction->theToken->theSource, buf);
+            /*
+            * String constants are materialized when emitted so
+            * long literal source does not outlive its lexer view.
+            * Preserve the legacy leading-! string result in the
+            * dynamically sized runtime representation.
+            */
+            if(pInstruction->theVal && pInstruction->theVal->vt == VT_STR)
+            {
+                const CHAR *value = StrCache_Get(pInstruction->theVal->strVal);
+                size_t value_length = strlen(value);
+                CHAR *prefixed_value = malloc(value_length + 2);
+
+                prefixed_value[0] = '!';
+                memcpy(prefixed_value + 1, value, value_length + 1);
+                ScriptVariant_Clear(pInstruction->theVal);
+                if(FAILED(ScriptVariant_ParseStringConstant(
+                        pInstruction->theVal,
+                        prefixed_value)))
+                {
+                    pp_error(
+                        &(pparser->theLexer.preprocessor),
+                        "String result exceeds the maximum length of %u characters",
+                        MAX_SCRIPT_STRING_LENGTH
+                    );
+                    pparser->errorFound = TRUE;
+                }
+                free(prefixed_value);
+            }
+            else
+            {
+                sprintf(buf, "!%s", pInstruction->theToken->theSource);
+                strcpy(pInstruction->theToken->theSource, buf);
+            }
         }
         else
         {
@@ -1834,17 +1927,21 @@ void Parser_Unary_expr(Parser *pparser )
     {
         Parser_Match(pparser);
         Parser_Unary_expr(pparser );
-        pInstruction = (Instruction *)List_Retrieve(pparser->pIList);
-        if(pInstruction->OpCode == CONSTINT)
-        {
-            int constvar = ~(atoi(pInstruction->theToken->theSource));
-            sprintf(buf, "%d", constvar);
-            strcpy(pInstruction->theToken->theSource, buf);
-        }
-        else
-        {
-            Parser_AddInstructionViaToken(pparser, BIT_NOT, (Token *)NULL, NULL );
-        }
+
+        /*
+        * Caskey, Damon V.
+        * 2026-06-08
+        *
+        * Do not constant-fold bitwise NOT here.
+        * The legacy atoi()/int fold truncates
+        * 64-bit integer constants before they can
+        * reach the ScriptVariant operator path.
+        *
+        * Emit BIT_NOT so runtime handling preserves
+        * VT_INTEGER, VT_INTEGER64, and VT_UINTEGER64
+        * carrier semantics.
+        */
+        Parser_AddInstructionViaToken(pparser, BIT_NOT, (Token *)NULL, NULL );
     }
     else
     {
@@ -1958,46 +2055,72 @@ void Parser_Arg_expr_list(Parser *pparser )
     }
 }
 
-void Parser_Arg_expr_list2(Parser *pparser, int argCount, int range)
-{
-    //This is going to get us in trouble if we have function calls as arguments.
-    //static int argCount = 1;
+void Parser_Arg_expr_list2(Parser *pparser, int argCount, int range){
+    int argRange;
+    int i;
+    CHAR buffer[sizeof(int) * CHAR_BIT + 2U];
 
-    //We push the arguments onto the stack backwards so they come off right,
-    //So back up one instruction before inserting.
-    int argRange, i;
-    CHAR buffer[4];
-    List_GotoPrevious(pparser->pIList);
+    for(;;) {
 
-    if (Parser_Check(pparser, TOKEN_COMMA ))
-    {
-        Parser_Match(pparser);
-        argRange = List_GetSize(pparser->pIList);
-        Parser_Assignment_expr(pparser );
-        argRange = List_GetSize(pparser->pIList) - argRange;
-        argCount++;
-        for (i = 1; i < argRange; i++)
-        {
-            List_GotoPrevious(pparser->pIList);
+        /*
+         * Arguments are inserted in reverse instruction
+         * order so they leave the data stack in normal
+         * source order.
+         */
+        List_GotoPrevious(pparser->pIList);
+
+        if(Parser_Check(pparser, TOKEN_COMMA)) {
+            Parser_Match(pparser);
+
+            argRange = List_GetSize(pparser->pIList);
+
+            Parser_Assignment_expr(pparser);
+
+            argRange =
+                List_GetSize(pparser->pIList) -
+                argRange;
+
+            /*
+             * Guard the existing integer representation
+             * without establishing an arbitrary limit.
+             */
+            if(argCount == INT_MAX 
+                || argRange < 0 
+                || argRange > INT_MAX - range) {
+                Parser_Error(pparser, arg_expr_list2);
+                return;
+            }
+
+            argCount++;
+
+            for(i = 1; i < argRange; i++) {
+                List_GotoPrevious(pparser->pIList);
+            }
+
+            range += argRange;
+            continue;
         }
-        range += argRange;
-        //if( m_pIList->Last()->m_OpCode == CALL) range++;
-        Parser_Arg_expr_list2(pparser, argCount, range );
-    }
-    else if (ParserSet_Follow(&(pparser->theParserSet), arg_expr_list2, pparser->theNextToken.theType ))
-    {
-        //Run back down the list to insert the argument count
-        for (i = 0; i < range; i++)
-        {
-            List_GotoNext(pparser->pIList);
+
+        const bool isFollow = ParserSet_Follow(&(pparser->theParserSet), arg_expr_list2, pparser->theNextToken.theType);
+
+        if(isFollow) {
+            /*
+             * Walk forward to the position where the
+             * argument-count instruction belongs.
+             */
+            for(i = 0; i < range; i++) {
+                List_GotoNext(pparser->pIList);
+            }
+
+            snprintf(buffer, sizeof(buffer), "%d", argCount);
+
+            Parser_AddInstructionViaLabel(pparser, CONSTINT, buffer, NULL);
+
+            return;
         }
 
-        sprintf( buffer, "%d", argCount );
-        Parser_AddInstructionViaLabel(pparser, CONSTINT, buffer, NULL );
-    }
-    else
-    {
-        Parser_Error(pparser, arg_expr_list2 );
+        Parser_Error(pparser, arg_expr_list2);
+        return;
     }
 }
 

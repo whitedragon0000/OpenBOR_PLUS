@@ -46,9 +46,7 @@ extern int pixelbytes[(int)5];
 
 // Define fixed-size integer types - these used to be in gfxtypes.h
 // TODO: use these for throughout the engine where fixed-length types are needed
-#if WII
-#include "gctypes.h"
-#elif ((__STDC_VERSION__ >= 199901L) || (defined(__GNUC__) && (__GNUC__ >= 3))) && (!defined(DC))
+#if ((__STDC_VERSION__ >= 199901L) || (defined(__GNUC__) && (__GNUC__ >= 3))) && (!defined(DC))
 #include <stdint.h>
 typedef int8_t s8;
 typedef uint8_t u8;
@@ -113,10 +111,12 @@ typedef enum e_object_type {
     OBJECT_TYPE_BIND,
     OBJECT_TYPE_DRAWMETHOD,
     OBJECT_TYPE_ENTITY,
+    OBJECT_TYPE_FACTION,
     OBJECT_TYPE_FLASH,
     OBJECT_TYPE_GLOBAL_CONFIG,
     OBJECT_TYPE_MODEL,
-    OBJECT_TYPE_MUSIC_CHANNEL
+    OBJECT_TYPE_SOUND,
+    OBJECT_TYPE_MOVIE_PLAYBACK
 } e_object_type;
 
 typedef struct
@@ -353,6 +353,3 @@ typedef struct
 #endif
 
 #endif
-
-
-

@@ -16,6 +16,8 @@
 #include "audio.h"
 #include "axis.h"
 #include "binding.h"
+#include "command_input.h"
+#include "datetime.h"
 #include "drawmethod.h"
 #include "colorset.h"
 #include "entity.h"
@@ -24,9 +26,10 @@
 #include "global_config.h"
 #include "icon.h"
 #include "model.h"
-#include "recursive_damage.h"
+#include "recursive_effect.h"
 #include "spawn_hud.h"
 #include "status_dial.h"
+#include "movie.h"
 
 
 //osc
@@ -92,7 +95,7 @@ void Script_Global_Clear();
 void Script_Init(Script *pscript, char *theName, char *comment, int first);
 Script *alloc_script();
 void Script_Copy(Script *pdest, Script *psrc, int localclear);
-int Script_IsInitialized(Script *pscript);
+bool Script_IsInitialized(Script *pscript);
 void Script_Clear(Script *pscript, int localclear);
 int Script_AppendText(Script *pscript, char *text, char *path);
 int Script_Compile(Script *pscript);
@@ -102,7 +105,7 @@ void Script_Load_Local_Variant(Script *cs, int handle);
 
 void Script_LoadSystemFunctions();
 void *Script_GetStringMapFunction(void *functionRef);
-int Script_MapStringConstants(Instruction *pInstruction);
+bool Script_MapStringConstants(Instruction *pInstruction);
 
 #ifndef COMPILED_SCRIPT
 int Script_Call(Script *pscript, char *method, ScriptVariant *pretvar);
@@ -134,8 +137,13 @@ HRESULT math_pow(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCou
 HRESULT math_asin(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT math_acos(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT math_atan(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
+HRESULT math_atan2(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
+HRESULT math_angle(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
+HRESULT math_ceil(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
+HRESULT math_floor(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT math_trunc(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT math_round(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
+HRESULT math_abs(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 
 HRESULT openbor_systemvariant(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_setsystemvariant(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
@@ -169,12 +177,6 @@ HRESULT openbor_get_body_collision_collection(ScriptVariant **varlist , ScriptVa
 HRESULT openbor_get_body_collision_instance(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_get_body_collision_property(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_set_body_collision_property(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
-
-// Entity collision (ebox) properties
-HRESULT openbor_get_entity_collision_collection(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
-HRESULT openbor_get_entity_collision_instance(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
-HRESULT openbor_get_entity_collision_property(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
-HRESULT openbor_set_entity_collision_property(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 
 HRESULT openbor_getplayerproperty(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
@@ -248,6 +250,7 @@ HRESULT openbor_setfilestreamposition(ScriptVariant **varlist , ScriptVariant **
 HRESULT openbor_filestreamappend(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_createfilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_closefilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
+HRESULT openbor_deletefilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 HRESULT openbor_savefilestream(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 
 HRESULT openbor_getindexedvar(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
@@ -341,7 +344,7 @@ int mapstrings_systemvariant(ScriptVariant **varlist, int paramCount);
 int mapstrings_entityproperty(ScriptVariant **varlist, int paramCount);
 int mapstrings_playerproperty(ScriptVariant **varlist, int paramCount);
 int mapstrings_setspawnentry(ScriptVariant **varlist, int paramCount);
-int mapstrings_transconst(ScriptVariant **varlist, int paramCount);
+bool mapstrings_transconst(ScriptVariant **varlist, int paramCount);
 int mapstrings_playerkeys(ScriptVariant **varlist, int paramCount);
 int mapstrings_textobjproperty(ScriptVariant **varlist, int paramCount);
 int mapstrings_layerproperty(ScriptVariant **varlist, int paramCount);
@@ -449,7 +452,6 @@ enum systemvariant_enum
     SYSTEM_PROPERTY_MIRROR_Z,
     SYSTEM_PROPERTY_MODELS_CACHED,
     SYSTEM_PROPERTY_MODELS_LOADED,
-    SYSTEM_PROPERTY_MUSIC_CHANNEL,
     SYSTEM_PROPERTY_MUSICVOL,
     SYSTEM_PROPERTY_NEON_PANEL_Z,
     SYSTEM_PROPERTY_NOAIRCANCEL,
@@ -476,6 +478,7 @@ enum systemvariant_enum
     SYSTEM_PROPERTY_PLAYER2,
     SYSTEM_PROPERTY_PLAYER3,
     SYSTEM_PROPERTY_PLAYER4,
+    SYSTEM_PROPERTY_PLAYER_COLLECTION,
     SYSTEM_PROPERTY_PLAYER_MAX_Z,
     SYSTEM_PROPERTY_PLAYER_MIN_Z,
     SYSTEM_PROPERTY_PORTING,

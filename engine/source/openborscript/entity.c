@@ -8,1165 +8,907 @@
 
  #include "scriptcommon.h"
 
+typedef struct {
+	e_entity_properties property;
+	const char* id_string;
+	e_property_access_config_flags config_flags;
+	size_t              offset;
+	VARTYPE             type;
+} entity_property_info;
+
+#define PROPERTY_MEMBER_OFFSET(type, member) ((size_t)&(((type *)0)->member))
+
+static const entity_property_info entity_properties[] = {
+	{.property = ENTITY_PROPERTY_AI_DISABLE,
+	.id_string = "ENTITY_PROPERTY_AI_DISABLE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, noaicontrol),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_AI_TARGET_ENTITY,
+	.id_string = "ENTITY_PROPERTY_AI_TARGET_ENTITY",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, custom_target),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_ALTERNATE_IDLE,
+	.id_string = "ENTITY_PROPERTY_ALTERNATE_IDLE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, idlemode),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_ALTERNATE_WALK,
+	.id_string = "ENTITY_PROPERTY_ALTERNATE_WALK",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, walkmode),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_ANIMATION,
+	.id_string = "ENTITY_PROPERTY_ANIMATION",
+	.config_flags = PROPERTY_ACCESS_CONFIG_READ,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, animation),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_ANIMATION_FRAME,
+	.id_string = "ENTITY_PROPERTY_ANIMATION_FRAME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, animpos),
+	.type = VT_UINTEGER64 },
+
+	{.property = ENTITY_PROPERTY_ANIMATION_ID,
+	.id_string = "ENTITY_PROPERTY_ANIMATION_ID",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, animnum),
+	.type = VT_UINTEGER64 },
+
+	{.property = ENTITY_PROPERTY_ANIMATION_ID_PREVIOUS,
+	.id_string = "ENTITY_PROPERTY_ANIMATION_ID_PREVIOUS",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, animnum_previous),
+	.type = VT_UINTEGER64 },
+
+	{.property = ENTITY_PROPERTY_ANIMATION_STATE,
+	.id_string = "ENTITY_PROPERTY_ANIMATION_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, animating),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_ANIMATION_TIME,
+	.id_string = "ENTITY_PROPERTY_ANIMATION_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, nextanim),
+	.type = VT_UINTEGER64 },
+
+	{.property = ENTITY_PROPERTY_ARROW_STATE,
+	.id_string = "ENTITY_PROPERTY_ARROW_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, arrowon),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_ATTACK_ID_INCOMING,
+	.id_string = "ENTITY_PROPERTY_ATTACK_ID_INCOMING",
+	.config_flags = PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, attack_id_incoming),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_ATTACK_ID_OUTGOING,
+	.id_string = "ENTITY_PROPERTY_ATTACK_ID_OUTGOING",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, attack_id_outgoing),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_ATTACK_STATE,
+	.id_string = "ENTITY_PROPERTY_ATTACK_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, attacking),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_AUTOKILL,
+	.id_string = "ENTITY_PROPERTY_AUTOKILL",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, autokill),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_BACK_HIT_DIRECTION,
+	.id_string = "ENTITY_PROPERTY_BACK_HIT_DIRECTION",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, normaldamageflipdir),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_BIND,
+	.id_string = "ENTITY_PROPERTY_BIND",
+	.config_flags = PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, binding),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_BLAST_STATE,
+	.id_string = "ENTITY_PROPERTY_BLAST_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, projectile),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_BLINK,
+	.id_string = "ENTITY_PROPERTY_BLINK",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, blink),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_BLOCK_STATE,
+	.id_string = "ENTITY_PROPERTY_BLOCK_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, blocking),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_BOSS,
+	.id_string = "ENTITY_PROPERTY_BOSS",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, boss),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_CHARGE_STATE,
+	.id_string = "ENTITY_PROPERTY_CHARGE_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, charging),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_CHILD,
+	.id_string = "ENTITY_PROPERTY_CHILD",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, subentity),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_COLORSET_DEFAULT,
+	.id_string = "ENTITY_PROPERTY_COLORSET_DEFAULT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, map),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_COLORSET_DYING_HEALTH_1,
+	.id_string = "ENTITY_PROPERTY_COLORSET_DYING_HEALTH_1",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, per1),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_COLORSET_DYING_HEALTH_2,
+	.id_string = "ENTITY_PROPERTY_COLORSET_DYING_HEALTH_2",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, per2),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_COLORSET_DYING_INDEX_1,
+	.id_string = "ENTITY_PROPERTY_COLORSET_DYING_INDEX_1",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, dying),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_COLORSET_DYING_INDEX_2,
+	.id_string = "ENTITY_PROPERTY_COLORSET_DYING_INDEX_2",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, dying2),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_COLORSET_TABLE,
+	.id_string = "ENTITY_PROPERTY_COLORSET_TABLE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, colourmap),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_COLORSET_TIME,
+	.id_string = "ENTITY_PROPERTY_COLORSET_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, maptime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_COMBO_STEP,
+	.id_string = "ENTITY_PROPERTY_COMBO_STEP",
+	.config_flags = PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, combostep),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_COMBO_TIME,
+	.id_string = "ENTITY_PROPERTY_COMBO_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, combotime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_COMMAND_TIME,
+	.id_string = "ENTITY_PROPERTY_COMMAND_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, command_time),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_DAMAGE_ON_LANDING,
+	.id_string = "ENTITY_PROPERTY_DAMAGE_ON_LANDING",
+	.config_flags = PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, damage_on_landing),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_DEATH_STATE,
+	.id_string = "ENTITY_PROPERTY_DEATH_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, death_state),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_DEFENSE,
+	.id_string = "ENTITY_PROPERTY_DEFENSE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_READ,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, defense),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_DESTINATION_X,
+	.id_string = "ENTITY_PROPERTY_DESTINATION_X",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, destx),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_DESTINATION_Z,
+	.id_string = "ENTITY_PROPERTY_DESTINATION_Z",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, destz),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_DIE_ON_LANDING,
+	.id_string = "ENTITY_PROPERTY_DIE_ON_LANDING",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, die_on_landing),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_DRAWMETHOD,
+	.id_string = "ENTITY_PROPERTY_DRAWMETHOD",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, drawmethod),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_DROP,
+	.id_string = "ENTITY_PROPERTY_DROP",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, drop),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_DUCK_STATE,
+	.id_string = "ENTITY_PROPERTY_DUCK_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, ducking),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_ENTVAR_COLLECTION,
+	.id_string = "ENTITY_PROPERTY_ENTVAR_COLLECTION",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, varlist),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_ESCAPE_COUNT,
+	.id_string = "ENTITY_PROPERTY_ESCAPE_COUNT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, escapecount),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_EXISTS,
+	.id_string = "ENTITY_PROPERTY_EXISTS",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, exists),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_EXPLODE,
+	.id_string = "ENTITY_PROPERTY_EXPLODE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, toexplode),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_FACTION,
+	.id_string = "ENTITY_PROPERTY_FACTION",
+	.config_flags = PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, faction),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_FALL_STATE,
+	.id_string = "ENTITY_PROPERTY_FALL_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, falling),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_FREEZE_STATE,
+	.id_string = "ENTITY_PROPERTY_FREEZE_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, frozen),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_FREEZE_TIME,
+	.id_string = "ENTITY_PROPERTY_FREEZE_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, freezetime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_FUNCTION_TAKE_ACTION,
+	.id_string = "ENTITY_PROPERTY_FUNCTION_TAKE_ACTION",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, takeaction),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_FUNCTION_TAKE_DAMAGE,
+	.id_string = "ENTITY_PROPERTY_FUNCTION_TAKE_DAMAGE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, takedamage),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_FUNCTION_THINK,
+	.id_string = "ENTITY_PROPERTY_FUNCTION_THINK",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, think),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_FUNCTION_TRY_MOVE,
+	.id_string = "ENTITY_PROPERTY_FUNCTION_TRY_MOVE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, trymove),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_GET_STATE,
+	.id_string = "ENTITY_PROPERTY_GET_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, getting),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_GRAB_TARGET,
+	.id_string = "ENTITY_PROPERTY_GRAB_TARGET",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, grabbing),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_GRAB_WALK_STATE,
+	.id_string = "ENTITY_PROPERTY_GRAB_WALK_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, grabwalking),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_GUARD_POINTS,
+	.id_string = "ENTITY_PROPERTY_GUARD_POINTS",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, guardpoints),
+	.type = VT_INTEGER64 },
+
+	{.property = ENTITY_PROPERTY_GUARD_TIME,
+	.id_string = "ENTITY_PROPERTY_GUARD_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, guardtime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_HP,
+	.id_string = "ENTITY_PROPERTY_HP",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, energy_state.health_current),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_HP_OLD,
+	.id_string = "ENTITY_PROPERTY_HP_OLD",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, energy_state.health_old),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_IDLE_STATE,
+	.id_string = "ENTITY_PROPERTY_IDLE_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, idling),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_IN_PAIN,
+	.id_string = "ENTITY_PROPERTY_IN_PAIN",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, inpain),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_IN_PAIN_BACK,
+	.id_string = "ENTITY_PROPERTY_IN_PAIN_BACK",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, inbackpain),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_INVINCIBLE_STATE,
+	.id_string = "ENTITY_PROPERTY_INVINCIBLE_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, invincible),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_INVINCIBLE_TIME,
+	.id_string = "ENTITY_PROPERTY_INVINCIBLE_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, invinctime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_ITEM_DATA,
+	.id_string = "ENTITY_PROPERTY_ITEM_DATA",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, item_properties),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_JUMP_ANIMATION_ID,
+	.id_string = "ENTITY_PROPERTY_JUMP_ANIMATION_ID",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, jump.animation_id),
+	.type = VT_UINTEGER64 },
+
+	{.property = ENTITY_PROPERTY_JUMP_STATE,
+	.id_string = "ENTITY_PROPERTY_JUMP_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, jumping),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_JUMP_VELOCITY_X,
+	.id_string = "ENTITY_PROPERTY_JUMP_VELOCITY_X",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, jump.velocity.x),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_JUMP_VELOCITY_Y,
+	.id_string = "ENTITY_PROPERTY_JUMP_VELOCITY_Y",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, jump.velocity.y),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_JUMP_VELOCITY_Z,
+	.id_string = "ENTITY_PROPERTY_JUMP_VELOCITY_Z",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, jump.velocity.z),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_KNOCKDOWN_COUNT,
+	.id_string = "ENTITY_PROPERTY_KNOCKDOWN_COUNT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, knockdowncount),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_KNOCKDOWN_TIME,
+	.id_string = "ENTITY_PROPERTY_KNOCKDOWN_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, knockdowntime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_LAST_DAMAGE_TYPE,
+	.id_string = "ENTITY_PROPERTY_LAST_DAMAGE_TYPE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, last_damage_type),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_LAST_HIT,
+	.id_string = "ENTITY_PROPERTY_LAST_HIT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, lasthit),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_LIFESPAN,
+	.id_string = "ENTITY_PROPERTY_LIFESPAN",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, lifespancountdown),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_LINK,
+	.id_string = "ENTITY_PROPERTY_LINK",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, link),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_MODEL,
+	.id_string = "ENTITY_PROPERTY_MODEL",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, model),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_MODEL_DATA,
+	.id_string = "ENTITY_PROPERTY_MODEL_DATA",
+	.config_flags = PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, modeldata),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_MODEL_DEFAULT,
+	.id_string = "ENTITY_PROPERTY_MODEL_DEFAULT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, defaultmodel),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_MOVE_TIME,
+	.id_string = "ENTITY_PROPERTY_MOVE_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, nextmove),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_MOVE_X,
+	.id_string = "ENTITY_PROPERTY_MOVE_X",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, movex),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_MOVE_Z,
+	.id_string = "ENTITY_PROPERTY_MOVE_Z",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, movez),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_MP,
+	.id_string = "ENTITY_PROPERTY_MP",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, energy_state.mp_current),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_MP_CHARGE_TIME,
+	.id_string = "ENTITY_PROPERTY_MP_CHARGE_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, mpchargetime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_MP_OLD,
+	.id_string = "ENTITY_PROPERTY_MP_OLD",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, energy_state.mp_old),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_MP_TIME,
+	.id_string = "ENTITY_PROPERTY_MP_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, magictime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_NAME,
+	.id_string = "ENTITY_PROPERTY_NAME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT | PROPERTY_ACCESS_CONFIG_STATIC_LENGTH,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, name),
+	.type = VT_STR },
+
+	{.property = ENTITY_PROPERTY_NEXT_ATTACK_TIME,
+	.id_string = "ENTITY_PROPERTY_NEXT_ATTACK_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, nextattack),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_NEXT_HIT_TIME,
+	.id_string = "ENTITY_PROPERTY_NEXT_HIT_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, next_hit_time),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_NOGRAB,
+	.id_string = "ENTITY_PROPERTY_NOGRAB",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, nograb),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_NOGRAB_DEFAULT,
+	.id_string = "ENTITY_PROPERTY_NOGRAB_DEFAULT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, nograb_default),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_OBSTRUCTED,
+	.id_string = "ENTITY_PROPERTY_OBSTRUCTED",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, hitwall),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_OBSTRUCTION_OVERHEAD,
+	.id_string = "ENTITY_PROPERTY_OBSTRUCTION_OVERHEAD",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, hithead),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_OFFENSE,
+	.id_string = "ENTITY_PROPERTY_OFFENSE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, offense),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_OPPONENT,
+	.id_string = "ENTITY_PROPERTY_OPPONENT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, opponent),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_OWNER,
+	.id_string = "ENTITY_PROPERTY_OWNER",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, owner),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_PARENT,
+	.id_string = "ENTITY_PROPERTY_PARENT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, parent),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_PATH_OBSTRUCTED_WAIT,
+	.id_string = "ENTITY_PROPERTY_PATH_OBSTRUCTED_WAIT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, pathblocked),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_PAUSE_TIME,
+	.id_string = "ENTITY_PROPERTY_PAUSE_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, pausetime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_PLATFORM_LAND,
+	.id_string = "ENTITY_PROPERTY_PLATFORM_LAND",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, landed_on_platform),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_PLAYER_INDEX,
+	.id_string = "ENTITY_PROPERTY_PLAYER_INDEX",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, playerindex),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_POSITION_BASE,
+	.id_string = "ENTITY_PROPERTY_POSITION_BASE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, base),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_POSITION_BASE_ALTERNATE,
+	.id_string = "ENTITY_PROPERTY_POSITION_BASE_ALTERNATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, altbase),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_POSITION_DIRECTION,
+	.id_string = "ENTITY_PROPERTY_POSITION_DIRECTION",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, direction),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_POSITION_X,
+	.id_string = "ENTITY_PROPERTY_POSITION_X",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, position.x),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_POSITION_Y,
+	.id_string = "ENTITY_PROPERTY_POSITION_Y",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, position.y),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_POSITION_Z,
+	.id_string = "ENTITY_PROPERTY_POSITION_Z",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, position.z),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_PROJECTILE_PRIME,
+	.id_string = "ENTITY_PROPERTY_PROJECTILE_PRIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, projectile_prime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_RECURSIVE_EFFECT_COLLECTION,
+    .id_string = "ENTITY_PROPERTY_RECURSIVE_EFFECT_COLLECTION",
+    .config_flags = PROPERTY_ACCESS_CONFIG_READ,
+    .offset = PROPERTY_MEMBER_OFFSET(entity, recursive_effect_collection),
+    .type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_RELEASE_TIME,
+	.id_string = "ENTITY_PROPERTY_RELEASE_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, releasetime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_RISE_ATTACK_DELAY,
+	.id_string = "ENTITY_PROPERTY_RISE_ATTACK_DELAY",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, staydown.riseattack),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_RISE_ATTACK_TIME,
+	.id_string = "ENTITY_PROPERTY_RISE_ATTACK_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, staydown.riseattack_stall),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_RISE_DELAY,
+	.id_string = "ENTITY_PROPERTY_RISE_DELAY",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, staydown.rise),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_RISE_STATE,
+	.id_string = "ENTITY_PROPERTY_RISE_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, rising),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_RUN_STATE,
+	.id_string = "ENTITY_PROPERTY_RUN_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, running),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_RUSH,
+	.id_string = "ENTITY_PROPERTY_RUSH",
+	.config_flags = PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, rush),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_SCRIPT,
+	.id_string = "ENTITY_PROPERTY_SCRIPT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, scripts),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_SEAL_ENERGY,
+	.id_string = "ENTITY_PROPERTY_SEAL_ENERGY",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, seal),
+	.type = VT_INTEGER64 },
+
+	{.property = ENTITY_PROPERTY_SEAL_TIME,
+	.id_string = "ENTITY_PROPERTY_SEAL_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, sealtime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_SHADOW_CONFIG_FLAGS,
+	.id_string = "ENTITY_PROPERTY_SHADOW_CONFIG_FLAGS",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, shadow_config_flags),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_SLEEP_TIME,
+	.id_string = "ENTITY_PROPERTY_SLEEP_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, sleeptime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_SORT_ID,
+	.id_string = "ENTITY_PROPERTY_SORT_ID",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, sortid),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_SPACE_OTHER,
+	.id_string = "ENTITY_PROPERTY_SPACE_OTHER",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, collided_entity),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_SPAWN_TYPE,
+	.id_string = "ENTITY_PROPERTY_SPAWN_TYPE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, spawntype),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_SPEED_MULTIPLIER,
+	.id_string = "ENTITY_PROPERTY_SPEED_MULTIPLIER",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, speedmul),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_STALL_TIME,
+	.id_string = "ENTITY_PROPERTY_STALL_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, stalltime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_THINK_TIME,
+	.id_string = "ENTITY_PROPERTY_THINK_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, nextthink),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_TIMESTAMP,
+	.id_string = "ENTITY_PROPERTY_TIMESTAMP",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, timestamp),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_TO_COST,
+	.id_string = "ENTITY_PROPERTY_TO_COST",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, tocost),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_TOSS_TIME,
+	.id_string = "ENTITY_PROPERTY_TOSS_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, toss_time),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_TURN_STATE,
+	.id_string = "ENTITY_PROPERTY_TURN_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, turning),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_TURN_TIME,
+	.id_string = "ENTITY_PROPERTY_TURN_TIME",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, turntime),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_UNIQUE_ID,
+	.id_string = "ENTITY_PROPERTY_UNIQUE_ID",
+	.config_flags = PROPERTY_ACCESS_CONFIG_READ,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, unique_id),
+	.type = VT_UINTEGER64 },
+
+	{.property = ENTITY_PROPERTY_UPDATE_MARK,
+	.id_string = "ENTITY_PROPERTY_UPDATE_MARK",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, update_mark),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_VELOCITY_X,
+	.id_string = "ENTITY_PROPERTY_VELOCITY_X",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, velocity.x),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_VELOCITY_Y,
+	.id_string = "ENTITY_PROPERTY_VELOCITY_Y",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, velocity.y),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_VELOCITY_Z,
+	.id_string = "ENTITY_PROPERTY_VELOCITY_Z",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, velocity.z),
+	.type = VT_DECIMAL },
+
+	{.property = ENTITY_PROPERTY_WALK_STATE,
+	.id_string = "ENTITY_PROPERTY_WALK_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, walking),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_WAYPOINT,
+	.id_string = "ENTITY_PROPERTY_WAYPOINT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, waypoints),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_WAYPOINT_COUNT,
+	.id_string = "ENTITY_PROPERTY_WAYPOINT_COUNT",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, numwaypoints),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_WEAPON_ITEM,
+	.id_string = "ENTITY_PROPERTY_WEAPON_ITEM",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, weapent),
+	.type = VT_PTR },
+
+	{.property = ENTITY_PROPERTY_WEAPON_STATE,
+	.id_string = "ENTITY_PROPERTY_WEAPON_STATE",
+	.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT,
+	.offset = PROPERTY_MEMBER_OFFSET(entity, weapon_state),
+	.type = VT_INTEGER },
+
+	{.property = ENTITY_PROPERTY_END,
+	.id_string = "Entity",
+	.config_flags = PROPERTY_ACCESS_CONFIG_NONE,
+	.offset = 0,
+	.type = VT_EMPTY }
+};
+
+#undef PROPERTY_MEMBER_OFFSET
+
 const s_property_access_map entity_get_property_map(const void* acting_object_param, const unsigned int property_index_param)
-{	
-	s_property_access_map property_map;
+{
+	s_property_access_map property_map = { 0 };
 	const entity* acting_object = acting_object_param;
-	const e_entity_properties property_index = property_index_param;
-	
-	switch (property_index)
-	{
 
-	case ENTITY_PROPERTY_AI_DISABLE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->noaicontrol;
-		property_map.id_string = "ENTITY_PROPERTY_AI_DISABLE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_AI_TARGET_ENTITY:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->custom_target;
-		property_map.id_string = "ENTITY_PROPERTY_AI_TARGET_ENTITY";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_ALTERNATE_IDLE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->idlemode;
-		property_map.id_string = "ENTITY_PROPERTY_ALTERNATE_IDLE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ALTERNATE_WALK:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->walkmode;
-		property_map.id_string = "ENTITY_PROPERTY_ALTERNATE_WALK";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ANIMATION:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_READ;
-		property_map.field = &acting_object->animation;
-		property_map.id_string = "ENTITY_PROPERTY_ANIMATION";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_ANIMATION_FRAME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->animpos;
-		property_map.id_string = "ENTITY_PROPERTY_ANIMATION_FRAME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ANIMATION_ID:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->animnum;
-		property_map.id_string = "ENTITY_PROPERTY_ANIMATION_ID";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ANIMATION_ID_PREVIOUS:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->animnum_previous;
-		property_map.id_string = "ENTITY_PROPERTY_ANIMATION_ID_PREVIOUS";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ANIMATION_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->animating;
-		property_map.id_string = "ENTITY_PROPERTY_ANIMATION_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ANIMATION_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->nextanim;
-		property_map.id_string = "ENTITY_PROPERTY_ANIMATION_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ARROW_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->arrowon;
-		property_map.id_string = "ENTITY_PROPERTY_ARROW_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ATTACK_ID_INCOMING:
-
-		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
-		property_map.field = &acting_object->attack_id_incoming;
-		property_map.id_string = "ENTITY_PROPERTY_ATTACK_ID_INCOMING";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_ATTACK_ID_OUTGOING:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->attack_id_outgoing;
-		property_map.id_string = "ENTITY_PROPERTY_ATTACK_ID_OUTGOING";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ATTACK_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->attacking;
-		property_map.id_string = "ENTITY_PROPERTY_ATTACK_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_AUTOKILL:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->autokill;
-		property_map.id_string = "ENTITY_PROPERTY_AUTOKILL";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_BACK_HIT_DIRECTION:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->normaldamageflipdir;
-		property_map.id_string = "ENTITY_PROPERTY_BACK_HIT_DIRECTION";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_BIND:
-
-		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
-		property_map.field = &acting_object->binding;
-		property_map.id_string = "ENTITY_PROPERTY_BIND";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_BLAST_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->projectile;
-		property_map.id_string = "ENTITY_PROPERTY_BLAST_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_BLINK:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->blink;
-		property_map.id_string = "ENTITY_PROPERTY_BLINK";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_BLOCK_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->blocking;
-		property_map.id_string = "ENTITY_PROPERTY_BLOCK_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_BOSS:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->boss;
-		property_map.id_string = "ENTITY_PROPERTY_BOSS";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_CHARGE_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->charging;
-		property_map.id_string = "ENTITY_PROPERTY_CHARGE_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_CHILD:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->subentity;
-		property_map.id_string = "ENTITY_PROPERTY_CHILD";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_COLORSET_DEFAULT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->map;
-		property_map.id_string = "ENTITY_PROPERTY_COLORSET_DEFAULT";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_COLORSET_DYING_HEALTH_1:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->per1;
-		property_map.id_string = "ENTITY_PROPERTY_COLORSET_DYING_HEALTH_1";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_COLORSET_DYING_HEALTH_2:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->per2;
-		property_map.id_string = "ENTITY_PROPERTY_COLORSET_DYING_HEALTH_2";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_COLORSET_DYING_INDEX_1:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->dying;
-		property_map.id_string = "ENTITY_PROPERTY_COLORSET_DYING_INDEX_1";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_COLORSET_DYING_INDEX_2:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->dying2;
-		property_map.id_string = "ENTITY_PROPERTY_COLORSET_DYING_INDEX_2";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_COLORSET_TABLE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->colourmap;
-		property_map.id_string = "ENTITY_PROPERTY_COLORSET_TABLE";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_COLORSET_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->maptime;
-		property_map.id_string = "ENTITY_PROPERTY_COLORSET_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_COMBO_STEP:
-
-		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
-		property_map.field = &acting_object->combostep;
-		property_map.id_string = "ENTITY_PROPERTY_COMBO_STEP";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_COMBO_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->combotime;
-		property_map.id_string = "ENTITY_PROPERTY_COMBO_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_COMMAND_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->movetime;
-		property_map.id_string = "ENTITY_PROPERTY_COMMAND_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_DAMAGE_ON_LANDING:
-
-		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
-		property_map.field = &acting_object->damage_on_landing;
-		property_map.id_string = "ENTITY_PROPERTY_DAMAGE_ON_LANDING";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_DEATH_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->death_state;
-		property_map.id_string = "ENTITY_PROPERTY_DEATH_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_DEFENSE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_READ;
-		property_map.field = &acting_object->defense;
-		property_map.id_string = "ENTITY_PROPERTY_DEFENSE";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_DESTINATION_X:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->destx;
-		property_map.id_string = "ENTITY_PROPERTY_DESTINATION_X";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_DESTINATION_Z:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->destz;
-		property_map.id_string = "ENTITY_PROPERTY_DESTINATION_Z";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_DIE_ON_LANDING:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->die_on_landing;
-		property_map.id_string = "ENTITY_PROPERTY_DIE_ON_LANDING";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_DRAWMETHOD:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->drawmethod;
-		property_map.id_string = "ENTITY_PROPERTY_DRAWMETHOD";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_DROP:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->drop;
-		property_map.id_string = "ENTITY_PROPERTY_DROP";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_DUCK_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->ducking;
-		property_map.id_string = "ENTITY_PROPERTY_DUCK_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ENTVAR_COLLECTION:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->varlist;
-		property_map.id_string = "ENTITY_PROPERTY_ENTVAR_COLLECTION";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_ESCAPE_COUNT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->escapecount;
-		property_map.id_string = "ENTITY_PROPERTY_ESCAPE_COUNT";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_EXISTS:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->exists;
-		property_map.id_string = "ENTITY_PROPERTY_EXISTS";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_EXPLODE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->toexplode;
-		property_map.id_string = "ENTITY_PROPERTY_EXPLODE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_FACTION:
-
-		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
-		property_map.field = &acting_object->faction;
-		property_map.id_string = "ENTITY_PROPERTY_FACTION";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_FALL_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->falling;
-		property_map.id_string = "ENTITY_PROPERTY_FALL_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_FREEZE_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->frozen;
-		property_map.id_string = "ENTITY_PROPERTY_FREEZE_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_FREEZE_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->freezetime;
-		property_map.id_string = "ENTITY_PROPERTY_FREEZE_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_FUNCTION_TAKE_ACTION:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->takeaction;
-		property_map.id_string = "ENTITY_PROPERTY_FUNCTION_TAKE_ACTION";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_FUNCTION_TAKE_DAMAGE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->takedamage;
-		property_map.id_string = "ENTITY_PROPERTY_FUNCTION_TAKE_DAMAGE";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_FUNCTION_THINK:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->think;
-		property_map.id_string = "ENTITY_PROPERTY_FUNCTION_THINK";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_FUNCTION_TRY_MOVE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->trymove;
-		property_map.id_string = "ENTITY_PROPERTY_FUNCTION_TRY_MOVE";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_GET_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->getting;
-		property_map.id_string = "ENTITY_PROPERTY_GET_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_GRAB_TARGET:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->grabbing;
-		property_map.id_string = "ENTITY_PROPERTY_GRAB_TARGET";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_GRAB_WALK_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->grabwalking;
-		property_map.id_string = "ENTITY_PROPERTY_GRAB_WALK_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_GUARD_POINTS:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->guardpoints;
-		property_map.id_string = "ENTITY_PROPERTY_GUARD_POINTS";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_GUARD_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->guardtime;
-		property_map.id_string = "ENTITY_PROPERTY_GUARD_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_HP:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->energy_state.health_current;
-		property_map.id_string = "ENTITY_PROPERTY_HP";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_HP_OLD:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->energy_state.health_old;
-		property_map.id_string = "ENTITY_PROPERTY_HP_OLD";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_IDLE_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->idling;
-		property_map.id_string = "ENTITY_PROPERTY_IDLE_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_IN_PAIN:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->inpain;
-		property_map.id_string = "ENTITY_PROPERTY_IN_PAIN";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_IN_PAIN_BACK:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->inbackpain;
-		property_map.id_string = "ENTITY_PROPERTY_IN_PAIN_BACK";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_INVINCIBLE_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->invincible;
-		property_map.id_string = "ENTITY_PROPERTY_INVINCIBLE_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_INVINCIBLE_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->invinctime;
-		property_map.id_string = "ENTITY_PROPERTY_INVINCIBLE_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_ITEM_DATA:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->item_properties;
-		property_map.id_string = "ENTITY_PROPERTY_ITEM_DATA";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_JUMP_ANIMATION_ID:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->jump.animation_id;
-		property_map.id_string = "ENTITY_PROPERTY_JUMP_ANIMATION_ID";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_JUMP_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->jumping;
-		property_map.id_string = "ENTITY_PROPERTY_JUMP_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_JUMP_VELOCITY_X:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->jump.velocity.x;
-		property_map.id_string = "ENTITY_PROPERTY_JUMP_VELOCITY_X";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_JUMP_VELOCITY_Y:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->jump.velocity.y;
-		property_map.id_string = "ENTITY_PROPERTY_JUMP_VELOCITY_Y";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_JUMP_VELOCITY_Z:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->jump.velocity.z;
-		property_map.id_string = "ENTITY_PROPERTY_JUMP_VELOCITY_Z";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_KNOCKDOWN_COUNT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->knockdowncount;
-		property_map.id_string = "ENTITY_PROPERTY_KNOCKDOWN_COUNT";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_KNOCKDOWN_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->knockdowntime;
-		property_map.id_string = "ENTITY_PROPERTY_KNOCKDOWN_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_LAST_DAMAGE_TYPE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->last_damage_type;
-		property_map.id_string = "ENTITY_PROPERTY_LAST_DAMAGE_TYPE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_LAST_HIT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->lasthit;
-		property_map.id_string = "ENTITY_PROPERTY_LAST_HIT";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_LIFESPAN:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->lifespancountdown;
-		property_map.id_string = "ENTITY_PROPERTY_LIFESPAN";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_LINK:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->link;
-		property_map.id_string = "ENTITY_PROPERTY_LINK";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_MODEL:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->model;
-		property_map.id_string = "ENTITY_PROPERTY_MODEL";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_MODEL_DATA:
-
-		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
-		property_map.field = &acting_object->modeldata;
-		property_map.id_string = "ENTITY_PROPERTY_MODEL_DATA";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_MODEL_DEFAULT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->defaultmodel;
-		property_map.id_string = "ENTITY_PROPERTY_MODEL_DATA";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_MOVE_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->nextmove;
-		property_map.id_string = "ENTITY_PROPERTY_MOVE_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_MOVE_X:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->movex;
-		property_map.id_string = "ENTITY_PROPERTY_MOVE_X";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_MOVE_Z:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->movez;
-		property_map.id_string = "ENTITY_PROPERTY_MOVE_Z";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_MP:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->energy_state.mp_current;
-		property_map.id_string = "ENTITY_PROPERTY_MP";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_MP_CHARGE_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->mpchargetime;
-		property_map.id_string = "ENTITY_PROPERTY_MP_CHARGE_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_MP_OLD:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->energy_state.mp_old;
-		property_map.id_string = "ENTITY_PROPERTY_MP_OLD";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_MP_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->magictime;
-		property_map.id_string = "ENTITY_PROPERTY_MP_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_NAME:
-		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT | PROPERTY_ACCESS_CONFIG_STATIC_LENGTH);
-		property_map.field = &acting_object->name;
-		property_map.id_string = "ENTITY_PROPERTY_NAME";
-		property_map.type = VT_STR;
-		break;
-
-	case ENTITY_PROPERTY_NEXT_ATTACK_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->nextattack;
-		property_map.id_string = "ENTITY_PROPERTY_NEXT_ATTACK_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_NEXT_HIT_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->next_hit_time;
-		property_map.id_string = "ENTITY_PROPERTY_NEXT_HIT_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_NOGRAB:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->nograb;
-		property_map.id_string = "ENTITY_PROPERTY_NOGRAB";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_NOGRAB_DEFAULT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->nograb_default;
-		property_map.id_string = "ENTITY_PROPERTY_NOGRAB_DEFAULT";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_OBSTRUCTED:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->hitwall;
-		property_map.id_string = "ENTITY_PROPERTY_OBSTRUCTED";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_OBSTRUCTION_OVERHEAD:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->hithead;
-		property_map.id_string = "ENTITY_PROPERTY_OBSTRUCTION_OVERHEAD";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_OFFENSE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->offense;
-		property_map.id_string = "ENTITY_PROPERTY_OFFENSE";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_OPPONENT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->opponent;
-		property_map.id_string = "ENTITY_PROPERTY_OPPONENT";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_OWNER:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->owner;
-		property_map.id_string = "ENTITY_PROPERTY_OWNER";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_PARENT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->parent;
-		property_map.id_string = "ENTITY_PROPERTY_PARENT";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_PATH_OBSTRUCTED_WAIT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->pathblocked;
-		property_map.id_string = "ENTITY_PROPERTY_PATH_OBSTRUCTED_WAIT";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_PAUSE_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->pausetime;
-		property_map.id_string = "ENTITY_PROPERTY_PAUSE_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_PLATFORM_LAND:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->landed_on_platform;
-		property_map.id_string = "ENTITY_PROPERTY_PLATFORM_LAND";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_PLAYER_INDEX:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->playerindex;
-		property_map.id_string = "ENTITY_PROPERTY_PLAYER_INDEX";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_POSITION_BASE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->base;
-		property_map.id_string = "ENTITY_PROPERTY_POSITION_BASE";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_POSITION_BASE_ALTERNATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->altbase;
-		property_map.id_string = "ENTITY_PROPERTY_POSITION_BASE_ALTERNATE";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_POSITION_DIRECTION:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->direction;
-		property_map.id_string = "ENTITY_PROPERTY_POSITION_DIRECTION";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_POSITION_X:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->position.x;
-		property_map.id_string = "ENTITY_PROPERTY_POSITION_X";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_POSITION_Y:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->position.y;
-		property_map.id_string = "ENTITY_PROPERTY_POSITION_Y";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_POSITION_Z:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->position.z;
-		property_map.id_string = "ENTITY_PROPERTY_POSITION_Z";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_PROJECTILE_PRIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->projectile_prime;
-		property_map.id_string = "ENTITY_PROPERTY_PROJECTILE_PRIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_RECURSIVE_DAMAGE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->recursive_damage;
-		property_map.id_string = "ENTITY_PROPERTY_RECURSIVE_DAMAGE";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_RELEASE_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->releasetime;
-		property_map.id_string = "ENTITY_PROPERTY_RELEASE_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_RISE_ATTACK_DELAY:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->staydown.riseattack;
-		property_map.id_string = "ENTITY_PROPERTY_RISE_ATTACK_DELAY";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_RISE_ATTACK_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->staydown.riseattack_stall;
-		property_map.id_string = "ENTITY_PROPERTY_RISE_ATTACK_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_RISE_DELAY:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->staydown.rise;
-		property_map.id_string = "ENTITY_PROPERTY_RISE_DELAY";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_RISE_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->rising;
-		property_map.id_string = "ENTITY_PROPERTY_RISE_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_RUN_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->running;
-		property_map.id_string = "ENTITY_PROPERTY_RUN_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_RUSH:
-
-		property_map.config_flags = (PROPERTY_ACCESS_CONFIG_READ | PROPERTY_ACCESS_CONFIG_STATIC_POINTER);
-		property_map.field = &acting_object->rush;
-		property_map.id_string = "ENTITY_PROPERTY_RUSH";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_SCRIPT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->scripts;
-		property_map.id_string = "ENTITY_PROPERTY_SCRIPT";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_SEAL_ENERGY:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->seal;
-		property_map.id_string = "ENTITY_PROPERTY_SEAL_ENERGY";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_SEAL_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->sealtime;
-		property_map.id_string = "ENTITY_PROPERTY_SEAL_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_SHADOW_CONFIG_FLAGS:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->shadow_config_flags;
-		property_map.id_string = "ENTITY_PROPERTY_SHADOW_CONFIG_FLAGS";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_SLEEP_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->sleeptime;
-		property_map.id_string = "ENTITY_PROPERTY_SLEEP_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_SORT_ID:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->sortid;
-		property_map.id_string = "ENTITY_PROPERTY_SORT_ID";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_SPACE_OTHER:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->collided_entity;
-		property_map.id_string = "ENTITY_PROPERTY_SPACE_OTHER";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_SPAWN_TYPE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->spawntype;
-		property_map.id_string = "ENTITY_PROPERTY_SPAWN_TYPE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_SPEED_MULTIPLIER:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->speedmul;
-		property_map.id_string = "ENTITY_PROPERTY_SPEED_MULTIPLIER";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_STALL_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->stalltime;
-		property_map.id_string = "ENTITY_PROPERTY_STALL_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_THINK_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->nextthink;
-		property_map.id_string = "ENTITY_PROPERTY_THINK_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_TIMESTAMP:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->timestamp;
-		property_map.id_string = "ENTITY_PROPERTY_TIMESTAMP";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_TO_COST:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->tocost;
-		property_map.id_string = "ENTITY_PROPERTY_TO_COST";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_TOSS_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->toss_time;
-		property_map.id_string = "ENTITY_PROPERTY_TOSS_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_TURN_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->turning;
-		property_map.id_string = "ENTITY_PROPERTY_TURN_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_TURN_TIME:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->turntime;
-		property_map.id_string = "ENTITY_PROPERTY_TURN_TIME";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_UPDATE_MARK:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->update_mark;
-		property_map.id_string = "ENTITY_PROPERTY_UPDATE_MARK";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_VELOCITY_X:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->velocity.x;
-		property_map.id_string = "ENTITY_PROPERTY_VELOCITY_X";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_VELOCITY_Y:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->velocity.y;
-		property_map.id_string = "ENTITY_PROPERTY_VELOCITY_Y";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_VELOCITY_Z:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->velocity.z;
-		property_map.id_string = "ENTITY_PROPERTY_VELOCITY_Z";
-		property_map.type = VT_DECIMAL;
-		break;
-
-	case ENTITY_PROPERTY_WALK_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->walking;
-		property_map.id_string = "ENTITY_PROPERTY_WALK_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_WAYPOINT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->waypoints;
-		property_map.id_string = "ENTITY_PROPERTY_WAYPOINT";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_WAYPOINT_COUNT:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->numwaypoints;
-		property_map.id_string = "ENTITY_PROPERTY_WAYPOINT_COUNT";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_WEAPON_ITEM:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->weapent;
-		property_map.id_string = "ENTITY_PROPERTY_WEAPON_ITEM";
-		property_map.type = VT_PTR;
-		break;
-
-	case ENTITY_PROPERTY_WEAPON_STATE:
-
-		property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
-		property_map.field = &acting_object->weapon_state;
-		property_map.id_string = "ENTITY_PROPERTY_WEAPON_STATE";
-		property_map.type = VT_INTEGER;
-		break;
-
-	case ENTITY_PROPERTY_END:
-	default:
+	if (property_index_param < ENTITY_PROPERTY_END) {
+		const entity_property_info* info = &entity_properties[property_index_param];
+		property_map.config_flags = info->config_flags;
+		property_map.id_string = info->id_string;
+		property_map.field = (const void*)((const char*)acting_object + info->offset);
+		property_map.type = info->type;
+	}
+	else {
 		property_map.config_flags = PROPERTY_ACCESS_CONFIG_NONE;
-		property_map.field = NULL;
 		property_map.id_string = "Entity";
+		property_map.field = NULL;
 		property_map.type = VT_EMPTY;
-		break;
 	}
 
 	return property_map;
@@ -1177,7 +919,7 @@ const s_property_access_map entity_get_property_map(const void* acting_object_pa
 * 2023-03-03
 *
 * Return a property. Requires
-* a object pointer and property
+* an object pointer and property
 * constant to access.
 */
 HRESULT openbor_get_entity_property(const ScriptVariant* const* varlist, ScriptVariant** const pretvar, const int paramCount)
@@ -1225,7 +967,7 @@ HRESULT openbor_get_entity_property(const ScriptVariant* const* varlist, ScriptV
 	/*
 	* If property id is in range, we send
 	* the property map and return parameter
-	* for population, then ext.
+	* for population, then exit.
 	*/
 
 	if (property_id_param >= 0 && property_id_param < ENTITY_PROPERTY_END) {
@@ -1256,7 +998,7 @@ HRESULT openbor_get_entity_property(const ScriptVariant* const* varlist, ScriptV
 *
 * Mutate a property. Requires
 * the object pointer, a property
-* id, and new value.
+* id, and a new value.
 */
 HRESULT openbor_set_entity_property(ScriptVariant** varlist, ScriptVariant** const pretvar, const int paramCount)
 {
@@ -1393,7 +1135,7 @@ error_local:
 *
 * Mutate an entity property. Requires
 * the entity handle, a string property
-* name, and new value.
+* name, and a new value.
 */
 HRESULT openbor_set_attack_id_value(ScriptVariant** varlist, ScriptVariant** pretvar, int paramCount)
 {

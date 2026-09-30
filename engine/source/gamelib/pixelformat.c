@@ -66,7 +66,7 @@ int usechannel;
 int useclip;
 int clipx1, clipy1, clipx2, clipy2;
 
-//may be used many time so make a function
+//may be used many times so make a function
 void drawmethod_global_init(s_drawmethod *drawmethod)
 {
 

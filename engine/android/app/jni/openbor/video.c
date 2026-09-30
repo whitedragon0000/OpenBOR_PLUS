@@ -380,7 +380,7 @@ int video_set_mode(s_videomodes videomodes)
 
     if(videomodes.hRes == 0 && videomodes.vRes == 0)
     {
-        Term_Gfx();
+        //Term_Gfx();
         return 0;
     }
 
@@ -452,6 +452,11 @@ int video_set_mode(s_videomodes videomodes)
     video_clearscreen();
 
     return 1;
+}
+
+int video_restore_mode(void)
+{
+    return video_set_mode(stored_videomodes);
 }
 
 void video_fullscreen_flip()
@@ -590,4 +595,12 @@ int video_display_yuv_frame(void)
 {
 	blit();
 	return 1;
+}
+
+int video_current_refresh_rate()
+{
+    SDL_DisplayMode display_mode;
+    if (SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &display_mode) != 0)
+        return 60;
+    return display_mode.refresh_rate;
 }

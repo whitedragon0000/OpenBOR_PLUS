@@ -22,12 +22,12 @@ static void putsprite_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx < xmax)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -76,12 +76,12 @@ static void putsprite_flip_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx > xmin)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -134,12 +134,12 @@ static void putsprite_blend_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx < xmax)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -186,12 +186,12 @@ static void putsprite_blend_flip_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx > xmin)
         {
-            register int count = *data++;
+            int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -240,14 +240,14 @@ static void putsprite_mask_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         unsigned char *maskdata = ((unsigned char *)masklinetab) + (*masklinetab);
         masklinetab++;
         while(lx < xmax)
         {
-            register int count = *data++;
+            int count = *data++;
             maskdata++;
             if(count == 0xFF)
             {
@@ -298,14 +298,14 @@ static void putsprite_mask_flip_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        register int lx = x;
+        int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         unsigned char *maskdata = ((unsigned char *)masklinetab) + (*masklinetab);
         masklinetab++;
         while(lx > xmin)
         {
-            register int count = *data++;
+            int count = *data++;
             maskdata++;
             if(count == 0xFF)
             {
@@ -479,4 +479,3 @@ void putsprite_x8p32(
 }
 
 /////////////////////////////////////////////////////////////////////////////
-

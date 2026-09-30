@@ -2,7 +2,11 @@
 *.iml
 .DS_Store
 /app/build
+/app/.cxx
+/app/.gradle
 /app/.externalNativeBuild
 /build
 /keystore.properties
 *.jks
+/app/local.properties
+/app/src/main/assets/*.pak
