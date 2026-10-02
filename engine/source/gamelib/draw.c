@@ -270,12 +270,16 @@ void _putpixel(int x, int y, int colour, s_screen *screen, int alpha)
 {
     int pixind;
     unsigned char *lut;
-    if((unsigned)x >= (unsigned)screen->width || (unsigned)y >= (unsigned)screen->height)
+    if((unsigned)x > screen->width || (unsigned)y > screen->height)
     {
         return;
     }
     pixind = x + y * screen->width;
-    lut = alpha > 0 ? blendtables[alpha - 1] + (colour << 8) : NULL;
+    lut = alpha > 0 ? blendtables[alpha - 1] : NULL;
+    if(lut)
+    {
+        lut += (colour << 8);
+    }
     screen->data[pixind] = (lut && screen->data[pixind]) ? (lut[(int)(screen->data[pixind]) & 0xFF]) : colour;
 }
 
@@ -284,7 +288,7 @@ void _putpixel(int x, int y, int colour, s_screen *screen, int alpha)
 
 // Code to draw a circle.
 // I ripped this, not sure how it works...
-// It seems it divides the circle into 8 parts, which are drawn
+// It seems it devides the circle into 8 parts, which are drawn
 // simultaneously.
 // Not much optimization, though, since every pixel is clipped
 // separately.
@@ -417,3 +421,5 @@ void putpixel(unsigned x, unsigned y, int colour, s_screen *screen, s_drawmethod
         break;
     }
 }
+
+

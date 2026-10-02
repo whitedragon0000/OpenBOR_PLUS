@@ -17,12 +17,13 @@ void borTimerExit();
 /*
 ;----------------------------------------------------------------
 ; Proc:		timer_getinterval
-; In:		freq = frequency (1 to 1193181 Hz)
-; Returns:	units passed since last call
+; In:		ECX = frequency (1 to 1193181 Hz)
+; Returns:	EAX = units passed since last call
+; Destroys:	EBX ECX EDX
 ; Description:	Returns the time that passed since the last call,
 ;		measured in the specified frequency.
 ;		This function is extremely accurate, since all
-;		rounding errors are compensated for.
+;		rounding errors are compensatred for.
 ;		Only use for very short intervals!
 ;----------------------------------------------------------------
 */

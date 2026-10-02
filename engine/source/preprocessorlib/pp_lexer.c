@@ -58,8 +58,6 @@
 void pp_token_Init(pp_token *ptoken, PP_TOKEN_TYPE theType, LPCSTR theSource, TEXTPOS theTextPosition, ULONG charOffset)
 {
     ptoken->theType = theType;
-    ptoken->theStringLiteralSource = NULL;
-    ptoken->theStringLiteralLength = 0;
     ptoken->theTextPosition = theTextPosition;
     ptoken->charOffset = charOffset;
     strcpy(ptoken->theSource, theSource );
@@ -585,43 +583,6 @@ HRESULT pp_lexer_GetTokenIdentifier(pp_lexer *plexer, pp_token *theNextToken)
     return S_OK;
 }
 
-/*
-* Caskey, Damon V.
-* 2026-06-04
-*
-* Consumes the valid suffix portion of an 
-* integer constant: u, l, ul, lu, ll, ull, 
-* llu (case-insensitive). Full suffix validation 
-* is handled during constant conversion.
-*/
-static void pp_lexer_ConsumeIntegerSuffix(pp_lexer *plexer)
-{
-    int found_u = 0;
-    int l_count = 0;
-
-    /*
-     * Valid integer suffix shapes:
-     * u, l, ul, lu, ll, ull, llu
-     * Case-insensitive.
-     */
-
-    if ((*plexer->pcurChar == 'u') || (*plexer->pcurChar == 'U')) {
-        found_u = 1;
-        CONSUMECHARACTER;
-    }
-
-    while (l_count < 2 &&
-           ((*plexer->pcurChar == 'l') || (*plexer->pcurChar == 'L'))) {
-        l_count++;
-        CONSUMECHARACTER;
-    }
-
-    if (!found_u &&
-        ((*plexer->pcurChar == 'u') || (*plexer->pcurChar == 'U'))) {
-        CONSUMECHARACTER;
-    }
-}
-
 /******************************************************************************
 *  Number -- This method extracts a numerical constant from the stream.  It
 *  only extracts the digits that make up the number.  No conversion from string
@@ -635,39 +596,45 @@ HRESULT pp_lexer_GetTokenNumber(pp_lexer *plexer, pp_token *theNextToken)
     //copy the source that makes up this token
     //a constant is one of these:
 
-    // integer-suffix: [uU]?[lL]{0,2} | [lL]{1,2}[uU]?
-
-    if (( !strncmp( plexer->pcurChar, "0X", 2)) || ( !strncmp( plexer->pcurChar, "0x", 2))) {
-        
+    //0[xX][a-fA-F0-9]+{u|U|l|L}
+    //0{D}+{u|U|l|L}
+    if (( !strncmp( plexer->pcurChar, "0X", 2)) || ( !strncmp( plexer->pcurChar, "0x", 2)))
+    {
         CONSUMECHARACTER;
         CONSUMECHARACTER;
-
         while ((*plexer->pcurChar >= '0' && *plexer->pcurChar <= '9') ||
                 (*plexer->pcurChar >= 'a' && *plexer->pcurChar <= 'f') ||
-                (*plexer->pcurChar >= 'A' && *plexer->pcurChar <= 'F')) {
+                (*plexer->pcurChar >= 'A' && *plexer->pcurChar <= 'F'))
+        {
             CONSUMECHARACTER;
         }
 
-        pp_lexer_ConsumeIntegerSuffix(plexer);
+        if (( !strncmp( plexer->pcurChar, "u", 1)) || ( !strncmp( plexer->pcurChar, "U", 1)) ||
+                ( !strncmp( plexer->pcurChar, "l", 1)) || ( !strncmp( plexer->pcurChar, "L", 1)))
+        {
+            CONSUMECHARACTER;
+        }
 
         MAKETOKEN( PP_TOKEN_HEXCONSTANT );
-    
-    } else {
-
-        while (*plexer->pcurChar >= '0' && *plexer->pcurChar <= '9') {
+    }
+    else
+    {
+        while (*plexer->pcurChar >= '0' && *plexer->pcurChar <= '9')
+        {
             CONSUMECHARACTER;
         }
 
-        if (( !strncmp( plexer->pcurChar, "E", 1)) || ( !strncmp( plexer->pcurChar, "e", 1))) {
-            
+        if (( !strncmp( plexer->pcurChar, "E", 1)) || ( !strncmp( plexer->pcurChar, "e", 1)))
+        {
             CONSUMECHARACTER;
-            
-            while (*plexer->pcurChar >= '0' && *plexer->pcurChar <= '9') {
+            while (*plexer->pcurChar >= '0' && *plexer->pcurChar <= '9')
+            {
                 CONSUMECHARACTER;
             }
 
             if (( !strncmp( plexer->pcurChar, "f", 1)) || ( !strncmp( plexer->pcurChar, "F", 1)) ||
-                    ( !strncmp( plexer->pcurChar, "l", 1)) || ( !strncmp( plexer->pcurChar, "L", 1))) {
+                    ( !strncmp( plexer->pcurChar, "l", 1)) || ( !strncmp( plexer->pcurChar, "L", 1)))
+            {
                 CONSUMECHARACTER;
             }
 
@@ -676,29 +643,38 @@ HRESULT pp_lexer_GetTokenNumber(pp_lexer *plexer, pp_token *theNextToken)
         else if ( !strncmp( plexer->pcurChar, ".", 1))
         {
             CONSUMECHARACTER;
-
-            while (*plexer->pcurChar >= '0' && *plexer->pcurChar <= '9') {
+            while (*plexer->pcurChar >= '0' && *plexer->pcurChar <= '9')
+            {
                 CONSUMECHARACTER;
             }
 
-            if (( !strncmp( plexer->pcurChar, "E", 1)) || ( !strncmp( plexer->pcurChar, "e", 1))) {
+            if (( !strncmp( plexer->pcurChar, "E", 1)) || ( !strncmp( plexer->pcurChar, "e", 1)))
+            {
                 CONSUMECHARACTER;
 
-                while (*plexer->pcurChar >= '0' && *plexer->pcurChar <= '9') {
+                while (*plexer->pcurChar >= '0' && *plexer->pcurChar <= '9')
+                {
                     CONSUMECHARACTER;
                 }
 
                 if (( !strncmp( plexer->pcurChar, "f", 1)) ||
                         ( !strncmp( plexer->pcurChar, "F", 1)) ||
                         ( !strncmp( plexer->pcurChar, "l", 1)) ||
-                        ( !strncmp( plexer->pcurChar, "L", 1))) {
-                        CONSUMECHARACTER;
+                        ( !strncmp( plexer->pcurChar, "L", 1)))
+                {
+                    CONSUMECHARACTER;
                 }
             }
             MAKETOKEN( PP_TOKEN_FLOATCONSTANT );
 
-        } else {
-            pp_lexer_ConsumeIntegerSuffix(plexer);
+        }
+        else
+        {
+            if (( !strncmp( plexer->pcurChar, "u", 1)) || ( !strncmp( plexer->pcurChar, "U", 1)) ||
+                    ( !strncmp( plexer->pcurChar, "l", 1)) || ( !strncmp( plexer->pcurChar, "L", 1)))
+            {
+                CONSUMECHARACTER;
+            }
             MAKETOKEN( PP_TOKEN_INTCONSTANT );
         }
     }
@@ -714,59 +690,29 @@ HRESULT pp_lexer_GetTokenNumber(pp_lexer *plexer, pp_token *theNextToken)
 ******************************************************************************/
 HRESULT pp_lexer_GetTokenStringLiteral(pp_lexer *plexer, pp_token *theNextToken)
 {
-    const char *literal_start = plexer->pcurChar;
-    size_t literal_length;
-    size_t preview_length;
-
-    /*
-    * String literals remain views into the source text. This
-    * lets the lexer scan them sequentially without copying the
-    * complete literal into the fixed identifier token buffer.
-    */
-    SKIPCHARACTER;
-
-    while(*plexer->pcurChar && *plexer->pcurChar != '"')
+    //copy the source that makes up this token
+    //an identifier is a string of letters, digits and/or underscores
+    //consume that first quote mark
+    int esc = 0;
+    CONSUMECHARACTER;
+    while ( strncmp( plexer->pcurChar, "\"", 1))
     {
-        if(*plexer->pcurChar == '\\')
+        if(!strncmp( plexer->pcurChar, "\\", 1))
         {
-            SKIPCHARACTER;
-
-            if(!*plexer->pcurChar)
-            {
-                return E_FAIL;
-            }
+            esc = 1;
         }
-
-        SKIPCHARACTER;
+        CONSUMECHARACTER;
+        if(esc)
+        {
+            CONSUMECHARACTER;
+            esc = 0;
+        }
     }
 
-    if(*plexer->pcurChar != '"')
-    {
-        return E_FAIL;
-    }
+    //consume that last quote mark
+    CONSUMECHARACTER;
 
-    SKIPCHARACTER;
-
-    literal_length = (size_t)(plexer->pcurChar - literal_start);
-    preview_length = literal_length < MAX_TOKEN_LENGTH
-        ? literal_length
-        : MAX_TOKEN_LENGTH;
-
-    memcpy(plexer->theTokenSource, literal_start, preview_length);
-    plexer->theTokenSource[preview_length] = '\0';
-    plexer->theTokenLen = (ULONG)preview_length;
-
-    pp_token_Init(
-        theNextToken,
-        PP_TOKEN_STRING_LITERAL,
-        plexer->theTokenSource,
-        plexer->theTokenPosition,
-        plexer->tokOffset
-    );
-
-    theNextToken->theStringLiteralSource = literal_start;
-    theNextToken->theStringLiteralLength = literal_length;
-
+    MAKETOKEN( PP_TOKEN_STRING_LITERAL );
     return S_OK;
 }
 /******************************************************************************
@@ -1181,3 +1127,4 @@ HRESULT pp_lexer_SkipComment(pp_lexer *plexer, COMMENT_TYPE theType)
 
     return S_OK;
 }
+

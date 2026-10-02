@@ -37,22 +37,22 @@ To find out more, stop into the OpenBOR community at [ChronoCrash.com](chronocra
 
 * **2011 -** *[Sumo1X](https://github.com/SumolX)* retires from the OpenBOR Team, and hands management duties to [DCurrent (Damon Caskey)](https://github.com/DCurrent).
 
-* **2017 -** OpenBOR repository migrates from SourceForge to GitHub.
+* **2017 -** OpenBOR repository migrates from SourceForge to Github.
 
 * **2021 -** Development continues on OpenBOR 4.0, with various internal source cleanups, a more object centric script engine, and fixes for long standing issues.
 
 * **2024 -** After an extended development cycle, the first official 4.0 build drops. Development continues to refine and fill requests that did not make the initial 4.0 release deadline.
 
-* **2026 -** Focus shifts to removing legacy console port cruft while refining engine architecture and build tools. The goal is to position OpenBOR as a powerful commercial option for beginners and advanced creators while staying enthusiast-friendly and royalty-free.
-
 ## Platforms
-OpenBOR currently supports the following platforms.
+OpenBOR has a very modular and portable design inherited from Beats of Rage - several ports have been made available.
+
+### Current
+These platforms are actively supported and may be compiled with the latest OpenBOR engine.
 
 * Android
-* Linux
-* macOS
 * Windows
 * Linux
+* macOS
 * Wii
 * PS3
 
@@ -79,19 +79,16 @@ A long time module author and extremely knowledgeable coder who joined the devel
 #### [Damon Caskey](https://github.com/DCurrent) (2007-)
 OpenBOR project manager and site owner of the OpenBOR community. Primary contributions are core engine and scripting development, code cleanup, and organization. Main focus is keeping OpenBOR future proof and modular by replacing specialized hardcoding and overlap with generalized features that allow for more author creativity.
 
+#### [Plombo](https://github.com/plombo) (2009-)
+A developer who prefers to work on OpenBOR's supporting libraries and platform-specific backends.  Known for maintaining the Wii port, writing the GPU-accelerated video code for Wii and OpenGL, and a few engine features.
+
 #### [Malik](https://github.com/msmalik681) (2018-)
 Malik came to the team with a strong OpenBOR scripting background, and quickly established himself as a resident go-to for the Android Port. Malik dedicates himself to keeping the Android port of OpenBOR a commercially viable platform for authors who wish to sell their original IP projects.
 
-#### [fgames9000](https://github.com/fgames9000) (2021-)
-Known as Kratus in the OpenBOR community, creator of the amazing [Streets of Rage X](https://www.chronocrash.com/forum/resources/streets-of-rage-x-windows-android.274/) fan remake. Kratus is a highly respected community member known for scripting skills, game design, and assisting other members with projects. Main contributions are unit testing, advising, and bug fixes for engine logic and Linux port.
-
 ### Former members and contributors
 
-#### [Plombo](https://github.com/plombo) (2009-2024)
-Developer who prefers to work on OpenBOR's supporting libraries and platform-specific backends. Known for maintaining the Wii port, writing the GPU-accelerated video code for Wii and OpenGL, and a few engine features. Contributed many powerful functionalities including alpha masks, control upgrades, and the PalApply tool.
-
 #### [Douglas Baldan](https://github.com/dbaldan) (2018-2021)
-Known as O'Ilusionista, Douglas is prolific figure in OpenBOR and Mugen communities. His professional background in graphic design brought a plethora of graphic and game development experience to the team. Citing personal reasons, Douglas officially retired from the OpenBOR team mid-2021 but continues as an active community member and behind the scenes contributor.
+Known as O'Ilusionista, Douglas was a highly respected administrator of the OpenBOR community and a prolific member of the Mugen scene. His professional background in graphic design brought a plethora of graphic and game development experience to the team. Citing personal reasons, Douglas officially retired from the OpenBOR team mid-2021.
 
 #### [Wasin Thonkaew](https://github.com/haxpor) (2019)
 Haxpor in the forums, a Linux centric developer who works hard to ensure our penguin crowd has the proper tools for development and underlying libraries of OpenBOR remain compatible to compile for mobile platforms.

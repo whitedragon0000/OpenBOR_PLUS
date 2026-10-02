@@ -18,7 +18,8 @@ void filecache_init(
     int realfd,
     int pakcdsectors,
     int blocksize,
-    unsigned char blocks
+    unsigned char blocks,
+    int vfds
 );
 
 //
@@ -40,9 +41,8 @@ int filecache_readpakblock(
 
 //
 // set up where the vfd pointers are
-// returns zero only when descriptor bookkeeping cannot be allocated
 //
-int filecache_setvfd(int vfd, int start, int block, int readahead);
+void filecache_setvfd(int vfd, int start, int block, int readahead);
 
 //
 // call this every now and then
@@ -54,3 +54,4 @@ void filecache_wait_for_prebuffer(int vfd, int nblocks);
 /////////////////////////////////////////////////////////////////////////////
 
 #endif
+

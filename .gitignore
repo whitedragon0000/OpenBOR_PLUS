@@ -4,7 +4,6 @@
 OpenBOR.elf
 meta.xml
 /engine/version.h
-/engine/version.txt
 /engine/resources/Info.plist
 engine/releases/
 /engine/ide/vs/.vs/
@@ -12,3 +11,4 @@ engine/releases/
 /.vs
 /openbor_vs**/.DS_Store
 build/
+/engine/ide/vs/Debug

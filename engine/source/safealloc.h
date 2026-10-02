@@ -15,7 +15,6 @@
 
 #undef strdup
 
-#ifndef _MSC_VER
 #define MALLOCLIKE __attribute__((__malloc__))
 #define FREELIKE __attribute__((__cleanup__(free)))
 #else

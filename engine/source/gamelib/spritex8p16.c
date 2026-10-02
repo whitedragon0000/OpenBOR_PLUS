@@ -21,12 +21,12 @@ static void putsprite_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        int lx = x;
+        register int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx < xmax)
         {
-            int count = *data++;
+            register int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -75,12 +75,12 @@ static void putsprite_flip_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        int lx = x;
+        register int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx > xmin)
         {
-            int count = *data++;
+            register int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -133,12 +133,12 @@ static void putsprite_blend_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        int lx = x;
+        register int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx < xmax)
         {
-            int count = *data++;
+            register int count = *data++;
             if(count == 0xFF)
             {
                 break;
@@ -185,12 +185,12 @@ static void putsprite_blend_flip_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        int lx = x; // destination x position
+        register int lx = x; // destination x position
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         while(lx > xmin)
         {
-            int count = *data++; // clearcount - number of transparent pixels
+            register int count = *data++; // clearcount - number of transparent pixels
             if(count == 0xFF)
             {
                 break;    // end-of-line indicator
@@ -239,14 +239,14 @@ static void putsprite_mask_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        int lx = x;
+        register int lx = x;
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         unsigned char *maskdata = ((unsigned char *)masklinetab) + (*masklinetab);
         masklinetab++;
         while(lx < xmax)
         {
-            int count = *data++;
+            register int count = *data++;
             maskdata++;
             if(count == 0xFF)
             {
@@ -297,14 +297,14 @@ static void putsprite_mask_flip_(
 {
     for(; h > 0; h--, dest += screenwidth)
     {
-        int lx = x; // destination x position
+        register int lx = x; // destination x position
         unsigned char *data = ((unsigned char *)linetab) + (*linetab);
         linetab++;
         unsigned char *maskdata = ((unsigned char *)masklinetab) + (*masklinetab);
         masklinetab++;
         while(lx > xmin)
         {
-            int count = *data++;
+            register int count = *data++;
             maskdata++; // clearcount - number of transparent pixels
             if(count == 0xFF)
             {
@@ -478,3 +478,5 @@ void putsprite_x8p16(
 }
 
 /////////////////////////////////////////////////////////////////////////////
+
+

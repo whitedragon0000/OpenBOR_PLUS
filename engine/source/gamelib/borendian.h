@@ -19,14 +19,19 @@
 
 #include "types.h"
 
-typedef s8  SInt8;
-typedef u8  UInt8;
-typedef s16 SInt16;
-typedef u16 UInt16;
-typedef s32 SInt32;
-typedef u32 UInt32;
-typedef s64 SInt64;
-typedef u64 UInt64;
+typedef s8	                SInt8;
+typedef u8                  UInt8;
+typedef s16                 SInt16;
+typedef u16                 UInt16;
+typedef s32                 SInt32;
+typedef u32                 UInt32;
+#ifdef __x86_64__
+typedef signed long         SInt64;
+typedef unsigned long       UInt64;
+#else
+typedef signed long long    SInt64;
+typedef unsigned long long  UInt64;
+#endif
 
 #ifndef __inline__
 #define __inline__ __inline
@@ -37,7 +42,14 @@ typedef u64 UInt64;
    static for compilers that do not support inline functions, this
    header should only be included in files that actually use them.
 */
-#if defined(__GNUC__) && defined(__x86_64__)
+#if defined(__GNUC__) && (defined(__i386__) || defined(__i586__) || defined(__i686__))&& \
+   !(__GNUC__ == 2 && __GNUC_MINOR__ <= 95 /* broken gcc version */)
+static __inline__ UInt16 Swap16(UInt16 x)
+{
+    __asm__("xchgb %b0,%h0" : "=q" (x) :  "0" (x));
+    return x;
+}
+#elif defined(__GNUC__) && defined(__x86_64__)
 static __inline__ UInt16 Swap16(UInt16 x)
 {
     __asm__("xchgb %b0,%h0" : "=Q" (x) :  "0" (x));

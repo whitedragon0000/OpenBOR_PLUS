@@ -47,8 +47,6 @@ typedef struct Token
 {
     MY_TOKEN_TYPE theType;
     CHAR theSource[MAX_TOKEN_LENGTH + 1];
-    LPCSTR theStringLiteralSource;     // Non-owning complete literal view.
-    size_t theStringLiteralLength;     // Length of complete literal view.
     TEXTPOS theTextPosition;
     //ULONG charOffset;
 } Token;
@@ -82,4 +80,6 @@ HRESULT Lexer_GetTokenSymbol(Lexer *plexer, Token *theNextToken);
 HRESULT Lexer_SkipComment(Lexer *lexer, COMMENT_TYPE theType);
 
 #endif
+
+
 

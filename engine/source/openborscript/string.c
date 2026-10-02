@@ -120,13 +120,16 @@ sl_error:
 //strlength(char string);
 HRESULT openbor_strlength(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
-    if(paramCount >= 1 && varlist[0]->vt == VT_STR)
+    if(paramCount < 1 || varlist[0]->vt != VT_STR)
     {
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = strlen((char*)StrCache_Get(varlist[0]->strVal));
-        return S_OK;
+        goto strlength_error;
     }
 
+    ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
+    (*pretvar)->lVal = strlen((char *)StrCache_Get(varlist[0]->strVal));
+    return S_OK;
+
+strlength_error:
     printf("Error, strlength({string}): Invalid or missing parameter. Strlength must be passed a valid {string}.\n");
     *pretvar = NULL;
     return E_FAIL;
@@ -135,26 +138,18 @@ HRESULT openbor_strlength(ScriptVariant **varlist , ScriptVariant **pretvar, int
 //strwidth(char string, int font);
 HRESULT openbor_strwidth(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
-    ScriptVariantStringView string_view;
     LONG ltemp;
-    if(paramCount >= 2 && varlist[0]->vt == VT_STR &&
-        SUCCEEDED(ScriptVariant_IntegerValue(varlist[1], &ltemp)) &&
-        SUCCEEDED(ScriptVariant_GetStringView(
-            varlist[0],
-            NULL,
-            0,
-            &string_view
-        )))
+    if(paramCount < 2 || varlist[0]->vt != VT_STR ||
+            FAILED(ScriptVariant_IntegerValue(varlist[1], &ltemp)))
     {
-        ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = font_string_width_length(
-            (int)ltemp,
-            string_view.string,
-            string_view.length
-        );
-        return S_OK;
+        goto strwidth_error;
     }
 
+    ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
+    (*pretvar)->lVal = font_string_width((int)ltemp, (char *)StrCache_Get(varlist[0]->strVal));
+    return S_OK;
+
+strwidth_error:
     printf("Error, strwidth({string}, {font}): Invalid or missing parameter.\n");
     *pretvar = NULL;
     return E_FAIL;
@@ -194,3 +189,4 @@ sr_error:
     *pretvar = NULL;
     return E_FAIL;
 }
+

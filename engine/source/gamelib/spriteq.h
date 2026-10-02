@@ -37,7 +37,7 @@ void spriteq_lock();
 void spriteq_unlock();
 int  spriteq_islocked();
 
-void spriteq_clear();
+void spriteq_clear(void);
 
 
 #endif

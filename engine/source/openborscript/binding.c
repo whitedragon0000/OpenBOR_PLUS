@@ -43,7 +43,7 @@ const s_property_access_map bind_get_property_map(const void* acting_object_para
         property_map.config_flags = PROPERTY_ACCESS_CONFIG_MACRO_DEFAULT;
         property_map.field = &acting_object->config;
         property_map.id_string = "BIND_PROPERTY_CONFIG";
-        property_map.type = VT_UINTEGER64;
+        property_map.type = VT_INTEGER;
         break;
 
     case BIND_PROPERTY_DIRECTION_ADJUST:
@@ -119,7 +119,7 @@ const s_property_access_map bind_get_property_map(const void* acting_object_para
 * 2023-03-03
 *
 * Return a property. Requires
-* an object pointer and property
+* a object pointer and property
 * constant to access.
 */
 HRESULT openbor_get_bind_property(const ScriptVariant* const* varlist, ScriptVariant** const pretvar, const int paramCount)

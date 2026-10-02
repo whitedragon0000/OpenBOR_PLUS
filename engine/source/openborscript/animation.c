@@ -75,8 +75,7 @@ int mapstrings_animation_property(ScriptVariant** varlist, int paramCount)
 		"sub_entity_model_index",
 		"sub_entity_spawn",
 		"sub_entity_summon",
-		"sub_entity_unsummon",
-        "subject_to_gravity",
+		"sub_entity_unsummon"
 		"sync",
 		"weapon_frame",
 		"numframes",

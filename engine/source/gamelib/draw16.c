@@ -274,7 +274,7 @@ void _putpixel16(unsigned x, unsigned y, unsigned short colour, s_screen *screen
     int pixind;
     unsigned short *data ;
     unsigned short(*blendfp)(unsigned short, unsigned short);
-    if(x >= (unsigned)screen->width || y >= (unsigned)screen->height)
+    if(x > screen->width || y > screen->height)
     {
         return;
     }
@@ -283,3 +283,5 @@ void _putpixel16(unsigned x, unsigned y, unsigned short colour, s_screen *screen
     blendfp = getblendfunction16(alpha);
     __putpixel16(data);
 }
+
+

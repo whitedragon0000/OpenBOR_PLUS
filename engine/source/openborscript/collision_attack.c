@@ -34,12 +34,13 @@ HRESULT openbor_get_attack_collection(ScriptVariant **varlist, ScriptVariant **p
     #define ARG_OBJECT      0   // Handle (pointer to property structure).
     #define ARG_FRAME       1   // Frame to access.
 
-    int                         result  = S_OK;     // Success or error?
-    s_collision_collection      **handle = NULL;    // Property handle.
-    int                         frame   = 0;        // Property argument.
+
+    int         result      = S_OK;     // Success or error?
+    s_attack    **handle     = NULL;    // Property handle.
+    int         frame       = 0;        // Property argument.
 
     // Clear pass by reference argument used to send
-    // property data back to calling script.
+    // property data back to calling script.     .
     ScriptVariant_Clear(*pretvar);
 
     // Verify incoming arguments. There should at least
@@ -47,7 +48,6 @@ HRESULT openbor_get_attack_collection(ScriptVariant **varlist, ScriptVariant **p
     // to determine which frame is accessed.
     if(paramCount < ARG_MINIMUM
        || varlist[ARG_OBJECT]->vt != VT_PTR
-       || !varlist[ARG_OBJECT]->ptrVal
        || varlist[ARG_FRAME]->vt != VT_INTEGER)
     {
         *pretvar = NULL;
@@ -55,14 +55,8 @@ HRESULT openbor_get_attack_collection(ScriptVariant **varlist, ScriptVariant **p
     }
     else
     {
-        handle  = (s_collision_collection **)varlist[ARG_OBJECT]->ptrVal;
+        handle  = (s_attack **)varlist[ARG_OBJECT]->ptrVal;
         frame   = (LONG)varlist[ARG_FRAME]->lVal;
-    }
-
-    if(frame < 0)
-    {
-        *pretvar = NULL;
-        goto error_local;
     }
 
     // If this frame has property, send value back to user.
@@ -90,7 +84,10 @@ HRESULT openbor_get_attack_collection(ScriptVariant **varlist, ScriptVariant **p
 
 // get_attack_instance(void handle, int index)
 //
-// Get single attack property from a collision collection.
+// Get single item handle from item collection.
+// As of 2016-10-30, this function is a placeholder and
+// simply returns the handle given. It is in place for future
+// support of multiple instances per frame.
 HRESULT openbor_get_attack_instance(ScriptVariant **varlist, ScriptVariant **pretvar, int paramCount)
 {
     #define SELF_NAME       "get_attack_instance(void handle, int index)"
@@ -98,22 +95,19 @@ HRESULT openbor_get_attack_instance(ScriptVariant **varlist, ScriptVariant **pre
     #define ARG_OBJECT      0   // Handle (pointer to property structure).
     #define ARG_INDEX       1   // Index to access.
 
-    int                         result      = S_OK; // Success or error?
-    s_collision_collection      *handle     = NULL; // Property handle.
-    s_collision_instance        *collision  = NULL; // Collision instance.
-    int                         index       = 0;    // Property argument.
-    uint64_t                    active_bit  = 0;    // Slot active status bit.
+    int         result     = S_OK; // Success or error?
+    s_attack    *handle    = NULL; // Property handle.
+    //int         index      = 0;    // Property argument.
 
     // Clear pass by reference argument used to send
-    // property data back to calling script.
+    // property data back to calling script.     .
     ScriptVariant_Clear(*pretvar);
 
     // Verify incoming arguments. There should at least
-    // be a pointer for the collection handle and an integer
+    // be a pointer for the property handle and an integer
     // to determine which index is accessed.
     if(paramCount < ARG_MINIMUM
        || varlist[ARG_OBJECT]->vt != VT_PTR
-       || !varlist[ARG_OBJECT]->ptrVal
        || varlist[ARG_INDEX]->vt != VT_INTEGER)
     {
         *pretvar = NULL;
@@ -121,30 +115,18 @@ HRESULT openbor_get_attack_instance(ScriptVariant **varlist, ScriptVariant **pre
     }
     else
     {
-        handle  = (s_collision_collection *)varlist[ARG_OBJECT]->ptrVal;
-        index   = (LONG)varlist[ARG_INDEX]->lVal;
+        handle  = (s_attack *)varlist[ARG_OBJECT]->ptrVal;
+        //index   = (LONG)varlist[ARG_INDEX]->lVal;
     }
 
-    if(index < 0 || index >= MAX_COLLISION_BOXES_PER_FRAME)
-    {
-        *pretvar = NULL;
-        goto error_local;
-    }
+    // If this index has property, send value back to user.
+    //if(handle[index])
+    //{
+        ScriptVariant_ChangeType(*pretvar, VT_PTR);
+        //(*pretvar)->ptrVal = handle[index];
 
-    active_bit = ((uint64_t)1 << (unsigned int)index);
-
-    // If this index has an active attack collision,
-    // send its attack property back to user.
-    if((handle->active_status & active_bit) && handle->slots[index])
-    {
-        collision = handle->slots[index];
-
-        if(collision->attack)
-        {
-            ScriptVariant_ChangeType(*pretvar, VT_PTR);
-            (*pretvar)->ptrVal = collision->attack;
-        }
-    }
+        (*pretvar)->ptrVal = handle;
+    //}
 
     return result;
 

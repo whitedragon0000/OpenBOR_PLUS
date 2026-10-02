@@ -729,7 +729,6 @@ HRESULT openbor_get_level_property(ScriptVariant **varlist, ScriptVariant **pret
                 ScriptVariant_ChangeType(*pretvar, VT_PTR);
                 (*pretvar)->ptrVal = &handle->endlevel_script;
             //}
-            break;
 
         case LEVEL_PROPERTY_SCRIPT_LEVEL_START:              // Script level_script;
 
@@ -738,7 +737,6 @@ HRESULT openbor_get_level_property(ScriptVariant **varlist, ScriptVariant **pret
                 ScriptVariant_ChangeType(*pretvar, VT_PTR);
                 (*pretvar)->ptrVal = &handle->level_script;
             //}
-            break;
 
         case LEVEL_PROPERTY_SCRIPT_KEY:
 
@@ -747,13 +745,6 @@ HRESULT openbor_get_level_property(ScriptVariant **varlist, ScriptVariant **pret
                 ScriptVariant_ChangeType(*pretvar, VT_PTR);
                 (*pretvar)->ptrVal = &handle->key_script;
             //}
-            break;
-
-        case LEVEL_PROPERTY_SCRIPT_UPDATE_LOGIC:
-
-            ScriptVariant_ChangeType(*pretvar, VT_PTR);
-            (*pretvar)->ptrVal = &handle->update_logic_script;
-            break;
 
         case LEVEL_PROPERTY_SCRIPT_UPDATE:
 
@@ -762,13 +753,6 @@ HRESULT openbor_get_level_property(ScriptVariant **varlist, ScriptVariant **pret
                 ScriptVariant_ChangeType(*pretvar, VT_PTR);
                 (*pretvar)->ptrVal = &handle->update_script;
             //}
-            break;
-
-        case LEVEL_PROPERTY_SCRIPT_UPDATED_LOGIC:
-
-            ScriptVariant_ChangeType(*pretvar, VT_PTR);
-            (*pretvar)->ptrVal = &handle->updated_logic_script;
-            break;
 
         case LEVEL_PROPERTY_SCRIPT_UPDATED:
 
@@ -777,7 +761,6 @@ HRESULT openbor_get_level_property(ScriptVariant **varlist, ScriptVariant **pret
                 ScriptVariant_ChangeType(*pretvar, VT_PTR);
                 (*pretvar)->ptrVal = &handle->updated_script;
             //}
-            break;
 
         case LEVEL_PROPERTY_SCROLL_DIRECTION:
 
@@ -1472,16 +1455,6 @@ HRESULT openbor_set_level_property(ScriptVariant **varlist, ScriptVariant **pret
             handle->key_script = *(Script *)arg_value->ptrVal;
             break;
 
-        case LEVEL_PROPERTY_SCRIPT_UPDATE_LOGIC:
-
-            if(invalid_pointer_input)
-            {
-                goto error_local;
-            }
-
-            handle->update_logic_script = *(Script *)arg_value->ptrVal;
-            break;
-
         case LEVEL_PROPERTY_SCRIPT_UPDATE:
 
             if(invalid_pointer_input)
@@ -1490,16 +1463,6 @@ HRESULT openbor_set_level_property(ScriptVariant **varlist, ScriptVariant **pret
             }
 
             handle->update_script = *(Script *)arg_value->ptrVal;
-            break;
-
-        case LEVEL_PROPERTY_SCRIPT_UPDATED_LOGIC:
-
-            if(invalid_pointer_input)
-            {
-                goto error_local;
-            }
-
-            handle->updated_logic_script = *(Script *)arg_value->ptrVal;
             break;
 
         case LEVEL_PROPERTY_SCRIPT_UPDATED:
@@ -2138,10 +2101,9 @@ getlevelproperty_error:
 //changelevelproperty(name, value)
 HRESULT openbor_changelevelproperty(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount)
 {
-    ScriptVariantStringView string_view;
-    char conversion_buffer[SCRIPT_VARIANT_CONVERSION_BUFFER_LENGTH];
     LONG ltemp, ltemp1;
     DOUBLE dbltemp, dbltemp2, dbltemp3;
+    static char buf[64];
     int i;
     ScriptVariant *arg = NULL;
 
@@ -2520,24 +2482,11 @@ clperror:
     printf("Dumping values: ");
     for(i = 1; i < paramCount; i++)
     {
-        if(SUCCEEDED(ScriptVariant_GetStringView(
-            varlist[i],
-            conversion_buffer,
-            sizeof(conversion_buffer),
-            &string_view
-        )))
-        {
-            printf(
-                "%.*s, ",
-                (int)string_view.length,
-                string_view.string
-            );
-        }
-        else
-        {
-            printf("<invalid or oversized>, ");
-        }
+        ScriptVariant_ToString(varlist[i], buf);
+        printf("%s, ", buf);
     }
     printf("\n");
     return E_FAIL;
 }
+
+
