@@ -41,8 +41,8 @@ u32 INTERPOLATE(u32 A, u32 B)
 
 u32 Q_INTERPOLATE(u32 A, u32 B, u32 C, u32 D)
 {
-    register u32 x = ((A & qcolorMask) >> 2) +	((B & qcolorMask) >> 2) + ((C & qcolorMask) >> 2) + ((D & qcolorMask) >> 2);
-    register u32 y = (A & qlowpixelMask) +	(B & qlowpixelMask) + (C & qlowpixelMask) + (D & qlowpixelMask);
+    u32 x = ((A & qcolorMask) >> 2) +	((B & qcolorMask) >> 2) + ((C & qcolorMask) >> 2) + ((D & qcolorMask) >> 2);
+    u32 y = (A & qlowpixelMask) +	(B & qlowpixelMask) + (C & qlowpixelMask) + (D & qlowpixelMask);
     y = (y >> 2) & qlowpixelMask;
     return x + y;
 }
@@ -194,28 +194,33 @@ static inline u16 MAKE_RGB565(float r, float g, float b)
         ((((unsigned char)b) <<  0) & BLUE_MASK565 );
 }
 
+static float cube(float x)
+{
+    return x * x * x;
+}
+
 float CUBIC_WEIGHT(float x)
 {
     // P(x) = { x, x>0 | 0, x<=0 }
     // P(x + 2) ^ 3 - 4 * P(x + 1) ^ 3 + 6 * P(x) ^ 3 - 4 * P(x - 1) ^ 3
-    double r = 0.;
-    if(x + 2 > 0)
+    float r = 0.;
+    if(x + 2.f > 0)
     {
-        r +=      pow(x + 2, 3);
+        r +=        cube(x + 2.f);
     }
-    if(x + 1 > 0)
+    if(x + 1.f > 0)
     {
-        r += -4 * pow(x + 1, 3);
+        r += -4.f * cube(x + 1.f);
     }
-    if(x     > 0)
+    if(x       > 0)
     {
-        r +=  6 * pow(x    , 3);
+        r +=  6.f * cube(x);
     }
-    if(x - 1 > 0)
+    if(x - 1.f > 0)
     {
-        r += -4 * pow(x - 1, 3);
+        r += -4.f * cube(x - 1.f);
     }
-    return (float)r / 6;
+    return r / 6.f;
 }
 
 void filter_bicubic(u8 *srcPtr, u32 srcPitch, u8 *deltaPtr, u8 *dstPtr, u32 dstPitch, int width, int height)
@@ -247,12 +252,12 @@ void filter_bicubic(u8 *srcPtr, u32 srcPitch, u8 *deltaPtr, u8 *dstPtr, u32 dstP
 
             for(m = -1; m <= 2; ++m)
             {
-                float r1 = CUBIC_WEIGHT(decy - m);
+                float r1 = CUBIC_WEIGHT(decy - (float)m);
                 int n;
 
                 for(n = -1; n <= 2; ++n)
                 {
-                    float r2 = CUBIC_WEIGHT(n - decx);
+                    float r2 = CUBIC_WEIGHT((float)n - decx);
                     const u16 *pIn = p + (iu  + n) + (iv + m) * nextlineSrc;
                     MULT(*pIn, &r, &g, &b, r1 * r2);
                 }

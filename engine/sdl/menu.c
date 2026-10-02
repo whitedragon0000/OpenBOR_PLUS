@@ -574,7 +574,7 @@ static void initMenu(int type)
 
 	control_init(2);
 	apply_controls();
-	sound_init(12);
+	sound_init();
 	sound_start_playback();
 }
 
@@ -635,7 +635,7 @@ static void drawMenu()
 	s_screen* Image = NULL;
 
 	putscreen(vscreen,bgscreen,0,0,NULL);
-	if(dListTotal < 1) printText((isWide ? 30 : 8), (isWide ? 33 : 24), RED, 0, 0, "No Mods In Paks Folder!");
+	if(dListTotal < 1) printText((isWide ? 30 : 8), (isWide ? 33 : 24), RED, 0, 0, "No modules In Paks Folder!");
 	for(list = 0; list < dListTotal; list++)
 	{
 		if(list < MAX_PAGE_MODS_LENGTH)
@@ -782,11 +782,8 @@ static void drawLogs()
 		putscreen(vscreen,logscreen,0,0,NULL);
 	    inputrefresh(0);
 	    sound_update_music();
-#if OPENDINGUX
-	    printText(250, 3, RED, 0, 0, "Quit : Select");
-#else
 	    printText((isWide ? 410 : 250), 3, RED, 0, 0, "Quit : Escape");
-#endif
+
 		if(bothnewkeys & FLAG_ESC) done = 1;
 
 		if(logfile[i].ready)
@@ -935,4 +932,3 @@ void Menu()
     reset_touchstates();
 	#endif
 }
-

@@ -1,22 +1,20 @@
 ##############################################
-# Msmalik681 Windows 64 bit Build instructions
+# Windows 64 bit Build instructions
 ##############################################
 
-First Download and install JAVA JDK 11. once installed open a command promt window and type "java -version" if it confirms you have java 11 installed.
+First Download and install JAVA JDK 17. once installed open a command promt window and type "java -version" if it confirms you have java 17 installed.
 
 Now download the Android SDK but be sure to get the "command line tools only" package and extract it to the folder "C:\android\sdk\" if this path is missing make it. Now confirm your have this path "C:\android\sdk\cmdline-tools\bin\sdkmanager.bat" if you have a match your done with this step.
 
 Finally go to the android folder in the source code and run build.bat. If it is the first time it will take time to download everything.
 
 ############################################
-# Msmalik681 Linux 64 bit Build instructions
+# Linux 64 bit Build instructions
 ############################################
 
-make sure you have java 11 installed check in terminal with "java --version" you can use openjdk 11.
+run openbor/engine/android/build.sh it will download everything needed and build openbor debug apk.
 
-(Optional) Download Android SDK but be sure to get the "command line tools only" and extract to "~/.android" now youo should have the path "~/.android/cmdline-tools/sdkmanager".
-
-Finally go to the android folder in the source code and run ./build.sh it will take a time to download everything if this is the first run.
+incase the downloads are broken download "commandlinetools-linux-13114758_latest.zip" and "openjdk-17.0.1_linux-x64_bin.zip" extract both to "~/.android" before you run build.sh.
 
 #########################
 # Custom Apk instructions
@@ -106,5 +104,5 @@ Anyway for debugging and development, you can
 # Development Notes
 ###################
 
-* Minimum SDK (API Level) is 16 at the moment
-* Support building for two architectures (with included pre-built libraries) arm64-v8a, and armeabi-v7a.
+* Minimum SDK (API Level) is 21 at the moment
+* Android builds target the 64-bit arm64-v8a architecture.

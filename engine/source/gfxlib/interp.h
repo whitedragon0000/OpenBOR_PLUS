@@ -123,8 +123,8 @@ static inline u16 interp_16_97(u16 p1, u16 p2)
            | INTERP_16_MASK_2((INTERP_16_MASK_2(p1) * 9 + INTERP_16_MASK_2(p2) * 7) / 16);
 }
 
-#define INTERP_32_MASK_1(v) (v & 0xFF00FF)
-#define INTERP_32_MASK_2(v) (v & 0x00FF00)
+#define INTERP_32_MASK_1(v) ((v) & 0xFF00FF)
+#define INTERP_32_MASK_2(v) ((v) & 0x00FF00)
 
 static inline u32 interp_32_521(u32 p1, u32 p2, u32 p3)
 {

@@ -285,7 +285,7 @@ void _putpixel32(unsigned x, unsigned y, unsigned colour, s_screen *screen, int 
     int pixind;
     unsigned *data ;
     unsigned(*blendfp)(unsigned, unsigned);
-    if(x > screen->width || y > screen->height)
+    if(x >= (unsigned)screen->width || y >= (unsigned)screen->height)
     {
         return;
     }
@@ -299,5 +299,3 @@ void _putpixel32(unsigned x, unsigned y, unsigned colour, s_screen *screen, int 
     blendfp = getblendfunction32(alpha);
     __putpixel32(data);
 }
-
-

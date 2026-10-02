@@ -52,7 +52,7 @@ include $(PREBUILT_STATIC_LIBRARY)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE    := openbor
-LOCAL_CFLAGS    := -g -O2 -Wall -Werror -Wno-unused-result -fsigned-char -fno-ident -freorder-blocks
+LOCAL_CFLAGS    := -g -O2 -Wall -Werror -Wno-unused-result -Wno-missing-braces -fsigned-char -fno-ident -freorder-blocks
 LOCAL_CFLAGS    += -DLINUX -DSDL=1 -DANDROID=1 -DTREMOR=1 -DWEBM=1
 LOCAL_CPPFLAGS  := ${LOCAL_CFLAGS}
 
@@ -65,7 +65,6 @@ LOCAL_C_INCLUDES  :=  \
 	$(LOCAL_PATH)/../../../../sdl \
 	$(LOCAL_PATH)/../../../../resources \
 	$(LOCAL_PATH)/../../../../source \
-	$(LOCAL_PATH)/../../../../source/adpcmlib \
 	$(LOCAL_PATH)/../../../../source/gamelib \
 	$(LOCAL_PATH)/../../../../source/gfxlib \
 	$(LOCAL_PATH)/../../../../source/pnglib \
@@ -85,7 +84,6 @@ LOCAL_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/../../../../sdl/*.c) \
 	$(wildcard $(LOCAL_PATH)/../../../../*.c) \
 	$(wildcard $(LOCAL_PATH)/../../../../source/*.c) \
-	$(wildcard $(LOCAL_PATH)/../../../../source/adpcmlib/*.c) \
 	$(wildcard $(LOCAL_PATH)/../../../../source/gamelib/*.c) \
 	$(wildcard $(LOCAL_PATH)/../../../../source/gfxlib/*.c) \
 	$(wildcard $(LOCAL_PATH)/../../../../source/pnglib/*.c) \
@@ -106,4 +104,3 @@ LOCAL_STATIC_LIBRARIES := png vorbisidec SDL2 vpx libhidapi
 
 include $(BUILD_SHARED_LIBRARY)
 $(call import-module,android/cpufeatures)
-

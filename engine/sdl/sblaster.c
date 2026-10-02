@@ -73,8 +73,41 @@ int SB_playstart(int bits, int samplerate)
 
 void SB_playstop()
 {
+	if(!started)
+	{
+		return;
+	}
+
 	//SDL_CloseAudio();
     SDL_CloseAudioDevice(audio_dev);
+	started = 0;
+	audio_dev = 0;
+}
+
+void SB_lock_audio()
+{
+	SB_lock_audio_direct();
+}
+
+void SB_unlock_audio()
+{
+	SB_unlock_audio_direct();
+}
+
+void SB_lock_audio_direct()
+{
+	if(started)
+	{
+		SDL_LockAudioDevice(audio_dev);
+	}
+}
+
+void SB_unlock_audio_direct()
+{
+	if(started)
+	{
+		SDL_UnlockAudioDevice(audio_dev);
+	}
 }
 
 void SB_setvolume(char dev, char volume)

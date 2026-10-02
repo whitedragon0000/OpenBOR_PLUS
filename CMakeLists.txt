@@ -6,18 +6,18 @@ project(OpenBOR VERSION 4.0 LANGUAGES C)
 option(BUILD_WIN    "Windows" OFF)
 option(BUILD_LINUX  "Linux" OFF)
 option(BUILD_DARWIN "MacOS" OFF)
-option(BUILD_WII    "Nintendo Wii Console" OFF)
 
 # Backends
-option(TARGET_ARCH "[X86,AMD64,ARM64,UNIVERSAL]" OFF)
-option(USE_SDL     "Enable SDL" OFF)
-option(USE_OPENGL  "Enable OpenGL" OFF)
-option(USE_LOADGL  "Enable SDL w/OpenGL Support" OFF)
-option(USE_PTHREAD "Enable Multi-Threading" OFF)
-option(USE_WEBM    "Enable WebM" OFF)
-option(USE_VORBIS  "Enable Vorbis" OFF)
+set(TARGET_ARCH "" CACHE STRING "Target architecture [AMD64,ARM64,UNIVERSAL]")
+set_property(CACHE TARGET_ARCH PROPERTY STRINGS AMD64 ARM64 UNIVERSAL)
+option(USE_SDL     "Enable SDL" ON)
+option(USE_OPENGL  "Enable OpenGL" ON)
+option(USE_LOADGL  "Enable SDL w/OpenGL Support" ON)
+option(USE_PTHREAD "Enable Multi-Threading" ON)
+option(USE_WEBM    "Enable WebM" ON)
+option(USE_VORBIS  "Enable Vorbis" ON)
 option(USE_TREMOR  "Enable Tremor" OFF)
-option(USE_GFX     "Enable Video Scaling" OFF)
+option(USE_GFX     "Enable Video Scaling" ON)
 
 # Linker Options
 option(ENABLE_STATIC     "Enable Static Linking" OFF)
@@ -33,6 +33,16 @@ string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" CMAKE_SYSTEM_PROCESSOR)
 # Detect Target Architecture
 if(NOT TARGET_ARCH)
   set(TARGET_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+
+# Require 64-bit Execution Environment
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+  message(FATAL_ERROR "OpenBOR requires a 64-bit target architecture.")
+endif()
+
+# Reject Unsupported 32-bit X86 Targets
+if(TARGET_ARCH MATCHES "^(x86|i[3-6]86|x86_32)$")
+  message(FATAL_ERROR "32-bit X86 targets are no longer supported. Supported TARGET_ARCH values: AMD64, ARM64, UNIVERSAL.")
 endif()
 
 # Default Compilation Flags
@@ -73,7 +83,7 @@ add_executable(${PROJECT_NAME} ${SRC_FILES})
 add_dependencies(${PROJECT_NAME} VersionInfo)
 
 # Auto-Detect
-if(NOT (BUILD_WIN OR BUILD_LINUX OR BUILD_DARWIN OR BUILD_WII))
+if(NOT (BUILD_WIN OR BUILD_LINUX OR BUILD_DARWIN))
   if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(BUILD_DARWIN ON)
     message("Build target not specified, BUILD_DARWIN=ON")
@@ -96,8 +106,6 @@ elseif(BUILD_DARWIN)
   include("cmake/macos.cmake")
 elseif(BUILD_LINUX)
   include("cmake/linux.cmake")
-elseif(BUILD_WII)
-  include("cmake/wii.cmake")
 endif()
 
 # Include Optional Source Files
@@ -137,7 +145,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "-Werror -O3 -DNDEBUG")
 target_include_directories(${PROJECT_NAME} PRIVATE 
   engine/
   engine/source
-  engine/source/adpcmlib
   engine/source/gamelib
   engine/source/gfxlib
   engine/source/openborscript
@@ -226,7 +233,7 @@ endif()
 # Distribution Preperation
 add_custom_command(TARGET ${PROJECT_NAME}
   POST_BUILD
-  COMMAND cp -a ../engine/COMPILING ../engine/releases/COMPILING.txt
+  COMMAND cp -a ../COMPILING.md ../engine/releases/COMPILING.txt
   COMMAND cp -a ../engine/LICENSE ../engine/releases/LICENSE.txt
   COMMAND cp -a ../engine/README ../engine/releases/README.txt
   COMMAND cp -a ../engine/translation.txt ../engine/releases/

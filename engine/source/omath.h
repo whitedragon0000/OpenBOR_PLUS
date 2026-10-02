@@ -15,8 +15,8 @@
 extern float sin_table[];
 extern float cos_table[];
 
-static volatile const double Infinity = INFINITY;
-static volatile const double Tiny = 0x1p-1022;
+static const double Infinity = INFINITY;
+static const double Tiny = 0x1p-1022;
 
 // double2 represents a number equal to d0 + d1, with |d1| <= 1/2 ULP(d0).
 typedef struct { double d0, d1; } double2;

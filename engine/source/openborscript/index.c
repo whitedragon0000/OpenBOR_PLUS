@@ -108,6 +108,10 @@ const char *Script_GetFunctionName(void *functionRef)
     {
         return "atan";
     }
+    else if (functionRef == ((void *)math_atan2))
+    {
+        return "atan2";
+    }
     else if (functionRef == ((void *)math_trunc))
     {
         return "trunc";
@@ -280,6 +284,30 @@ const char *Script_GetFunctionName(void *functionRef)
     {
         return "getplayerproperty";
     }
+    else if (functionRef == ((void *)openbor_get_command_input_event_object))
+    {
+        return "get_command_input_event_object";
+    }
+    else if (functionRef == ((void *)openbor_get_command_input_event_property))
+    {
+        return "get_command_input_event_property";
+    }
+    else if (functionRef == ((void *)openbor_set_command_input_event_property))
+    {
+        return "set_command_input_event_property";
+    }
+    else if (functionRef == ((void *)openbor_get_command_input_step_object))
+    {
+        return "get_command_input_step_object";
+    }
+    else if (functionRef == ((void *)openbor_get_command_input_step_property))
+    {
+        return "get_command_input_step_property";
+    }
+    else if (functionRef == ((void *)openbor_set_command_input_step_property))
+    {
+        return "set_command_input_step_property";
+    }
     else if (functionRef == ((void *)openbor_changeentityproperty))
     {
         return "changeentityproperty";
@@ -321,6 +349,46 @@ const char *Script_GetFunctionName(void *functionRef)
     {
         return "set_faction_property";
     }
+    else if (functionRef == ((void*)openbor_get_sound_channel_bank_mask))
+    {
+        return "get_sound_channel_bank_mask";
+    }
+    else if (functionRef == ((void*)openbor_get_sound_channel_mask))
+    {
+        return "get_sound_channel_mask";
+    }
+    else if (functionRef == ((void*)openbor_get_sound_channel_object))
+    {
+        return "get_sound_channel_object";
+    }
+    else if (functionRef == ((void*)openbor_get_sound_channel_index))
+    {
+        return "get_sound_channel_index";
+    }
+    else if (functionRef == ((void*)openbor_get_sound_property))
+    {
+        return "get_sound_property";
+    }
+    else if (functionRef == ((void*)openbor_set_sound_property))
+    {
+        return "set_sound_property";
+    }
+    else if (functionRef == ((void*)openbor_sound_group_stop))
+    {
+        return "sound_group_stop";
+    }
+    else if (functionRef == ((void*)openbor_sound_group_pause))
+    {
+        return "sound_group_pause";
+    }
+    else if (functionRef == ((void*)openbor_sound_group_resume))
+    {
+        return "sound_group_resume";
+    }
+    else if (functionRef == ((void*)openbor_sound_group_offset))
+    {
+        return "sound_group_offset";
+    }
     else if (functionRef == ((void*)openbor_get_icon_property))
     {
         return "get_icon_property";
@@ -336,14 +404,6 @@ const char *Script_GetFunctionName(void *functionRef)
     else if (functionRef == ((void*)openbor_set_model_property))
     {
         return "set_model_property";
-    }
-    else if (functionRef == ((void*)openbor_get_music_channel_property))
-    {
-        return "get_music_channel_property";
-    }
-    else if (functionRef == ((void*)openbor_set_music_channel_property))
-    {
-        return "set_music_channel_property";
     }
     else if (functionRef == ((void*)openbor_get_spawn_hud_property))
     {
@@ -396,15 +456,16 @@ const char *Script_GetFunctionName(void *functionRef)
         return "set_attack_property";
     }
 
-	// Recursive damage.
-	else if (functionRef == ((void *)openbor_get_recursive_damage_property))
-	{
-	return "get_recursive_damage_property";
-	}
-	else if (functionRef == ((void *)openbor_set_recursive_damage_property))
-	{
-	return "set_recursive_damage_property";
-	}
+	// Recursive effect.
+    else if (functionRef == ((void *)openbor_get_recursive_effect_object)) {
+        return "get_recursive_effect_object";
+    }
+    else if (functionRef == ((void *)openbor_get_recursive_effect_property)) {
+        return "get_recursive_effect_property";
+    }
+    else if (functionRef == ((void *)openbor_set_recursive_effect_property)) {
+        return "set_recursive_effect_property";
+    }
 
     // Body collision (bbox)
     else if (functionRef == ((void *)openbor_get_body_collision_collection))
@@ -422,24 +483,6 @@ const char *Script_GetFunctionName(void *functionRef)
     else if (functionRef == ((void *)openbor_set_body_collision_property))
     {
         return "set_body_collision_property";
-    }
-
-    // Entity collision (ebox)
-    else if (functionRef == ((void *)openbor_get_entity_collision_collection))
-    {
-        return "get_entity_collision_collection";
-    }
-    else if (functionRef == ((void *)openbor_get_entity_collision_instance))
-    {
-        return "get_entity_collision_instance";
-    }
-    else if (functionRef == ((void *)openbor_get_entity_collision_property))
-    {
-        return "get_entity_collision_property";
-    }
-    else if (functionRef == ((void *)openbor_set_entity_collision_property))
-    {
-        return "set_entity_collision_property";
     }
 
     /* Flash config properties */
@@ -710,6 +753,10 @@ const char *Script_GetFunctionName(void *functionRef)
     {
         return "closefilestream";
     }
+    else if (functionRef == ((void *)openbor_deletefilestream))
+    {
+        return "deletefilestream";
+    }
     else if (functionRef == ((void *)openbor_savefilestream))
     {
         return "savefilestream";
@@ -877,6 +924,54 @@ const char *Script_GetFunctionName(void *functionRef)
     else if (functionRef == ((void *)openbor_playwebm))
     {
         return "playwebm";
+    }
+    else if (functionRef == ((void *)openbor_movie_load))
+    {
+        return "movie_load";
+    }
+    else if (functionRef == ((void *)openbor_movie_unload))
+    {
+        return "movie_unload";
+    }
+    else if (functionRef == ((void *)openbor_movie_play))
+    {
+        return "movie_play";
+    }
+    else if (functionRef == ((void *)openbor_movie_draw_to_screen))
+    {
+        return "movie_draw_to_screen";
+    }
+    else if (functionRef == ((void *)openbor_movie_draw_to_yuv))
+    {
+        return "movie_draw_to_yuv";
+    }
+    else if (functionRef == ((void *)openbor_movie_set_sound_channel))
+    {
+        return "movie_set_sound_channel";
+    }
+    else if (functionRef == ((void *)openbor_movie_stop))
+    {
+        return "movie_stop";
+    }
+    else if (functionRef == ((void *)openbor_movie_get_channel_object))
+    {
+        return "movie_get_channel_object";
+    }
+    else if (functionRef == ((void *)openbor_movie_get_channel_index))
+    {
+        return "movie_get_channel_index";
+    }
+    else if (functionRef == ((void *)openbor_movie_get_channel_mask))
+    {
+        return "movie_get_channel_mask";
+    }
+    else if (functionRef == ((void *)openbor_movie_get_property))
+    {
+        return "movie_get_property";
+    }
+    else if (functionRef == ((void *)openbor_movie_set_property))
+    {
+        return "movie_set_property";
     }
     else if (functionRef == ((void *)openbor_playgif))
     {
@@ -1067,13 +1162,13 @@ void *Script_GetStringMapFunction(void *functionRef)
     {
         return (void *)mapstrings_playerproperty;
     }
-	else if (functionRef == ((void *)openbor_get_recursive_damage_property))
+	else if (functionRef == ((void *)openbor_get_recursive_effect_property))
 	{
-		return (void *)mapstrings_recursive_damage_property;
+		return (void *)mapstrings_recursive_effect_property;
 	}
-	else if (functionRef == ((void *)openbor_set_recursive_damage_property))
+	else if (functionRef == ((void *)openbor_set_recursive_effect_property))
 	{
-		return (void *)mapstrings_recursive_damage_property;
+		return (void *)mapstrings_recursive_effect_property;
 	}
 
     // Axis
@@ -1174,6 +1269,26 @@ void Script_LoadSystemFunctions()
     //load system functions if we need
     List_Reset(&theFunctionList);
 
+
+
+    List_InsertAfter(&theFunctionList,
+                     (void *)datetime_format, "datetime_format");
+    List_InsertAfter(&theFunctionList,
+                     (void *)datetime_getday, "datetime_getday");
+    List_InsertAfter(&theFunctionList,
+                     (void *)datetime_gethour, "datetime_gethour");
+    List_InsertAfter(&theFunctionList,
+                     (void *)datetime_getminute, "datetime_getminute");
+    List_InsertAfter(&theFunctionList,
+                     (void *)datetime_getmonth, "datetime_getmonth");
+    List_InsertAfter(&theFunctionList,
+                     (void *)datetime_getsecond, "datetime_getsecond");
+    List_InsertAfter(&theFunctionList,
+                     (void *)datetime_getyear, "datetime_getyear");
+    List_InsertAfter(&theFunctionList,
+                     (void *)datetime_gettimestamp, "datetime_gettimestamp");
+    List_InsertAfter(&theFunctionList,
+                     (void *)datetime_gettimestampms, "datetime_gettimestampms");
     List_InsertAfter(&theFunctionList,
                      (void *)system_isempty, "isempty");
     List_InsertAfter(&theFunctionList,
@@ -1223,9 +1338,19 @@ void Script_LoadSystemFunctions()
     List_InsertAfter(&theFunctionList,
                      (void *)math_atan, "atan");
     List_InsertAfter(&theFunctionList,
+                     (void *)math_atan2, "atan2");
+    List_InsertAfter(&theFunctionList,
+                     (void *)math_angle, "angle");
+    List_InsertAfter(&theFunctionList,
+                     (void *)math_ceil, "ceil");
+    List_InsertAfter(&theFunctionList,
+                     (void *)math_floor, "floor");
+    List_InsertAfter(&theFunctionList,
                      (void *)math_trunc, "trunc");
     List_InsertAfter(&theFunctionList,
                      (void *)math_round, "round");
+    List_InsertAfter(&theFunctionList,
+                     (void *)math_abs, "abs");
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_systemvariant, "openborvariant");
     List_InsertAfter(&theFunctionList,
@@ -1312,6 +1437,38 @@ void Script_LoadSystemFunctions()
         (void*)openbor_load_palette, "load_palette");
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_getplayerproperty, "getplayerproperty");
+
+    /* Command input history and configurable command steps. */
+    List_InsertAfter(
+        &theFunctionList,
+        (void*)openbor_get_command_input_event_object,
+        "get_command_input_event_object"
+    );
+    List_InsertAfter(
+        &theFunctionList,
+        (void*)openbor_get_command_input_event_property,
+        "get_command_input_event_property"
+    );
+    List_InsertAfter(
+        &theFunctionList,
+        (void*)openbor_set_command_input_event_property,
+        "set_command_input_event_property"
+    );
+    List_InsertAfter(
+        &theFunctionList,
+        (void*)openbor_get_command_input_step_object,
+        "get_command_input_step_object"
+    );
+    List_InsertAfter(
+        &theFunctionList,
+        (void*)openbor_get_command_input_step_property,
+        "get_command_input_step_property"
+    );
+    List_InsertAfter(
+        &theFunctionList,
+        (void*)openbor_set_command_input_step_property,
+        "set_command_input_step_property"
+    );
     
 	// Animation properties.
 	List_InsertAfter(&theFunctionList,
@@ -1335,11 +1492,13 @@ void Script_LoadSystemFunctions()
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_set_attack_property, "set_attack_property");
 
-	// Recursive damage properties.
+	// Recursive effect properties.
+    List_InsertAfter(&theFunctionList,
+		(void *)openbor_get_recursive_effect_object, "get_recursive_effect_object");
 	List_InsertAfter(&theFunctionList,
-		(void *)openbor_get_recursive_damage_property, "get_recursive_damage_property");
+		(void *)openbor_get_recursive_effect_property, "get_recursive_effect_property");
 	List_InsertAfter(&theFunctionList,
-		(void *)openbor_set_recursive_damage_property, "set_recursive_damage_property");
+		(void *)openbor_set_recursive_effect_property, "set_recursive_effect_property");
 
     // Body collision (bbox) properties.
     List_InsertAfter(&theFunctionList,
@@ -1357,16 +1516,6 @@ void Script_LoadSystemFunctions()
     List_InsertAfter(&theFunctionList,
         (void*)openbor_set_colorset_property, "set_colorset_property");
 
-    // Entity collision (ebox) properties.
-    List_InsertAfter(&theFunctionList,
-                     (void *)openbor_get_entity_collision_collection, "get_entity_collision_collection");
-    List_InsertAfter(&theFunctionList,
-                     (void *)openbor_get_entity_collision_instance, "get_entity_collision_instance");
-    List_InsertAfter(&theFunctionList,
-                     (void *)openbor_get_entity_collision_property, "get_entity_collision_property");
-    List_InsertAfter(&theFunctionList,
-                     (void *)openbor_set_entity_collision_property, "set_entity_collision_property");
-
     // Entity properties.
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_get_entity_property, "get_entity_property");
@@ -1378,6 +1527,28 @@ void Script_LoadSystemFunctions()
         (void*)openbor_get_faction_property, "get_faction_property");
     List_InsertAfter(&theFunctionList,
         (void*)openbor_set_faction_property, "set_faction_property");
+
+    /* Sound channel objects and masks. */
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_sound_channel_bank_mask, "get_sound_channel_bank_mask");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_sound_channel_mask, "get_sound_channel_mask");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_sound_channel_object, "get_sound_channel_object");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_sound_channel_index, "get_sound_channel_index");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_get_sound_property, "get_sound_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_set_sound_property, "set_sound_property");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_sound_group_stop, "sound_group_stop");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_sound_group_pause, "sound_group_pause");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_sound_group_resume, "sound_group_resume");
+    List_InsertAfter(&theFunctionList,
+        (void*)openbor_sound_group_offset, "sound_group_offset");
 
     /* Flash config properties. */
     List_InsertAfter(&theFunctionList,
@@ -1402,12 +1573,6 @@ void Script_LoadSystemFunctions()
         (void*)openbor_get_model_property, "get_model_property");
     List_InsertAfter(&theFunctionList,
         (void*)openbor_set_model_property, "set_model_property");
-
-    /* Music channel properties. */
-    List_InsertAfter(&theFunctionList,
-        (void*)openbor_get_music_channel_property, "get_music_channel_property");
-    List_InsertAfter(&theFunctionList,
-        (void*)openbor_set_music_channel_property, "set_music_channel_property");
 
     /* Spawn HUD properties. */
     List_InsertAfter(&theFunctionList,
@@ -1557,6 +1722,8 @@ void Script_LoadSystemFunctions()
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_closefilestream, "closefilestream");
     List_InsertAfter(&theFunctionList,
+                     (void *)openbor_deletefilestream, "deletefilestream");
+    List_InsertAfter(&theFunctionList,
                      (void *)openbor_savefilestream, "savefilestream");
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_getindexedvar, "getindexedvar");
@@ -1641,6 +1808,30 @@ void Script_LoadSystemFunctions()
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_playwebm, "playwebm");
     List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_load, "movie_load");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_unload, "movie_unload");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_play, "movie_play");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_draw_to_screen, "movie_draw_to_screen");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_draw_to_yuv, "movie_draw_to_yuv");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_set_sound_channel, "movie_set_sound_channel");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_stop, "movie_stop");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_get_channel_object, "movie_get_channel_object");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_get_channel_index, "movie_get_channel_index");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_get_channel_mask, "movie_get_channel_mask");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_get_property, "movie_get_property");
+    List_InsertAfter(&theFunctionList,
+                     (void *)openbor_movie_set_property, "movie_set_property");
+    List_InsertAfter(&theFunctionList,
                      (void *)openbor_playgif, "playgif");
     List_InsertAfter(&theFunctionList,
                      (void *)openbor_openanigif, "openanigif");
@@ -1711,4 +1902,3 @@ void Script_LoadSystemFunctions()
     //printf("Done!\n");
 
 }
-

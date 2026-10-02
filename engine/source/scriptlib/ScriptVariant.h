@@ -10,29 +10,55 @@
 #define SCRIPTVARIANT_H
 
 #include "depends.h"
+#include <stddef.h>
+#include <stdint.h>
 
-typedef enum VariantType
-{
-    VT_EMPTY    = 0,    //not initialized
-    VT_INTEGER  = 1,    //int/long
-    VT_DECIMAL  = 2,    //double
-    VT_PTR      = 5,    //void*
-    VT_STR      = 6,    //char*
+typedef enum VariantType {
+
+    VT_EMPTY       = 0,           // Not initialized.
+    VT_INTEGER     = (1U << 0),   // LONG / legacy script integer.
+    VT_DECIMAL     = (1U << 1),   // double.
+    VT_INTEGER64   = (1U << 2),   // Signed 64-bit integer.
+    VT_UINTEGER64  = (1U << 3),   // Unsigned 64-bit integer.
+    VT_PTR         = (1U << 4),   // void*.
+    VT_STR         = (1U << 5)    // char*.
 } VARTYPE;
+
+/*
+* Script strings are dynamically allocated. This is a policy
+* bound, not the capacity of a fixed storage buffer.
+*/
+#define MAX_SCRIPT_STRING_LENGTH                 65535U
+#define SCRIPT_VARIANT_CONVERSION_BUFFER_LENGTH    512U
+
+/*
+* Query masks only. These are not concrete
+* types and must never be stored in
+* ScriptVariant.vt or property type maps.
+*/
+#define VT_INTANY  (VT_INTEGER | VT_INTEGER64 | VT_UINTEGER64)
+#define VT_NUMERIC (VT_DECIMAL | VT_INTANY)
 
 #pragma pack(4)
 
-typedef struct ScriptVariant
-{
-    union//value
-    {
-        LONG          lVal;
-        VOID         *ptrVal;
-        DOUBLE        dblVal;
-        int           strVal;
+typedef struct ScriptVariant {
+    
+    union{
+        LONG                lVal;
+        int64_t             llVal;
+        uint64_t            ullVal;
+        VOID               *ptrVal;
+        DOUBLE              dblVal;
+        int                 strVal;
     };
-    VARTYPE vt;//variatn type
+
+    VARTYPE vt;
 } ScriptVariant;
+
+typedef struct ScriptVariantStringView {
+    const CHAR *string;
+    size_t length;
+} ScriptVariantStringView;
 
 /*
 * Caskey, Damon V.
@@ -64,11 +90,16 @@ void ScriptVariant_Clear(ScriptVariant *var);
 void ScriptVariant_Init(ScriptVariant *var);
 void ScriptVariant_Copy(ScriptVariant *svar, ScriptVariant *rightChild ); // faster in some situations
 void ScriptVariant_ChangeType(ScriptVariant *var, VARTYPE cvt);
-void ScriptVariant_ParseStringConstant(ScriptVariant *var, CHAR *str);
+size_t ScriptString_DecodeLiteral(CHAR *destination, size_t destination_size, const CHAR *source, size_t source_length);
+HRESULT ScriptVariant_ParseStringConstant(ScriptVariant *var, const CHAR *str);
+HRESULT ScriptVariant_ParseStringLiteral(ScriptVariant *var, const CHAR *source, size_t source_length);
 HRESULT ScriptVariant_IntegerValue(ScriptVariant *var, LONG *pVal);
 HRESULT ScriptVariant_DecimalValue(ScriptVariant *var, DOUBLE *pVal);
+HRESULT ScriptVariant_Integer64Value(ScriptVariant *var, int64_t *pVal);
+HRESULT ScriptVariant_Unsigned64Value(ScriptVariant *var, uint64_t *pVal);
 BOOL ScriptVariant_IsTrue(ScriptVariant *svar);
-void ScriptVariant_ToString(ScriptVariant *svar, LPSTR buffer );
+HRESULT ScriptVariant_GetStringView(const ScriptVariant *svar, CHAR *conversion_buffer, size_t conversion_buffer_size, ScriptVariantStringView *view);
+HRESULT ScriptVariant_ToString(const ScriptVariant *svar, LPSTR buffer, size_t buffer_size, size_t *output_length);
 
 // light version, for compiled call, faster than above, but not safe in some situations
 // This function are used by compiled scripts
@@ -96,6 +127,7 @@ ScriptVariant *ScriptVariant_Shr( ScriptVariant *svar, ScriptVariant *rightChild
 ScriptVariant *ScriptVariant_Mul( ScriptVariant *svar, ScriptVariant *rightChild );
 ScriptVariant *ScriptVariant_Div( ScriptVariant *svar, ScriptVariant *rightChild );
 ScriptVariant *ScriptVariant_Mod( ScriptVariant *svar, ScriptVariant *rightChild );
+
 void ScriptVariant_Inc_Op(ScriptVariant *svar );
 ScriptVariant *ScriptVariant_Inc_Op2(ScriptVariant *svar );
 void ScriptVariant_Dec_Op(ScriptVariant *svar );

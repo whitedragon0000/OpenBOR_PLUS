@@ -15,6 +15,7 @@
 #else
 #include <time.h>
 #endif
+#include <stdarg.h>
 #include "types.h"
 #include "stringptr.h"
 
@@ -35,6 +36,8 @@ extern u32 debug_time;
 
 // *** FUNCTIONS DECLARATIONS ***
 void writeToLogFile(const char *, ...);
+void writeToLogFileV(const char *message, va_list arguments);
+void writeToLogFileLength(const char *message, size_t length);
 void writeToScriptLog(const char *msg);
 int fileExists(char *fnam);
 int dirExists(char *dname, int create);

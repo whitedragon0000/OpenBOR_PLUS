@@ -25,6 +25,9 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.BroadcastReceiver;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
@@ -416,6 +419,46 @@ public class GameActivity extends SDLActivity {
     //White Dragon: wakelock acquire!
     if (!GameActivity.wakeLock.isHeld())
       GameActivity.wakeLock.acquire(10*60*1000L /*10 minutes*/);
+  }
+
+  @Override
+  protected void onDestroy() {
+    super.onDestroy();
+    Log.v("OpenBOR", "onDestroy");
+
+    //CRxTRDude - Release wakelock first before destroying.
+    if (GameActivity.wakeLock.isHeld())
+      GameActivity.wakeLock.release();
+  }
+
+  //needed to fix sdk 34+ crashing
+  @Override
+  public Intent registerReceiver(@Nullable BroadcastReceiver receiver, IntentFilter filter) {
+    if (Build.VERSION.SDK_INT >= 34 && getApplicationInfo().targetSdkVersion >= 34) {
+      return super.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
+    } else {
+      return super.registerReceiver(receiver, filter);
+    }
+  }
+
+  @Override
+  protected void onPause() {
+    super.onPause();
+    Log.v("OpenBOR", "onPause");
+
+    //White Dragon: wakelock release!
+    if (GameActivity.wakeLock.isHeld())
+      GameActivity.wakeLock.release();
+  }
+
+  @Override
+  protected void onResume() {
+    super.onResume();
+    Log.v("OpenBOR", "onResume");
+
+    //White Dragon: wakelock acquire!
+    if (!GameActivity.wakeLock.isHeld())
+      GameActivity.wakeLock.acquire();
   }
 
   @Override

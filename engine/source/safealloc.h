@@ -15,8 +15,13 @@
 
 #undef strdup
 
+#ifndef _MSC_VER
 #define MALLOCLIKE __attribute__((__malloc__))
 #define FREELIKE __attribute__((__cleanup__(free)))
+#else
+#define MALLOCLIKE
+#define FREELIKE
+#endif
 //#define ATTR_UNUSED __attribute__((__unused__))
 
 #ifdef DMALLOC_OVERFLOW_LIST

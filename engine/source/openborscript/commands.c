@@ -8,39 +8,56 @@ void freeCommandList(List *list)
     free(list);
 }
 
-// attention: modifies usercommand to lowercase
-void *getCommandlistCommand(List *list, char *usercommand)
+/**
+ * getCommandlistCommand
+ * ---------------------
+ * Refactor - Caskey, Damon V.
+ * 2025-05-17
+ * 
+ * Looks up a command in the given list by its name, case-insensitively.
+ *
+ * Notes:
+ *   - The search is case-insensitive.
+ *   - Memory is dynamically allocated for the lowercase copy and freed before return.
+ */
+void* getCommandlistCommand(List* list, const char* usercommand)
 {
-    if (!usercommand || !usercommand[0])
-    {
-        goto fail;
+    if (!list || !usercommand || !usercommand[0]) {
+        return NULL;
     }
-    lc(usercommand, strlen(usercommand));
-    Node *n = List_GetNodeByName(list, usercommand);
-    if(n)
-    {
-        return n->value;
+
+    size_t len = strlen(usercommand);
+    char* buf = (char*)malloc(len + 1);
+    
+    if (!buf){
+        return NULL;
     }
-fail:
-    return NULL;
+
+    memcpy(buf, usercommand, len + 1); // Copy including null terminator
+    lc(buf, len);
+
+    Node* n = List_GetNodeByName(list, buf);
+    free(buf);
+
+    return n ? n->value : NULL;
 }
 
-modelCommands getModelCommand(List *list, char *usercommand)
+modelCommands getModelCommand(List *list, const char* usercommand)
 {
     return (modelCommands) (uintptr_t) getCommandlistCommand(list, usercommand);
 }
 
-modelstxtCommands getModelstxtCommand(List *list, char *usercommand)
+modelstxtCommands getModelstxtCommand(List *list, const char *usercommand)
 {
     return (modelstxtCommands) (uintptr_t) getCommandlistCommand(list, usercommand);
 }
 
-levelCommands getLevelCommand(List *list, char *usercommand)
+levelCommands getLevelCommand(List *list, const char *usercommand)
 {
     return (levelCommands) (uintptr_t) getCommandlistCommand(list, usercommand);
 }
 
-levelOrderCommands getLevelOrderCommand(List *list, char *usercommand)
+levelOrderCommands getLevelOrderCommand(List *list, const char *usercommand)
 {
     return (levelOrderCommands) (uintptr_t) getCommandlistCommand(list, usercommand);
 }
@@ -73,9 +90,11 @@ List *createModelstxtCommandList(void)
     LIST_ADD(CMD_MODELSTXT_DROPV, "dropv");
 	LIST_ADD(CMD_MODELSTXT_ENABLE_ENTITY_COLLISION, "enable_entity_collision");
     LIST_ADD(CMD_MODELSTXT_GLOBAL_CONFIG_CHEATS, "global_config_cheats");
+    LIST_ADD(CMD_MODELSTXT_GLOBAL_CONFIG_DELAY_UNIT, "global_config_delay_unit");
     LIST_ADD(CMD_MODELSTXT_GLOBAL_CONFIG_FLASH_LAYER_ADJUST, "global_config_flash_layer_adjust");
     LIST_ADD(CMD_MODELSTXT_GLOBAL_CONFIG_FLASH_LAYER_SOURCE, "global_config_flash_layer_source");
     LIST_ADD(CMD_MODELSTXT_GLOBAL_CONFIG_FLASH_Z_SOURCE, "global_config_flash_z_source");
+    LIST_ADD(CMD_MODELSTXT_GLOBAL_CONFIG_GAME_SPEED, "global_config_game_speed");
     LIST_ADD(CMD_MODELSTXT_GRABDISTANCE, "grabdistance");
     LIST_ADD(CMD_MODELSTXT_JUMPHEIGHT, "jumpheight");
     LIST_ADD(CMD_MODELSTXT_JUMPSPEED, "jumpspeed");
@@ -135,7 +154,8 @@ List *createModelCommandList(void)
     LIST_ADD(CMD_MODEL_ATCHAIN, "atchain");    
     LIST_ADD(CMD_MODEL_COLLISION, "attack");
     LIST_ADD(CMD_MODEL_COLLISION_BLOCK_COST,                       "attack.block.cost");                       // guardcost
-    LIST_ADD(CMD_MODEL_COLLISION_BLOCK_PENETRATE,                  "attack.block.penetrate");                  // no_block
+    LIST_ADD(CMD_MODEL_COLLISION_BLOCK_PENETRATE,                  "attack.block.penetrate");
+    LIST_ADD(CMD_MODEL_COLLISION_COORDINATES,                      "attack.coordinates");   // Shortcut for collision coordinates (x, y, width, height, depth background, depth foreground) in one line.                   
     LIST_ADD(CMD_MODEL_COLLISION_COUNTER,                          "attack.counter");
     LIST_ADD(CMD_MODEL_COLLISION_DAMAGE_FORCE,                     "attack.damage.force");
     LIST_ADD(CMD_MODEL_COLLISION_DAMAGE_LAND_FORCE,                "attack.damage.land.force");
@@ -210,6 +230,7 @@ List *createModelCommandList(void)
     LIST_ADD(CMD_MODEL_COLLISIONZ, "attackz");
     LIST_ADD(CMD_MODEL_NOHITHEAD, "nohithead");
     LIST_ADD(CMD_MODEL_BBOX, "bbox");
+    LIST_ADD(CMD_MODEL_BBOX_COORDINATES, "bbox.coordinates"); // Shortcut for bbox coordinates (x, y, width, height, depth background, depth foreground) in one line.
     LIST_ADD(CMD_MODEL_BBOX_EFFECT_HIT_FLASH_LAYER_ADJUST, "bbox.effect.hit.flash.layer.adjust");
     LIST_ADD(CMD_MODEL_BBOX_EFFECT_HIT_FLASH_LAYER_SOURCE, "bbox.effect.hit.flash.layer.source");
     LIST_ADD(CMD_MODEL_BBOX_EFFECT_HIT_FLASH_Z_SOURCE, "bbox.effect.hit.flash.z.source");
@@ -336,7 +357,6 @@ List *createModelCommandList(void)
     LIST_ADD(CMD_MODEL_DIVE, "dive");
     LIST_ADD(CMD_MODEL_DIVE1, "dive1");
     LIST_ADD(CMD_MODEL_DIVE2, "dive2");
-    LIST_ADD(CMD_MODEL_DOT, "dot");
     LIST_ADD(CMD_MODEL_DRAWMETHOD, "drawmethod");
     LIST_ADD(CMD_MODEL_DROPFRAME, "dropframe");
     LIST_ADD(CMD_MODEL_DROPV, "dropv");
@@ -481,13 +501,13 @@ List *createModelCommandList(void)
     LIST_ADD(CMD_MODEL_OFFENSE_DAMAGE_ADJUST, "offense.damage.adjust");
     LIST_ADD(CMD_MODEL_OFFENSE_DAMAGE_MAX, "offense.damage.max");
     LIST_ADD(CMD_MODEL_OFFENSE_DAMAGE_MIN, "offense.damage.min");
-    LIST_ADD(CMD_MODEL_OFFENSE_FACTOR, "offense.factor");
+    LIST_ADD(CMD_MODEL_OFFENSE_FACTOR, "offense.damage.factor");
     LIST_ADD(CMD_MODEL_OFFSCREENKILL, "offscreenkill");
     LIST_ADD(CMD_MODEL_ONAF, "offscreen_noatk_factor");
     LIST_ADD(CMD_MODEL_OFFSET, "offset");
     LIST_ADD(CMD_MODEL_ON_BIND_UPDATE_OTHER_TO_SELF_SCRIPT, "on_bind_update_other_to_self_script");
     LIST_ADD(CMD_MODEL_ON_BIND_UPDATE_SELF_TO_OTHER_SCRIPT, "on_bind_update_self_to_other_script");
-    LIST_ADD(CMD_MODEL_ONBLOCKASCRIPT, "onblockascript");
+    LIST_ADD(CMD_MODEL_ONBLOCKYSCRIPT, "onblockyscript");
     LIST_ADD(CMD_MODEL_ONBLOCKOSCRIPT, "onblockoscript");
     LIST_ADD(CMD_MODEL_ONBLOCKPSCRIPT, "onblockpscript");
     LIST_ADD(CMD_MODEL_ONBLOCKSSCRIPT, "onblocksscript");
@@ -499,8 +519,11 @@ List *createModelCommandList(void)
     LIST_ADD(CMD_MODEL_ONENTITYCOLLISIONSCRIPT, "onentitycollisionscript");
     LIST_ADD(CMD_MODEL_ONFALLSCRIPT, "onfallscript");
     LIST_ADD(CMD_MODEL_ONKILLSCRIPT, "onkillscript");
+    LIST_ADD(CMD_MODEL_MODELLOADSCRIPT, "modelloadscript");
+    LIST_ADD(CMD_MODEL_MODELUNLOADSCRIPT, "modelunloadscript");
     LIST_ADD(CMD_MODEL_ONMODELCOPYSCRIPT, "onmodelcopyscript");
-    LIST_ADD(CMD_MODEL_ONMOVEASCRIPT, "onmoveascript");
+    LIST_ADD(CMD_MODEL_ONMOVEYSCRIPT, "onmoveyscript");
+    LIST_ADD(CMD_MODEL_ONMOVEYSCRIPT, "onmoveascript"); // Legacy vertical-axis name.
     LIST_ADD(CMD_MODEL_ONMOVEXSCRIPT, "onmovexscript");
     LIST_ADD(CMD_MODEL_ONMOVEZSCRIPT, "onmovezscript");
     LIST_ADD(CMD_MODEL_ONPAINSCRIPT, "onpainscript");
@@ -571,6 +594,25 @@ List *createModelCommandList(void)
     LIST_ADD(CMD_MODEL_SHOOTNUM, "shootnum");
     LIST_ADD(CMD_MODEL_SLEEPWAIT, "sleepwait");
     LIST_ADD(CMD_MODEL_SMARTBOMB, "smartbomb");
+    LIST_ADD(CMD_MODEL_SOUND_INDEX, "sound.index");
+    LIST_ADD(CMD_MODEL_SOUND_CHANNEL_OFFSET, "sound.channel_offset");
+    LIST_ADD(CMD_MODEL_SOUND_CHANNEL_PAUSE, "sound.channel_pause");
+    LIST_ADD(CMD_MODEL_SOUND_CHANNEL_PRIORITY, "sound.channel_priority");
+    LIST_ADD(CMD_MODEL_SOUND_CHANNEL_RESUME, "sound.channel_resume");
+    LIST_ADD(CMD_MODEL_SOUND_CHANNEL_SET, "sound.channel_set");
+    LIST_ADD(CMD_MODEL_SOUND_CHANNEL_STOP, "sound.channel_stop");
+    LIST_ADD(CMD_MODEL_SOUND_CHANCE, "sound.chance");
+    LIST_ADD(CMD_MODEL_SOUND_DELAY, "sound.delay");
+    LIST_ADD(CMD_MODEL_SOUND_GROUP, "sound.group");
+    LIST_ADD(CMD_MODEL_SOUND_GROUP_OFFSET, "sound.group_offset");
+    LIST_ADD(CMD_MODEL_SOUND_GROUP_PAUSE, "sound.group_pause");
+    LIST_ADD(CMD_MODEL_SOUND_GROUP_RESUME, "sound.group_resume");
+    LIST_ADD(CMD_MODEL_SOUND_GROUP_STOP, "sound.group_stop");
+    LIST_ADD(CMD_MODEL_SOUND_LOADING, "sound.loading");
+    LIST_ADD(CMD_MODEL_SOUND_LOOP, "sound.loop");
+    LIST_ADD(CMD_MODEL_SOUND_LOOP_OFFSET, "sound.loop_offset");
+    LIST_ADD(CMD_MODEL_SOUND_RANDOM, "sound.random");
+    LIST_ADD(CMD_MODEL_SOUND_START_OFFSET, "sound.start_offset");
     LIST_ADD(CMD_MODEL_SOUND, "sound");
     LIST_ADD(CMD_MODEL_SPAWNFRAME, "spawnframe");
     LIST_ADD(CMD_MODEL_SPEED, "speed");
@@ -725,7 +767,9 @@ List *createLevelCommandList(void)
     LIST_ADD(CMD_LEVEL_SPAWNSCRIPT, "spawnscript");
     LIST_ADD(CMD_LEVEL_STAGENUMBER, "stagenumber");
     LIST_ADD(CMD_LEVEL_TYPE, "type");
+    LIST_ADD(CMD_LEVEL_UPDATEDLOGICSCRIPT, "updatedlogicscript");
     LIST_ADD(CMD_LEVEL_UPDATEDSCRIPT, "updatedscript");
+    LIST_ADD(CMD_LEVEL_UPDATELOGICSCRIPT, "updatelogicscript");
     LIST_ADD(CMD_LEVEL_UPDATESCRIPT, "updatescript");
     LIST_ADD(CMD_LEVEL_VBGSPEED, "vbgspeed");
     LIST_ADD(CMD_LEVEL_WAIT, "wait");
