@@ -35,6 +35,11 @@ typedef struct Instruction
     ScriptVariant *theRef2;
     List *theRefList;
     HRESULT (*functionRef)(ScriptVariant **, ScriptVariant **, int);
+
+    /* Runtime ownership metadata for nested/recursive script calls. */
+    struct Instruction **pFunctionStart;
+    struct Instruction **pFunctionEnd;
+
     union
     {
         int theJumpTargetIndex;

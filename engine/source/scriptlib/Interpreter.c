@@ -189,6 +189,225 @@ HRESULT Interpreter_GetValueByRef(Interpreter *pinterpreter, LPCSTR variable, Sc
     return hr;
 }
 
+/*
+ * A compiled script stores local variables and expression temporaries directly
+ * in Instruction::theVal. Normal (non-overlapping) calls can safely reuse that
+ * storage, which is the legacy behavior. Recursive/mutually-recursive calls
+ * cannot: an inner activation would overwrite an outer activation of the same
+ * function. The snapshot below is therefore created only when the target
+ * function is already active.
+ */
+typedef struct InterpreterInstructionState
+{
+    ScriptVariant *pTarget;
+    ScriptVariant value;
+    BOOL hasValue;
+    List *pRefList;
+    int refListIndex;
+} InterpreterInstructionState;
+
+typedef struct InterpreterFunctionState
+{
+    InterpreterInstructionState *states;
+    int count;
+} InterpreterFunctionState;
+
+static Instruction **Interpreter_FindFunctionStart(Interpreter *pinterpreter, Instruction **pentry)
+{
+    Instruction *instruction;
+
+    (void)pinterpreter;
+    if(!pentry || !(instruction = *pentry))
+    {
+        return NULL;
+    }
+
+    if(instruction->pFunctionStart)
+    {
+        return instruction->pFunctionStart;
+    }
+
+    /* Compatibility fallback for imported/direct entries compiled as FUNCDECL. */
+    if(instruction->OpCode == FUNCDECL)
+    {
+        return pentry;
+    }
+
+    return NULL;
+}
+
+static Instruction **Interpreter_FindFunctionEnd(Interpreter *pinterpreter, Instruction **pstart)
+{
+    Instruction *instruction;
+
+    (void)pinterpreter;
+    if(!pstart || !(instruction = *pstart))
+    {
+        return NULL;
+    }
+
+    return instruction->pFunctionEnd;
+}
+
+static BOOL Interpreter_IsFunctionActive(Interpreter *pinterpreter, Instruction **pfunctionStart)
+{
+    InterpreterCallFrame *frame;
+
+    for(frame = pinterpreter->pCallFrame; frame; frame = frame->pPrevious)
+    {
+        if(frame->pFunctionStart == pfunctionStart)
+        {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+static HRESULT Interpreter_PushCallFrame(Interpreter *pinterpreter, Instruction **pfunctionStart)
+{
+    InterpreterCallFrame *frame;
+
+    if(pinterpreter->callDepth >= INTERPRETER_MAX_CALL_DEPTH)
+    {
+        printf("Script runtime error: maximum recursive call depth (%u) exceeded.\n",
+               (unsigned)INTERPRETER_MAX_CALL_DEPTH);
+        return E_FAIL;
+    }
+
+    frame = (InterpreterCallFrame *)malloc(sizeof(*frame));
+    if(!frame)
+    {
+        return E_FAIL;
+    }
+
+    frame->pFunctionStart = pfunctionStart;
+    frame->pPrevious = pinterpreter->pCallFrame;
+    pinterpreter->pCallFrame = frame;
+    pinterpreter->callDepth++;
+    return S_OK;
+}
+
+static void Interpreter_PopCallFrame(Interpreter *pinterpreter)
+{
+    InterpreterCallFrame *frame;
+
+    if(!pinterpreter || !pinterpreter->pCallFrame)
+    {
+        return;
+    }
+
+    frame = pinterpreter->pCallFrame;
+    pinterpreter->pCallFrame = frame->pPrevious;
+    free(frame);
+    if(pinterpreter->callDepth)
+    {
+        pinterpreter->callDepth--;
+    }
+}
+
+static HRESULT Interpreter_SaveFunctionState(Interpreter *pinterpreter,
+        Instruction **pfunctionStart, InterpreterFunctionState *state)
+{
+    Instruction **pfunctionEnd;
+    int i;
+
+    memset(state, 0, sizeof(*state));
+    pfunctionEnd = Interpreter_FindFunctionEnd(pinterpreter, pfunctionStart);
+    if(!pfunctionEnd)
+    {
+        return E_FAIL;
+    }
+
+    state->count = (int)(pfunctionEnd - pfunctionStart) + 1;
+    state->states = (InterpreterInstructionState *)calloc((size_t)state->count,
+                    sizeof(*state->states));
+    if(!state->states)
+    {
+        state->count = 0;
+        return E_FAIL;
+    }
+
+    for(i = 0; i < state->count; i++)
+    {
+        Instruction *instruction = pfunctionStart[i];
+        InterpreterInstructionState *saved = &state->states[i];
+
+        if(!instruction)
+        {
+            continue;
+        }
+
+        if(instruction->theVal)
+        {
+            saved->pTarget = instruction->theVal;
+            ScriptVariant_Init(&saved->value);
+            ScriptVariant_Copy(&saved->value, instruction->theVal);
+            saved->hasValue = TRUE;
+        }
+
+        if(instruction->theRefList)
+        {
+            saved->pRefList = instruction->theRefList;
+            saved->refListIndex = instruction->theRefList->index;
+        }
+    }
+
+    return S_OK;
+}
+
+static void Interpreter_RestoreFunctionState(InterpreterFunctionState *state)
+{
+    int i;
+
+    if(!state || !state->states)
+    {
+        return;
+    }
+
+    for(i = 0; i < state->count; i++)
+    {
+        InterpreterInstructionState *saved = &state->states[i];
+
+        if(saved->hasValue && saved->pTarget)
+        {
+            ScriptVariant_Copy(saved->pTarget, &saved->value);
+            ScriptVariant_Clear(&saved->value);
+        }
+
+        if(saved->pRefList)
+        {
+            saved->pRefList->index = saved->refListIndex;
+        }
+    }
+
+    free(state->states);
+    state->states = NULL;
+    state->count = 0;
+}
+
+static void Interpreter_DiscardFunctionState(InterpreterFunctionState *state)
+{
+    int i;
+
+    if(!state || !state->states)
+    {
+        return;
+    }
+
+    for(i = 0; i < state->count; i++)
+    {
+        if(state->states[i].hasValue)
+        {
+            ScriptVariant_Clear(&state->states[i].value);
+        }
+    }
+
+    free(state->states);
+    state->states = NULL;
+    state->count = 0;
+}
+
 /******************************************************************************
 *  Call -- This method calls the method designated by variable, assuming it
 *          exists in the script somewhere.  If there is a return value, it is
@@ -202,35 +421,79 @@ HRESULT Interpreter_GetValueByRef(Interpreter *pinterpreter, LPCSTR variable, Sc
 HRESULT Interpreter_Call(Interpreter *pinterpreter)
 {
     HRESULT hr = E_FAIL;
-    Instruction **temp = pinterpreter->pCurrentCall;
+    Instruction **previousCall = pinterpreter->pCurrentCall;
+    Instruction **previousReturnEntry = pinterpreter->pReturnEntry;
     Instruction **pCurrentCall = (Instruction **)(pinterpreter->pCurrentInstruction);
+    Instruction **functionStart = NULL;
     Instruction *currentCall;
     ScriptVariant *pretvar;
+    ScriptVariant recursiveResult;
+    InterpreterFunctionState functionState;
+    BOOL previousCallCompleted = pinterpreter->bCallCompleted;
+    BOOL recursiveActivation = FALSE;
+    BOOL haveRecursiveResult = FALSE;
+    BOOL framePushed = FALSE;
     static char buf[256];
     int i;
+
+    memset(&functionState, 0, sizeof(functionState));
+    ScriptVariant_Init(&recursiveResult);
 
     if(pCurrentCall == NULL)
     {
         hr = E_FAIL;
         goto endcall;
     }
+
     pinterpreter->pCurrentCall = pCurrentCall;
-    currentCall = *((Instruction **)(pinterpreter->pCurrentInstruction));
-    //Search for the specified entry point.
-    if (currentCall->ptheJumpTarget)
+    currentCall = *pCurrentCall;
+
+    if(currentCall->ptheJumpTarget && !currentCall->functionRef)
     {
+        functionStart = Interpreter_FindFunctionStart(pinterpreter, currentCall->ptheJumpTarget);
+        if(!functionStart)
+        {
+            hr = E_FAIL;
+            goto endcall;
+        }
+
+        recursiveActivation = Interpreter_IsFunctionActive(pinterpreter, functionStart);
+        if(recursiveActivation && FAILED(Interpreter_SaveFunctionState(
+                pinterpreter, functionStart, &functionState)))
+        {
+            hr = E_FAIL;
+            goto endcall;
+        }
+
+        if(FAILED(Interpreter_PushCallFrame(pinterpreter, functionStart)))
+        {
+            hr = E_FAIL;
+            goto endcall;
+        }
+        framePushed = TRUE;
+
+        /* Each nested evaluation owns its completion/return state. */
+        pinterpreter->bCallCompleted = FALSE;
+        pinterpreter->pReturnEntry = NULL;
         pinterpreter->pCurrentInstruction = currentCall->ptheJumpTarget;
         hr = Interpreter_EvaluateCall(pinterpreter);
+
+        if(recursiveActivation && currentCall->theVal)
+        {
+            ScriptVariant_Copy(&recursiveResult, currentCall->theVal);
+            haveRecursiveResult = TRUE;
+        }
     }
-    else if( currentCall->functionRef)
+    else if(currentCall->functionRef)
     {
         pretvar = currentCall->theVal;
-        // ScriptVariant_Clear(pretvar); // commenting this out since ScriptVariant_ChangeType is now doing the job
-        hr = currentCall->functionRef((ScriptVariant **)currentCall->theRefList->solidlist, &(pretvar), (int)currentCall->theRef->lVal);
+        hr = currentCall->functionRef((ScriptVariant **)currentCall->theRefList->solidlist,
+                                      &(pretvar), (int)currentCall->theRef->lVal);
         if(FAILED(hr))
         {
             List_Includes(pinterpreter->ptheFunctionList, currentCall->functionRef);
-            printf("Script function '%s' returned an exception. See any preceding error messages above for details.\n", List_GetName(pinterpreter->ptheFunctionList));
+            printf("Script function '%s' returned an exception. See any preceding error messages above for details.\n",
+                   List_GetName(pinterpreter->ptheFunctionList));
             if(currentCall->theRef->lVal)
             {
                 printf(" parameters: ");
@@ -248,7 +511,6 @@ HRESULT Interpreter_Call(Interpreter *pinterpreter)
                 }
                 printf(" \n ");
             }
-
         }
     }
     else
@@ -256,21 +518,45 @@ HRESULT Interpreter_Call(Interpreter *pinterpreter)
         hr = E_FAIL;
         goto endcall;
     }
-    //jump back
-    if (SUCCEEDED(hr))
+
+endcall:
+    if(framePushed)
+    {
+        Interpreter_PopCallFrame(pinterpreter);
+    }
+
+    if(recursiveActivation)
+    {
+        Interpreter_RestoreFunctionState(&functionState);
+        if(haveRecursiveResult && currentCall && currentCall->theVal)
+        {
+            ScriptVariant_Copy(currentCall->theVal, &recursiveResult);
+        }
+    }
+    else
+    {
+        Interpreter_DiscardFunctionState(&functionState);
+    }
+
+    ScriptVariant_Clear(&recursiveResult);
+
+    if(SUCCEEDED(hr) && !pinterpreter->bReset)
     {
         pinterpreter->pCurrentInstruction = pCurrentCall;
     }
-    pinterpreter->pCurrentCall = temp;
 
+    pinterpreter->pCurrentCall = previousCall;
+    pinterpreter->pReturnEntry = previousReturnEntry;
 
-endcall:
-    //Reset the m_bCallCompleted flag back to false
-    pinterpreter->bCallCompleted = !pinterpreter->bReset;
+    /*
+     * Legacy code forced this flag true after a nested call, effectively
+     * terminating the caller. Restore the caller's state instead so execution
+     * resumes after CALL. Reset retains its original abort semantics.
+     */
+    pinterpreter->bCallCompleted = pinterpreter->bReset ? FALSE : previousCallCompleted;
 
     return hr;
 }
-
 
 /******************************************************************************
 *  EvaluateImmediate -- This method scans the instruction list and evaluates
@@ -358,15 +644,42 @@ HRESULT Interpreter_EvaluateImmediate(Interpreter *pinterpreter)
 HRESULT Interpreter_EvaluateCall(Interpreter *pinterpreter)
 {
     HRESULT hr = S_OK;
-    //Evaluate instructions until an error occurs or until the m_bCallCompleted
-    //flag is set to true.
-    while( ( SUCCEEDED(hr) ) && ( !pinterpreter->bCallCompleted )) //pinterpreter->bReset &&
+    Instruction **functionStart = NULL;
+    BOOL ownsFrame = FALSE;
+
+    /*
+     * Calls made through Interpreter_Call already push a frame. Direct host
+     * entries (main/oncreate/ondestroy) do not, so register them here. This
+     * also makes recursion into a direct entry point behave like any other
+     * recursive script call.
+     */
+    if(pinterpreter->pCurrentInstruction)
+    {
+        functionStart = Interpreter_FindFunctionStart(pinterpreter,
+                        pinterpreter->pCurrentInstruction);
+        if(functionStart && (!pinterpreter->pCallFrame ||
+                             pinterpreter->pCallFrame->pFunctionStart != functionStart))
+        {
+            if(FAILED(Interpreter_PushCallFrame(pinterpreter, functionStart)))
+            {
+                return E_FAIL;
+            }
+            ownsFrame = TRUE;
+        }
+    }
+
+    while(SUCCEEDED(hr) && !pinterpreter->bCallCompleted)
     {
         hr = Interpreter_EvalInstruction(pinterpreter);
     }
+
+    if(ownsFrame)
+    {
+        Interpreter_PopCallFrame(pinterpreter);
+    }
+
     return hr;
 }
-
 
 /******************************************************************************
 *  UNARYOP -- The unary ops( +, -, !, etc. ) all work the same, so this macro
@@ -940,6 +1253,39 @@ HRESULT Interpreter_CompileInstructions(Interpreter *pinterpreter)
         }
     }
 
+    /*
+     * Tag each compiled function instruction with its lexical function bounds.
+     * This is runtime-only metadata and does not change byte-code semantics.
+     * It also works for #import targets because imported interpreters are
+     * compiled independently and carry their own bounds in each instruction.
+     */
+    {
+        Instruction **base = (Instruction **)pinterpreter->theInstructionList.solidlist;
+        int functionStartIndex = -1;
+
+        for(i = 0; i < size; i++)
+        {
+            Instruction *instruction = base[i];
+            if(instruction && instruction->OpCode == FUNCDECL)
+            {
+                functionStartIndex = i;
+            }
+
+            if(instruction && instruction->OpCode == RET && functionStartIndex >= 0)
+            {
+                for(j = functionStartIndex; j <= i; j++)
+                {
+                    if(base[j])
+                    {
+                        base[j]->pFunctionStart = base + functionStartIndex;
+                        base[j]->pFunctionEnd = base + i;
+                    }
+                }
+                functionStartIndex = -1;
+            }
+        }
+    }
+
     return hr;
 }
 
@@ -1330,5 +1676,9 @@ void Interpreter_Reset(Interpreter *pinterpreter)
     pinterpreter->bMainCompleted = FALSE;
     pinterpreter->bReset = TRUE;
     pinterpreter->bCallCompleted = FALSE;
+    if(!pinterpreter->pCallFrame)
+    {
+        pinterpreter->callDepth = 0;
+    }
 }
 
