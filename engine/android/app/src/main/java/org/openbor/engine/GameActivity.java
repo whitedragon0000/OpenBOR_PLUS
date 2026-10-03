@@ -441,33 +441,4 @@ public class GameActivity extends SDLActivity {
     }
   }
 
-  @Override
-  protected void onPause() {
-    super.onPause();
-    Log.v("OpenBOR", "onPause");
-
-    //White Dragon: wakelock release!
-    if (GameActivity.wakeLock.isHeld())
-      GameActivity.wakeLock.release();
-  }
-
-  @Override
-  protected void onResume() {
-    super.onResume();
-    Log.v("OpenBOR", "onResume");
-
-    //White Dragon: wakelock acquire!
-    if (!GameActivity.wakeLock.isHeld())
-      GameActivity.wakeLock.acquire();
-  }
-
-  @Override
-  protected void onDestroy() {
-    super.onDestroy();
-    Log.v("OpenBOR", "onDestroy");
-
-    //CRxTRDude - Release wakelock first before destroying.
-    if (GameActivity.wakeLock.isHeld())
-      GameActivity.wakeLock.release();
-  }
 }
