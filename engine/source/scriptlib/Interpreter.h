@@ -59,12 +59,7 @@ typedef struct Interpreter
 
     BOOL bCallCompleted;
     BOOL bMainCompleted;
-    BOOL bReset;
-
-    /*
-     * Runtime call-frame tracking. This preserves legacy non-recursive call
-     * behavior while allowing recursive and mutually recursive script calls.
-     */
+    BOOL bReset; // 2011/11/13 UT: prevent nested call which is not supported by the script interpreter
     InterpreterCallFrame *pCallFrame;
     unsigned callDepth;
 } Interpreter;
