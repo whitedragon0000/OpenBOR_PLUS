@@ -73,6 +73,8 @@ typedef struct pp_token
 {
     PP_TOKEN_TYPE theType;
     CHAR theSource[MAX_TOKEN_LENGTH + 1];
+    LPCSTR theStringLiteralSource;
+    size_t theStringLiteralLength;
     TEXTPOS theTextPosition;
     ULONG charOffset;
 } pp_token;

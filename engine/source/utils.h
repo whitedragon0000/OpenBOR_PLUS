@@ -15,6 +15,7 @@
 #else
 #include <time.h>
 #endif
+#include <stdarg.h>
 #include "types.h"
 #include "stringptr.h"
 

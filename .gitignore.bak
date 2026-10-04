@@ -1,0 +1,17 @@
+*.o
+*.d
+*.Td
+OpenBOR.elf
+meta.xml
+/engine/version.h
+/engine/version.txt
+/engine/resources/Info.plist
+engine/releases/
+/engine/ide/vs/.vs/
+/engine/ide/vs/Debug/
+/.vs
+tools/bin/.wget-hsts
+engine/android/app/src/main/assets/bor.pak
+/openbor_vs
+engine/ios/Build
+**/.DS_Store

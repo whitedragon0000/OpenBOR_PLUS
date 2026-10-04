@@ -52,6 +52,7 @@ These platforms are actively supported and may be compiled with the latest OpenB
 * Android
 * Windows
 * Linux
+* macOS
 * Wii
 * PS3
 
@@ -159,8 +160,9 @@ Senile Team does not support OpenBOR or BOR in any way. Instead, you should stop
 * added "collidedentity" to script: it returns the collided entity handler
 * opened animation platform properties to script
 
-#### ***NEW OPERATORS***
-bitwise not (~)<br/>
+#### ***NEW SCRIPT FEATURES***
+bitwise not (~) operator<br/>
+recursive functions<br/>
 
 #### ***NEW FUNCTIONS***
 rumble(player_index, ration, milliseconds);<br/>

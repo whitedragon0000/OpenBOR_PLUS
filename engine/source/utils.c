@@ -259,9 +259,8 @@ CLOSE_AND_QUIT:
 }
 
 
-void writeToLogFile(const char *msg, ...)
+void writeToLogFileV(const char *message, va_list arguments)
 {
-    va_list arglist;
     if(openborLog == NULL)
     {
         openborLog = OPEN_LOGFILE(OPENBOR_LOG);
@@ -270,9 +269,36 @@ void writeToLogFile(const char *msg, ...)
             return;
         }
     }
+    vfprintf(openborLog, message, arguments);
+    fflush(openborLog);
+}
+
+void writeToLogFile(const char *msg, ...)
+{
+    va_list arglist;
+
     va_start(arglist, msg);
-    vfprintf(openborLog, msg, arglist);
+    writeToLogFileV(msg, arglist);
     va_end(arglist);
+}
+
+void writeToLogFileLength(const char *message, size_t length)
+{
+    if(!message)
+    {
+        return;
+    }
+
+    if(openborLog == NULL)
+    {
+        openborLog = OPEN_LOGFILE(OPENBOR_LOG);
+        if(openborLog == NULL)
+        {
+            return;
+        }
+    }
+
+    fwrite(message, 1, length, openborLog);
     fflush(openborLog);
 }
 
@@ -309,7 +335,7 @@ void *checkAlloc(void *ptr, size_t size, const char *func, const char *file, int
                        "\n*            Shutting Down            *\n\n");
         writeToLogFile("Out of memory!\n");
         writeToLogFile("Allocation of size %i failed in function '%s' at %s:%i.\n", size, func, file, line);
-#if LINUX && !DARWIN
+#if LINUX && !DARWIN && !ANDROID
         writeToLogFile("Memory usage at exit: %u\n", mallinfo2().arena);
 #else
         writeToLogFile("Memory usage at exit: %u\n", getUsedRam(BYTES));

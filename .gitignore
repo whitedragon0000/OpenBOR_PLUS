@@ -6,4 +6,9 @@ meta.xml
 /engine/version.h
 /engine/resources/Info.plist
 engine/releases/
+/engine/ide/vs/.vs/
+/engine/ide/vs/Debug/
+/.vs
+/openbor_vs**/.DS_Store
+build/
 /engine/ide/vs/Debug

@@ -57,141 +57,6 @@
 		<Compiler>
 			<Add option="-Wall" />
 		</Compiler>
-		<Unit filename="../android/jni/openbor/SDL_android_main.cpp" />
-		<Unit filename="../android/jni/openbor/button_png_800x480.h" />
-		<Unit filename="../android/jni/openbor/include/ogg/config_types.h" />
-		<Unit filename="../android/jni/openbor/include/ogg/ogg.h" />
-		<Unit filename="../android/jni/openbor/include/ogg/os_types.h" />
-		<Unit filename="../android/jni/openbor/include/png/png.h" />
-		<Unit filename="../android/jni/openbor/include/png/pngconf.h" />
-		<Unit filename="../android/jni/openbor/include/png/pnglibconf.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_assert.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_atomic.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_audio.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_bits.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_blendmode.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_clipboard.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_config.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_config_android.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_config_iphoneos.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_config_macosx.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_config_minimal.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_config_pandora.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_config_psp.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_config_windows.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_config_winrt.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_config_wiz.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_copying.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_cpuinfo.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_egl.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_endian.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_error.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_events.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_filesystem.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_gamecontroller.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_gesture.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_haptic.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_hints.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_joystick.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_keyboard.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_keycode.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_loadso.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_log.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_main.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_messagebox.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_mouse.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_mutex.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_name.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_opengl.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_opengl_glext.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_opengles.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_opengles2.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_opengles2_gl2.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_opengles2_gl2ext.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_opengles2_gl2platform.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_opengles2_khrplatform.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_pixels.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_platform.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_power.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_quit.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_rect.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_render.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_revision.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_rwops.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_scancode.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_shape.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_stdinc.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_surface.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_system.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_syswm.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_assert.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_common.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_compare.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_crc32.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_font.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_fuzzer.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_harness.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_images.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_log.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_md5.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_memory.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_test_random.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_thread.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_timer.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_touch.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_types.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_version.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_video.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/SDL_vulkan.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/begin_code.h" />
-		<Unit filename="../android/jni/openbor/include/sdl/close_code.h" />
-		<Unit filename="../android/jni/openbor/include/tremor/ivorbiscodec.h" />
-		<Unit filename="../android/jni/openbor/include/tremor/ivorbisfile.h" />
-		<Unit filename="../android/jni/openbor/include/vpx/svc_context.h" />
-		<Unit filename="../android/jni/openbor/include/vpx/vp8.h" />
-		<Unit filename="../android/jni/openbor/include/vpx/vp8cx.h" />
-		<Unit filename="../android/jni/openbor/include/vpx/vp8dx.h" />
-		<Unit filename="../android/jni/openbor/include/vpx/vpx_codec.h" />
-		<Unit filename="../android/jni/openbor/include/vpx/vpx_decoder.h" />
-		<Unit filename="../android/jni/openbor/include/vpx/vpx_encoder.h" />
-		<Unit filename="../android/jni/openbor/include/vpx/vpx_frame_buffer.h" />
-		<Unit filename="../android/jni/openbor/include/vpx/vpx_image.h" />
-		<Unit filename="../android/jni/openbor/include/vpx/vpx_integer.h" />
-		<Unit filename="../android/jni/openbor/jniutils.cpp" />
-		<Unit filename="../android/jni/openbor/video.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../android/src/org/libsdl/app/SDL.java" />
-		<Unit filename="../android/src/org/libsdl/app/SDLActivity.java" />
-		<Unit filename="../android/src/org/libsdl/app/SDLAudioManager.java" />
-		<Unit filename="../android/src/org/libsdl/app/SDLControllerManager.java" />
-		<Unit filename="../dc/bios.h" />
-		<Unit filename="../dc/bios.s" />
-		<Unit filename="../dc/control.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../dc/control.h" />
-		<Unit filename="../dc/dcport.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../dc/dcport.h" />
-		<Unit filename="../dc/gdrom.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../dc/gdrom.h" />
-		<Unit filename="../dc/sblaster.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../dc/sblaster.h" />
-		<Unit filename="../dc/timer.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../dc/video.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../dc/video.h" />
 		<Unit filename="../openbor.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -199,101 +64,10 @@
 		<Unit filename="../openborscript.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="../psp/audiodrv.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/audiodrv.h" />
-		<Unit filename="../psp/control.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/control.h" />
-		<Unit filename="../psp/control/control.S" />
-		<Unit filename="../psp/control/control.h" />
-		<Unit filename="../psp/control/main.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/dvemgr/dvemgr.S" />
-		<Unit filename="../psp/dvemgr/dvemgr.h" />
-		<Unit filename="../psp/exception/exception_asm.S" />
-		<Unit filename="../psp/exception/main.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/graphics.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/graphics.h" />
-		<Unit filename="../psp/hankaku.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/image.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/image.h" />
-		<Unit filename="../psp/kernel/kernel.S" />
-		<Unit filename="../psp/kernel/kernel.h" />
-		<Unit filename="../psp/kernel/main.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/menu.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/menu.h" />
-		<Unit filename="../psp/netcomm.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/netcomm.h" />
-		<Unit filename="../psp/pspport.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/pspport.h" />
-		<Unit filename="../psp/sblaster.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/sblaster.h" />
-		<Unit filename="../psp/timer.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/vertex.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/vertex.h" />
-		<Unit filename="../psp/video.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../psp/video.h" />
-		<Unit filename="../resources/OpenBOR.res" />
-		<Unit filename="../resources/OpenBOR_Icon_128x128.h" />
-		<Unit filename="../resources/OpenBOR_Icon_128x128_png.h" />
-		<Unit filename="../resources/OpenBOR_Icon_128x48_png.h" />
-		<Unit filename="../resources/OpenBOR_Icon_144x80_png.h" />
-		<Unit filename="../resources/OpenBOR_Icon_32x32.h" />
-		<Unit filename="../resources/OpenBOR_Icon_32x32_png.h" />
-		<Unit filename="../resources/OpenBOR_Logo_320x240.h" />
-		<Unit filename="../resources/OpenBOR_Logo_320x240_Link.h" />
-		<Unit filename="../resources/OpenBOR_Logo_320x240_Link_png.h" />
-		<Unit filename="../resources/OpenBOR_Logo_320x240_png.h" />
-		<Unit filename="../resources/OpenBOR_Logo_480x272.h" />
-		<Unit filename="../resources/OpenBOR_Logo_480x272_Link.h" />
-		<Unit filename="../resources/OpenBOR_Logo_480x272_Link_png.h" />
-		<Unit filename="../resources/OpenBOR_Logo_480x272_png.h" />
-		<Unit filename="../resources/OpenBOR_Menu_320x240.h" />
-		<Unit filename="../resources/OpenBOR_Menu_320x240_Consoles_png.h" />
-		<Unit filename="../resources/OpenBOR_Menu_320x240_Sony_png.h" />
-		<Unit filename="../resources/OpenBOR_Menu_320x240_png.h" />
-		<Unit filename="../resources/OpenBOR_Menu_480x272.h" />
-		<Unit filename="../resources/OpenBOR_Menu_480x272_Consoles_png.h" />
-		<Unit filename="../resources/OpenBOR_Menu_480x272_Sony_png.h" />
-		<Unit filename="../resources/OpenBOR_Menu_480x272_png.h" />
-		<Unit filename="../resources/logviewer_320x240_png.h" />
-		<Unit filename="../resources/logviewer_480x272_png.h" />
 		<Unit filename="../sdl/control.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="../sdl/control.h" />
-		<Unit filename="../sdl/gp2x/gp2xport.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../sdl/gp2x/gp2xport.h" />
 		<Unit filename="../sdl/hankaku.h" />
 		<Unit filename="../sdl/joysticks.c">
 			<Option compilerVar="CC" />
@@ -319,9 +93,6 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="../sdl/sdlport.h" />
-		<Unit filename="../sdl/threads.c">
-			<Option compilerVar="CC" />
-		</Unit>
 		<Unit filename="../sdl/timer.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -329,10 +100,6 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="../sdl/video.h" />
-		<Unit filename="../sdl/videocommon.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../sdl/videocommon.h" />
 		<Unit filename="../source/adpcmlib/adpcm.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -346,6 +113,10 @@
 		</Unit>
 		<Unit filename="../source/gamelib/bitmap.h" />
 		<Unit filename="../source/gamelib/borendian.h" />
+		<Unit filename="../source/gamelib/commands.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../source/gamelib/commands.h" />
 		<Unit filename="../source/gamelib/draw.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -405,6 +176,9 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="../source/gamelib/sprite.h" />
+		<Unit filename="../source/gamelib/spritef.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="../source/gamelib/spriteq.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -413,6 +187,20 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="../source/gamelib/spritex8p32.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../source/gamelib/ssprite.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../source/gamelib/ssprite.h" />
+		<Unit filename="../source/gamelib/texture.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../source/gamelib/texture.h" />
+		<Unit filename="../source/gamelib/texture16.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../source/gamelib/texture32.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="../source/gamelib/threads.h" />
@@ -451,6 +239,10 @@
 		<Unit filename="../source/gfxlib/hq2x16mmx.asm" />
 		<Unit filename="../source/gfxlib/interp.h" />
 		<Unit filename="../source/gfxlib/lq2x.h" />
+		<Unit filename="../source/gfxlib/macros.mac" />
+		<Unit filename="../source/gfxlib/motionblur.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="../source/gfxlib/scale2x.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -471,39 +263,17 @@
 		<Unit filename="../source/openborscript/animation.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="../source/openborscript/axis.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../source/openborscript/axis.h" />
-		<Unit filename="../source/openborscript/binding.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../source/openborscript/binding.h" />
 		<Unit filename="../source/openborscript/collision_attack.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="../source/openborscript/collision_body.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="../source/openborscript/collision_coordinates.c">
+		<Unit filename="../source/openborscript/common.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="../source/openborscript/collision_entity.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../source/openborscript/commands.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../source/openborscript/commands.h" />
 		<Unit filename="../source/openborscript/config.h" />
-		<Unit filename="../source/openborscript/constants.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../source/openborscript/entity.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../source/openborscript/entity.h" />
-		<Unit filename="../source/openborscript/index.c">
+		<Unit filename="../source/openborscript/constant.c">
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="../source/openborscript/layer.c">
@@ -515,10 +285,13 @@
 		<Unit filename="../source/openborscript/math.c">
 			<Option compilerVar="CC" />
 		</Unit>
-		<Unit filename="../source/openborscript/scriptcommon.h" />
 		<Unit filename="../source/openborscript/string.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="../source/pcxlib/savepcx.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../source/pcxlib/savepcx.h" />
 		<Unit filename="../source/pnglib/pngdec.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -629,6 +402,10 @@
 		<Unit filename="../source/tracelib2/tracelib2_test.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="../source/tracelib/tracemalloc.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../source/tracelib/tracemalloc.h" />
 		<Unit filename="../source/utils.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -661,125 +438,11 @@
 			<Option compilerVar="CC" />
 		</Unit>
 		<Unit filename="../source/webmlib/yuv.h" />
-		<Unit filename="../symbian/symbian.cpp" />
-		<Unit filename="../symbian/vsnprintf.h" />
+		<Unit filename="../source/xpmlib/xpm.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../source/xpmlib/xpm.h" />
 		<Unit filename="../version.h" />
-		<Unit filename="../vita/control.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../vita/control.h" />
-		<Unit filename="../vita/hankaku.h" />
-		<Unit filename="../vita/menu.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../vita/menu.h" />
-		<Unit filename="../vita/sblaster.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../vita/sblaster.h" />
-		<Unit filename="../vita/timer.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../vita/video.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../vita/video.h" />
-		<Unit filename="../vita/vitaport.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../vita/vitaport.h" />
-		<Unit filename="../wii/control.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../wii/control.h" />
-		<Unit filename="../wii/hankaku.h" />
-		<Unit filename="../wii/menu.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../wii/menu.h" />
-		<Unit filename="../wii/sblaster.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../wii/sblaster.h" />
-		<Unit filename="../wii/threads.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../wii/timer.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../wii/video.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../wii/video.h" />
-		<Unit filename="../wii/wiiport.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../wii/wiiport.h" />
-		<Unit filename="../xbox/common/include/png.h" />
-		<Unit filename="../xbox/common/include/pngconf.h" />
-		<Unit filename="../xbox/common/include/xbapp.h" />
-		<Unit filename="../xbox/common/include/xbfont.h" />
-		<Unit filename="../xbox/common/include/xbhelp.h" />
-		<Unit filename="../xbox/common/include/xbinput.h" />
-		<Unit filename="../xbox/common/include/xbmesh.h" />
-		<Unit filename="../xbox/common/include/xbresource.h" />
-		<Unit filename="../xbox/common/include/xbsound.h" />
-		<Unit filename="../xbox/common/include/xbstopwatch.h" />
-		<Unit filename="../xbox/common/include/xbutil.h" />
-		<Unit filename="../xbox/common/include/zconf.h" />
-		<Unit filename="../xbox/common/include/zlib.h" />
-		<Unit filename="../xbox/common/src/xbapp.cpp" />
-		<Unit filename="../xbox/common/src/xbfont.cpp" />
-		<Unit filename="../xbox/common/src/xbhelp.cpp" />
-		<Unit filename="../xbox/common/src/xbinput.cpp" />
-		<Unit filename="../xbox/common/src/xbmesh.cpp" />
-		<Unit filename="../xbox/common/src/xbresource.cpp" />
-		<Unit filename="../xbox/common/src/xbsound.cpp" />
-		<Unit filename="../xbox/common/src/xbstopwatch.cpp" />
-		<Unit filename="../xbox/common/src/xbutil.cpp" />
-		<Unit filename="../xbox/control.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../xbox/control.h" />
-		<Unit filename="../xbox/generic/2xsaiwin.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../xbox/generic/2xsaiwin.h" />
-		<Unit filename="../xbox/generic/SndXBOX.cxx" />
-		<Unit filename="../xbox/generic/SndXBOX.hxx" />
-		<Unit filename="../xbox/generic/configuration.h" />
-		<Unit filename="../xbox/generic/custom_launch_params.cpp" />
-		<Unit filename="../xbox/generic/custom_launch_params.h" />
-		<Unit filename="../xbox/generic/gamescreen.h" />
-		<Unit filename="../xbox/generic/graphicscontext.cpp" />
-		<Unit filename="../xbox/generic/graphicscontext.h" />
-		<Unit filename="../xbox/generic/iosupport.cpp" />
-		<Unit filename="../xbox/generic/iosupport.h" />
-		<Unit filename="../xbox/generic/keyboard_api.h" />
-		<Unit filename="../xbox/generic/panel.cpp" />
-		<Unit filename="../xbox/generic/panel.h" />
-		<Unit filename="../xbox/generic/scale2x.cpp" />
-		<Unit filename="../xbox/generic/simple2x.cpp" />
-		<Unit filename="../xbox/generic/skin.cpp" />
-		<Unit filename="../xbox/generic/skin.h" />
-		<Unit filename="../xbox/generic/undocumented.h" />
-		<Unit filename="../xbox/generic/wnaspi32.h" />
-		<Unit filename="../xbox/generic/xboxport.cpp" />
-		<Unit filename="../xbox/generic/xboxport.h" />
-		<Unit filename="../xbox/generic/xmldocument.cpp" />
-		<Unit filename="../xbox/generic/xmldocument.h" />
-		<Unit filename="../xbox/sblaster.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../xbox/sblaster.h" />
-		<Unit filename="../xbox/timer.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../xbox/vga.h" />
-		<Unit filename="../xbox/video.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="../xbox/video.h" />
 		<Extensions>
 			<code_completion />
 			<debugger />

@@ -20,9 +20,14 @@
 
 package org.openbor.engine;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.BroadcastReceiver;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
@@ -38,6 +43,8 @@ import android.view.WindowManager;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import org.libsdl.app.SDLActivity;
 import org.openbor.engine.utils.FrameDimensions;
@@ -231,24 +238,27 @@ public class GameActivity extends SDLActivity {
 
   //msmalik681 added permission check for API 23+ for moving .paks
   private void CheckPermissionForMovingPaks() {
-  	File folder = new File(jni_get_storage_path() + "/OpenBOR/Paks");
-  
-  	boolean canAccess = false;
-  
-  	try {
-  		if (!folder.exists()) {
-  			canAccess = folder.mkdirs();
-  		} else {
-  			canAccess = folder.isDirectory();
-  		}
-  	} catch (Exception e) {
-  		Log.e("OpenBOR", "Storage access check failed", e);
-  	}
-  
-  	Log.d("OpenBOR", "Storage path: " + folder.getAbsolutePath());
-  	Log.d("OpenBOR", "Storage accessible: " + canAccess);
-  
-  	CopyPak();
+    if (Build.VERSION.SDK_INT >= STORAGE_PERMISSION_CODE &&
+        getApplicationContext().getPackageName().equals("org.openbor.engine"))
+    {
+      if (ContextCompat.checkSelfPermission(GameActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED &&
+          ContextCompat.checkSelfPermission(GameActivity.this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
+      {
+        Toast.makeText(this, "Needed permissions not granted!", Toast.LENGTH_LONG).show();
+        ActivityCompat.requestPermissions(GameActivity.this, new String[] {
+          Manifest.permission.WRITE_EXTERNAL_STORAGE,
+          Manifest.permission.READ_EXTERNAL_STORAGE
+        }, STORAGE_PERMISSION_CODE);
+      }
+      else
+      {
+        CopyPak();
+      }
+    }
+    else
+    {
+      CopyPak();
+    }
   }
 
   /*@Override
@@ -270,6 +280,22 @@ public class GameActivity extends SDLActivity {
       }
     }
   }*/
+
+  @SuppressWarnings("NullableProblems")
+  @Override
+  public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
+  {
+    if (requestCode == STORAGE_PERMISSION_CODE) {// If request is cancelled, the result arrays are empty.
+      if (grantResults.length > 0 &&
+              grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        // permission was granted continue!
+        CopyPak();
+      } else {
+        // needed permission denied end application!
+        finish();
+      }
+    }
+  }
 
   /**
    * Proceed in copying paks files, or just prepare the destination Paks directory depending
@@ -352,7 +378,7 @@ public class GameActivity extends SDLActivity {
         }
       }
     } catch (Exception e) {
-      Log.e("OpenBOR", "CopyPak failed", e);
+      // not handled
     }
   }
 
@@ -404,4 +430,15 @@ public class GameActivity extends SDLActivity {
     if (GameActivity.wakeLock.isHeld())
       GameActivity.wakeLock.release();
   }
+
+  //needed to fix sdk 34+ crashing
+  @Override
+  public Intent registerReceiver(@Nullable BroadcastReceiver receiver, IntentFilter filter) {
+    if (Build.VERSION.SDK_INT >= 34 && getApplicationInfo().targetSdkVersion >= 34) {
+      return super.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED);
+    } else {
+      return super.registerReceiver(receiver, filter);
+    }
+  }
+
 }

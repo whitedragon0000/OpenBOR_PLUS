@@ -82,6 +82,7 @@ if test -e "releases/WINDOWS/OpenBOR/OpenBOR.exe"; then
 }
 
 # PS3 Environment && Compile
+# PS3 Environment && Compile
 function ps3 {
   export PATH=$OLD_PATH
   . ./environ.sh 11

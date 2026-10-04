@@ -15,6 +15,14 @@
 
 typedef HRESULT (*SCRIPTFUNCTION)(ScriptVariant **varlist , ScriptVariant **pretvar, int paramCount);
 
+#define INTERPRETER_MAX_CALL_DEPTH 256
+
+typedef struct InterpreterCallFrame
+{
+    Instruction **pFunctionStart;
+    struct InterpreterCallFrame *pPrevious;
+} InterpreterCallFrame;
+
 #pragma pack(4)
 
 typedef struct Interpreter
@@ -52,6 +60,8 @@ typedef struct Interpreter
     BOOL bCallCompleted;
     BOOL bMainCompleted;
     BOOL bReset; // 2011/11/13 UT: prevent nested call which is not supported by the script interpreter
+    InterpreterCallFrame *pCallFrame;
+    unsigned callDepth;
 } Interpreter;
 
 #pragma pack()
