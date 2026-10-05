@@ -32676,7 +32676,8 @@ void common_block()
         * return to idle.
         */ 
 
-		if (self->inpain & ~IN_PAIN_BLOCK || !self->animating)
+		//if (self->inpain & ~IN_PAIN_BLOCK || !self->animating)
+		if (self->inpain == IN_PAIN_NONE || !self->animating)
 		{
 			if (self->animnum == ANI_BLOCKRELEASE && !self->animating)
 			{
