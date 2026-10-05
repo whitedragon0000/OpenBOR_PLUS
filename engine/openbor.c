@@ -32220,16 +32220,21 @@ int death_try_sequence_damage(entity* acting_entity, e_death_config_flags death_
             }
         }
     }
-    else
-    {
-        if ((death_sequence & DEATH_CONFIG_FALL_LAND_GROUND && acting_event != DEATH_TRY_SEQUENCE_ACTING_EVENT_LIE) || (death_sequence & DEATH_CONFIG_FALL_LIE_GROUND && acting_entity->animating))
-        {
-            result = 0;
-            return result;
-        }
+	else
+	{
+		if ((death_sequence & DEATH_CONFIG_FALL_LAND_GROUND && acting_event != DEATH_TRY_SEQUENCE_ACTING_EVENT_LIE) || (death_sequence & DEATH_CONFIG_FALL_LIE_GROUND && acting_entity->animating))
+		{
+			if (death_sequence & DEATH_CONFIG_BLINK_FALL_GROUND)
+			{
+				acting_entity->blink = 1;
+			}
 
-        /* Play death animation? */
-        if (death_sequence & DEATH_CONFIG_DEATH_GROUND)
+			result = 0;
+			return result;
+		}
+
+		/* Play death animation? */
+		if (death_sequence & DEATH_CONFIG_DEATH_GROUND)
         {
             /* Turn on blinking? */
             if (death_sequence & DEATH_CONFIG_BLINK_DEATH_GROUND)
@@ -33474,26 +33479,26 @@ e_falldie_config death_config_get_falldie_from_value(e_death_config_flags acting
 */
 e_death_config_flags death_config_get_value_from_nodieblink(e_death_config_flags current_value, e_nodieblink_config acting_value)
 {
-    //printf("\n\n death_config_get_value_from_nodieblink(%d, %d)", current_value, acting_value);
-
-    e_death_config_flags result = (current_value &= ~(DEATH_CONFIG_MACRO_BLINK | DEATH_CONFIG_MACRO_FALL | DEATH_CONFIG_MACRO_REMOVE));
+    e_death_config_flags result = current_value & ~(DEATH_CONFIG_MACRO_BLINK | DEATH_CONFIG_MACRO_REMOVE);
 
     switch (acting_value)
     {
-
     case NODIEBLINK_CONFIG_NONE:
-        result |= DEATH_CONFIG_BLINK_REMOVE_AIR | DEATH_CONFIG_BLINK_REMOVE_GROUND | DEATH_CONFIG_FALL_LAND_AIR | DEATH_CONFIG_FALL_LAND_GROUND | DEATH_CONFIG_REMOVE_VANISH_AIR | DEATH_CONFIG_REMOVE_VANISH_GROUND;
+        result |= DEATH_CONFIG_BLINK_FALL_AIR | DEATH_CONFIG_BLINK_FALL_GROUND | DEATH_CONFIG_BLINK_DEATH_AIR | DEATH_CONFIG_BLINK_DEATH_GROUND | DEATH_CONFIG_BLINK_REMOVE_AIR | DEATH_CONFIG_BLINK_REMOVE_GROUND | DEATH_CONFIG_REMOVE_VANISH_AIR | DEATH_CONFIG_REMOVE_VANISH_GROUND;
         break;
 
     case NODIEBLINK_CONFIG_FALL_LIE_BLINK:
+        result &= ~DEATH_CONFIG_MACRO_FALL;
         result |= DEATH_CONFIG_BLINK_REMOVE_AIR | DEATH_CONFIG_BLINK_REMOVE_GROUND | DEATH_CONFIG_FALL_LIE_AIR | DEATH_CONFIG_FALL_LIE_GROUND | DEATH_CONFIG_REMOVE_VANISH_AIR | DEATH_CONFIG_REMOVE_VANISH_GROUND;
         break;
 
     case NODIEBLINK_CONFIG_FALL_LIE_CORPSE:
+        result &= ~DEATH_CONFIG_MACRO_FALL;
         result |= DEATH_CONFIG_FALL_LIE_AIR | DEATH_CONFIG_FALL_LIE_GROUND | DEATH_CONFIG_REMOVE_CORPSE_AIR | DEATH_CONFIG_REMOVE_CORPSE_GROUND;
         break;
 
     case NODIEBLINK_CONFIG_FALL_LIE_VANISH:
+        result &= ~DEATH_CONFIG_MACRO_FALL;
         result |= DEATH_CONFIG_FALL_LIE_AIR | DEATH_CONFIG_FALL_LIE_GROUND | DEATH_CONFIG_REMOVE_VANISH_AIR | DEATH_CONFIG_REMOVE_VANISH_GROUND;
         break;
     }
