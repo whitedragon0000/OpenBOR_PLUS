@@ -31184,6 +31184,16 @@ int set_pain(entity *iPain, int type, int reset)
     }
     else if(type == -1 || type >= max_attack_types)
     {
+        /*
+         * A dead entity must never be restored to the grabbed state.
+         * Grab callers can still be finishing their own action after the
+         * target has already entered a death animation.
+         */
+        if(iPain->energy_state.health_current <= 0 || iPain->dead)
+        {
+            return 0;
+        }
+
         pain = ANI_GRABBED;
     }
     else
@@ -32294,6 +32304,12 @@ void common_pain()
 {
     //self->velocity.x = self->velocity.z = 0; // complained
 
+    if(self->energy_state.health_current <= 0 || self->dead)
+    {
+        self->takeaction = NULL;
+        return;
+    }
+
     if(self->animating || inair(self))
     {
         return;
@@ -32495,6 +32511,27 @@ void common_grab_check()
 //grabbing someone
 void common_grab()
 {
+    /*
+     * A grabber may still hold a valid link for a few ticks after the
+     * grabbed entity has entered death. Release it immediately instead
+     * of keeping the grab state alive.
+     */
+    if(self->link &&
+       (self->link->energy_state.health_current <= 0 || self->link->dead))
+    {
+        ent_unlink(self);
+        self->takeaction = NULL;
+        self->attacking = ATTACKING_NONE;
+        self->grabwalking = 0;
+        memset(self->combostep, 0, sizeof(*self->combostep) * 5);
+
+        if(self->energy_state.health_current > 0 && !self->dead)
+        {
+            set_idle(self);
+        }
+        return;
+    }
+
     // if(self->link) return;
     if(self->link || (self->modeldata.grabfinish && self->animating && !self->grabwalking))
     {
@@ -32510,6 +32547,22 @@ void common_grab()
 // being grabbed
 void common_grabbed()
 {
+    if(self && (self->energy_state.health_current <= 0 || self->dead))
+    {
+        /*
+         * Death has priority over grab recovery. Clean up any stale link
+         * but never replace the death animation with idle.
+         */
+        if(self->link)
+        {
+            ent_unlink(self);
+        }
+
+        self->stalltime = 0;
+        self->takeaction = NULL;
+        return;
+    }
+
     // Just check if we're still grabbed...
     if(self->link)
     {
@@ -35769,6 +35822,16 @@ int dograb(entity *attacker, entity *target, e_dograb_adjustcheck adjustcheck)
 
     int result  = 0; //Output value.
     int pass    = 1; //Adjust pass/fail.
+
+    /*
+     * Never acquire a dead target. This must happen before any position
+     * adjustment, opponent assignment, link creation, or grabbed animation.
+     */
+    if(!attacker || !target ||
+       target->energy_state.health_current <= 0 || target->dead)
+    {
+        return 0;
+    }
 
     /* If an adjust check is needed, make sure adjusting did not fail. */
     if(adjustcheck == DOGRAB_ADJUSTCHECK_TRUE)
@@ -40920,6 +40983,24 @@ void common_grabattack()
 
     if(self->link)
     {
+        /*
+         * The target can die while the grab attack is still finishing.
+         * Do not restore common_grabbed/ANI_GRABBED after death.
+         */
+        if(self->link->energy_state.health_current <= 0 || self->link->dead)
+        {
+            ent_unlink(self);
+            self->takeaction = NULL;
+            self->attacking = ATTACKING_NONE;
+            memset(self->combostep, 0, sizeof(*self->combostep) * 5);
+
+            if(self->energy_state.health_current > 0 && !self->dead)
+            {
+                set_idle(self);
+            }
+            return;
+        }
+
         self->takeaction = common_grab;
         self->link->takeaction = common_grabbed;
         self->attacking = ATTACKING_NONE;
@@ -41290,6 +41371,20 @@ void player_fall_check()
 void player_grab_check()
 {
     entity *other = self->link;
+
+    if(other && (other->energy_state.health_current <= 0 || other->dead))
+    {
+        ent_unlink(self);
+        self->takeaction = NULL;
+        self->attacking = ATTACKING_NONE;
+        self->grabwalking = 0;
+
+        if(self->energy_state.health_current > 0 && !self->dead)
+        {
+            set_idle(self);
+        }
+        return;
+    }
 
     if(other == NULL || (self->modeldata.grabfinish && self->animating && !self->grabwalking))
     {
