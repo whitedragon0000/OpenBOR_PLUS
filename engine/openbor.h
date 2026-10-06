@@ -2116,6 +2116,24 @@ typedef enum e_falldie_config
 }e_falldie_config;
 
 /*
+* Step 4 v2: pure death transition resolver.
+* This deliberately models only FALL vs DIE.
+* Post-death presentation/removal (nodieblink) is intentionally separate.
+*/
+typedef enum e_death_transition_event
+{
+    DEATH_TRANSITION_EVENT_DAMAGE,
+    DEATH_TRANSITION_EVENT_LIE
+} e_death_transition_event;
+
+typedef enum e_death_transition_action
+{
+    DEATH_TRANSITION_ACTION_NONE,
+    DEATH_TRANSITION_ACTION_FALL,
+    DEATH_TRANSITION_ACTION_DIE
+} e_death_transition_action;
+
+/*
 * Caskey, Damon V
 * 2023-03-27
 *
@@ -3374,6 +3392,8 @@ typedef struct
     
 
     e_death_config_flags death_config_flags; // Playing death animations, blinking, removal, etc. ~~
+    int nodieblink; // Legacy death blink behavior (baseline). ~~
+    int falldie; // Legacy fall/death behavior (baseline). ~~
 
     /* Blocking */
     e_block_config_flags block_config_flags; // ~~
@@ -3728,6 +3748,7 @@ typedef struct entity
     unsigned int		    boss;								// I'm the BOSS playa, I'm the reason that you lost! ~~
     unsigned int		    blocking;							// In blocking state. ~~
     unsigned int		    charging;							// Charging MP. Gain according to chargerate. ~~
+	unsigned int		    dead;								// Legacy dead flag (baseline). ~~
 	unsigned int		    die_on_landing;						// Flag for death by damageonlanding (active if self->health <= 0). ~~
     unsigned int		    drop;								// Knocked down. Remains true until rising. ~~
     unsigned int		    exists;								// flag to determine if it is a valid entity. ~~
@@ -4385,10 +4406,10 @@ void populate_lasthit(s_collision_check_data* collision_data, s_collision_attack
 /* Death sequence control */
 e_falldie_config death_config_get_falldie_from_value(e_death_config_flags acting_value);
 e_death_config_flags death_config_get_value_from_falldie(e_death_config_flags current_value, e_falldie_config acting_value);
-e_death_config_flags death_config_get_value_from_nodieblink(e_death_config_flags current_value, e_nodieblink_config acting_value);
 e_nodieblink_config death_config_get_nodieblink_from_value(e_death_config_flags acting_value);
 e_death_config_flags death_get_config_flags_from_arguments(const ArgList* arglist, int start_position);
 e_death_config_flags death_get_config_flag_from_string(const char* value);
+e_death_transition_action death_resolve_transition(e_death_config_flags death_config, e_death_transition_event event, int airborne);
 
 typedef enum e_death_sequence_acting_event
 {
