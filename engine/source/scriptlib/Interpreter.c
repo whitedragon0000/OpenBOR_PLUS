@@ -426,7 +426,7 @@ HRESULT Interpreter_Call(Interpreter *pinterpreter)
     Instruction **pCurrentCall = (Instruction **)(pinterpreter->pCurrentInstruction);
     Instruction **functionStart = NULL;
     Instruction **savedReturnEntry = pinterpreter->pReturnEntry;
-    Instruction *currentCall;
+    Instruction *currentCall = NULL;
     ScriptVariant *pretvar;
     ScriptVariant recursiveResult;
     InterpreterFunctionState functionState;
