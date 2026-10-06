@@ -20,11 +20,9 @@
 
 package org.openbor.engine;
 
-import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -43,8 +41,6 @@ import android.view.WindowManager;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
 import org.libsdl.app.SDLActivity;
 import org.openbor.engine.utils.FrameDimensions;
@@ -71,8 +67,6 @@ public class GameActivity extends SDLActivity {
 
   //White Dragon: added statics
   protected static WakeLock wakeLock;
-
-  private static String packageName;
 
   public static native void fireSystemUiVisibilityChangeEvent(int isSystemBarsVisible);
 
@@ -147,7 +141,35 @@ public class GameActivity extends SDLActivity {
   }
 
   public static String jni_get_storage_path() {
-    return Environment.getExternalStorageDirectory() + "/Android/media/" + packageName;
+    Context ctx = getContext();
+
+    // API 21+: Android creates and manages the app-specific media directory.
+    // On primary shared storage this resolves to:
+    // /storage/emulated/0/Android/media/<package>
+    File[] mediaDirs = ctx.getExternalMediaDirs();
+    if (mediaDirs != null) {
+      for (File mediaDir : mediaDirs) {
+        if (mediaDir != null &&
+            Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState(mediaDir))) {
+          return mediaDir.getAbsolutePath();
+        }
+      }
+
+      // Prefer the system-provided media path to a manually constructed path.
+      for (File mediaDir : mediaDirs) {
+        if (mediaDir != null) {
+          return mediaDir.getAbsolutePath();
+        }
+      }
+    }
+
+    // Last-resort app-specific fallback so the engine can still start.
+    File externalFilesDir = ctx.getExternalFilesDir(null);
+    if (externalFilesDir != null) {
+      return externalFilesDir.getAbsolutePath();
+    }
+
+    return ctx.getFilesDir().getAbsolutePath();
   }
   // ------------------------------------------------------------------------ //
 
@@ -179,8 +201,6 @@ public class GameActivity extends SDLActivity {
       activity.setRequestedOrientation(
               ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
     }*/
-
-    packageName = getApplicationContext().getPackageName();
 
     //msmalik681 setup storage access
     CheckPermissionForMovingPaks();
@@ -236,29 +256,10 @@ public class GameActivity extends SDLActivity {
     }
   }
 
-  //msmalik681 added permission check for API 23+ for moving .paks
+  // Android/media/<package> returned by getExternalMediaDirs() is app-owned
+  // and does not require READ_EXTERNAL_STORAGE / WRITE_EXTERNAL_STORAGE.
   private void CheckPermissionForMovingPaks() {
-    if (Build.VERSION.SDK_INT >= STORAGE_PERMISSION_CODE &&
-        getApplicationContext().getPackageName().equals("org.openbor.engine"))
-    {
-      if (ContextCompat.checkSelfPermission(GameActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED &&
-          ContextCompat.checkSelfPermission(GameActivity.this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
-      {
-        Toast.makeText(this, "Needed permissions not granted!", Toast.LENGTH_LONG).show();
-        ActivityCompat.requestPermissions(GameActivity.this, new String[] {
-          Manifest.permission.WRITE_EXTERNAL_STORAGE,
-          Manifest.permission.READ_EXTERNAL_STORAGE
-        }, STORAGE_PERMISSION_CODE);
-      }
-      else
-      {
-        CopyPak();
-      }
-    }
-    else
-    {
-      CopyPak();
-    }
+    CopyPak();
   }
 
   /*@Override
@@ -280,22 +281,6 @@ public class GameActivity extends SDLActivity {
       }
     }
   }*/
-
-  @SuppressWarnings("NullableProblems")
-  @Override
-  public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
-  {
-    if (requestCode == STORAGE_PERMISSION_CODE) {// If request is cancelled, the result arrays are empty.
-      if (grantResults.length > 0 &&
-              grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-        // permission was granted continue!
-        CopyPak();
-      } else {
-        // needed permission denied end application!
-        finish();
-      }
-    }
-  }
 
   /**
    * Proceed in copying paks files, or just prepare the destination Paks directory depending
@@ -340,7 +325,7 @@ public class GameActivity extends SDLActivity {
         // versionName is "android:versionName" in AndroidManifest.xml
         String version = appCtx.getPackageManager().getPackageInfo(appCtx.getPackageName(), 0).versionName;  // get version number as string
         // set local output folder (primary shared/external storage)
-        File outFolder = new File(ctx.getExternalFilesDir(null) + "/Paks");
+        File outFolder = new File(jni_get_storage_path() + "/OpenBOR/Paks");
         // set local output filename as version number
         File outFile = new File(outFolder, version + ".pak");
 
