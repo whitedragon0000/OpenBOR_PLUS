@@ -47033,14 +47033,31 @@ void update(int ingame, int usevwait)
 {
     int i = 0;
     int p_keys = 0;
+    int present_frame = 1;
 
 #if SDL
-    if (savedata.fpslimit == 1) // vsync enabled
+    /*
+     * VSync scheduler compatibility.
+     *
+     * SDL present-vsync blocks the thread until the monitor refresh. At a
+     * 60 Hz display and GAME_SPEED 200 this means getinterval() commonly
+     * returns 3 or 4 logical ticks at once. Historical OpenBOR builds instead
+     * reached update() much more frequently, so callbacks such as ondraw,
+     * updatescript and updatedscript naturally ran between those ticks.
+     *
+     * Keep a backlog of elapsed logical ticks and consume at most one per
+     * complete update() call. Intermediate calls execute the normal engine
+     * pipeline but are not physically presented. The final backlog call is
+     * presented with VSync. This restores the legacy update/callback cadence
+     * without classifying levels, entities, scripts, or module content.
+     */
+    static u32 vsync_tick_backlog = 0;
+
+    if (savedata.fpslimit == 1 && vsync_tick_backlog == 0) // vsync enabled, no catch-up pending
     {
         // To reduce input latency, wait until the last 4 ms (4000 μs) of the current
-        // frame to read inputs or do anything else. We can get away with this because
-        // the CPUs of all modern computers - even phones and low-end, outdated PCs -
-        // are complete overkill for OpenBOR's needs.
+        // frame to read inputs or do anything else. Do not repeat this wait while
+        // draining already accumulated logical ticks.
         s64 target_time = timer_uticks() + 1000000/video_current_refresh_rate() - 4000;
         u64 current_time = timer_uticks();
         while (current_time < target_time)
@@ -47052,6 +47069,40 @@ void update(int ingame, int usevwait)
 #endif
 
     getinterval();
+
+#if SDL
+    if(savedata.fpslimit == 1)
+    {
+        /* Match the existing update safety ceiling while accumulating backlog. */
+        if(vsync_tick_backlog + interval > 100)
+        {
+            vsync_tick_backlog = 100;
+        }
+        else
+        {
+            vsync_tick_backlog += interval;
+        }
+
+        if(vsync_tick_backlog > 0)
+        {
+            /* One logical tick per complete update() iteration, legacy style. */
+            interval = 1;
+            --vsync_tick_backlog;
+        }
+        else
+        {
+            interval = 0;
+        }
+
+        /* Only the last catch-up iteration reaches the physical display. */
+        present_frame = (vsync_tick_backlog == 0);
+    }
+    else
+    {
+        /* Do not carry VSync backlog across timing-mode changes. */
+        vsync_tick_backlog = 0;
+    }
+#endif
     if(playrecstatus->status == A_REC_PLAY && !_pause && level) if ( !playRecordedInputs() ) stopRecordInputs();
     inputrefresh(playrecstatus->status);
     if(playrecstatus->status == A_REC_REC && !_pause && level) if ( !recordInputs() ) stopRecordInputs();
@@ -47226,12 +47277,18 @@ void update(int ingame, int usevwait)
             sound_pause_music(1);
             sound_pause_sample(1);
             sound_play_sample(global_sample_list.pause, 0, savedata.effectvol, savedata.effectvol, 100);
+#if SDL
+            vsync_tick_backlog = 0;
+#endif
             pausemenu();
             return;
         }
     }
     if( ingame == 1 && (goto_mainmenu_flag&1) )
     {
+#if SDL
+        vsync_tick_backlog = 0;
+#endif
         backto_mainmenu();
         return;
     }
@@ -47271,11 +47328,20 @@ void update(int ingame, int usevwait)
 #endif
     }
 
-    if(usevwait)
+    if(present_frame)
     {
-        vga_vwait();
+        if(usevwait)
+        {
+            vga_vwait();
+        }
+        video_copy_screen(vscreen);
     }
-    video_copy_screen(vscreen);
+
+    /*
+     * Intermediate catch-up iterations intentionally build a complete frame
+     * (and therefore execute the normal draw callbacks), but only the final
+     * iteration is presented. Always clear the queue before the next update.
+     */
     spriteq_clear();
 
     check_music();
