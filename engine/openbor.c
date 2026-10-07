@@ -31396,17 +31396,26 @@ void set_model_ex(entity *ent, char *modelname, int index, s_model *newmodel, in
                 newmodel->animation[i] = model->animation[i];
             }
         }
-		//normalize_anim_models(model, newmodel);        
-    }
+		//normalize_anim_models(model, newmodel);
 
-    // copy the weapon list if model flag is not set to use its own weapon list
-    if (!(newmodel->model_flag & MODEL_COPY_FLAG_NO_WEAPON))
-    {
-        newmodel->weapon_properties.weapon_index = model->weapon_properties.weapon_index;
-        if (!newmodel->weapon_properties.weapon_list)
+        /*
+         * Backward compatibility with the pre-2023 model copy behavior:
+         * weapon-list inheritance belongs to the basic model-copy block.
+         *
+         * Legacy modelflag 1 disables this block. Models such as
+         * player_foot_junk intentionally define no weapon list; their
+         * weaponframe then falls back through set_weapon() to the entity
+         * default model, completing the weapon cycle.
+         */
+        if (!(newmodel->model_flag & MODEL_COPY_FLAG_NO_WEAPON))
         {
-            newmodel->weapon_properties.weapon_list = model->weapon_properties.weapon_list;
-            newmodel->weapon_properties.weapon_count = model->weapon_properties.weapon_count;
+            newmodel->weapon_properties.weapon_index = model->weapon_properties.weapon_index;
+
+            if (!newmodel->weapon_properties.weapon_list)
+            {
+                newmodel->weapon_properties.weapon_list = model->weapon_properties.weapon_list;
+                newmodel->weapon_properties.weapon_count = model->weapon_properties.weapon_count;
+            }
         }
     }
 
@@ -43399,7 +43408,16 @@ void dropweapon(int flag)
 	// Model override. If this is populated, we use its value
 	// to locate a model by index and revert to that instead
 	// of the default model when a weapon is lost.
-    if(self->modeldata.weapon_properties.loss_index != MODEL_INDEX_NONE)
+    /*
+     * Backward compatibility:
+     * Legacy "weaploss" without a second argument leaves the loss weapon
+     * index at 0. Historically, dropweapon() only applied the model
+     * override when that index was greater than zero. Treating 0 as a
+     * valid override here incorrectly calls set_weapon(self, 0, 0),
+     * reverting weapon-form models to their default model during
+     * dropweapon(2).
+     */
+    if(self->modeldata.weapon_properties.loss_index > 0)
     {
         set_weapon(self, self->modeldata.weapon_properties.loss_index, 0);
     }
