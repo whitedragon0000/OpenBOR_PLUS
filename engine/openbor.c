@@ -47035,74 +47035,73 @@ void update(int ingame, int usevwait)
     int p_keys = 0;
     int present_frame = 1;
 
-#if SDL
     /*
-     * VSync scheduler compatibility.
+     * Platform-independent logical tick backlog.
      *
-     * SDL present-vsync blocks the thread until the monitor refresh. At a
-     * 60 Hz display and GAME_SPEED 200 this means getinterval() commonly
-     * returns 3 or 4 logical ticks at once. Historical OpenBOR builds instead
-     * reached update() much more frequently, so callbacks such as ondraw,
-     * updatescript and updatedscript naturally ran between those ticks.
+     * timer_getinterval() is the platform timer's authoritative report of how
+     * many GAME_SPEED ticks elapsed since the previous sample. Modern display
+     * backends may block on VSync/presentation, so a single update() call can
+     * observe multiple elapsed logical ticks at once.
      *
-     * Keep a backlog of elapsed logical ticks and consume at most one per
-     * complete update() call. Intermediate calls execute the normal engine
-     * pipeline but are not physically presented. The final backlog call is
-     * presented with VSync. This restores the legacy update/callback cadence
-     * without classifying levels, entities, scripts, or module content.
+     * Historical OpenBOR effectively ran the complete update/render callback
+     * pipeline much closer to one logical tick at a time. Preserve that
+     * behavior by accumulating elapsed ticks here and consuming at most one
+     * logical tick per complete update() invocation. While backlog remains,
+     * build the frame normally (including ondraw) but do not physically
+     * present it. The caller immediately invokes update() again; when the
+     * backlog reaches zero, the resulting frame is presented normally through
+     * the platform's existing vga_vwait()/video_copy_screen() path.
+     *
+     * This intentionally has no SDL, refresh-rate, millisecond, level-type,
+     * entity-name, or module-specific assumptions.
      */
-    static u32 vsync_tick_backlog = 0;
-
-    if (savedata.fpslimit == 1 && vsync_tick_backlog == 0) // vsync enabled, no catch-up pending
-    {
-        // To reduce input latency, wait until the last 4 ms (4000 μs) of the current
-        // frame to read inputs or do anything else. Do not repeat this wait while
-        // draining already accumulated logical ticks.
-        s64 target_time = timer_uticks() + 1000000/video_current_refresh_rate() - 4000;
-        u64 current_time = timer_uticks();
-        while (current_time < target_time)
-        {
-            usleep(target_time - current_time);
-            current_time = timer_uticks();
-        }
-    }
-#endif
+    static u32 logical_tick_backlog = 0;
+    static int logical_tick_context = -1;
 
     getinterval();
 
-#if SDL
-    if(savedata.fpslimit == 1)
+    /*
+     * A pause has no simulation ticks to recover. Also discard stale backlog
+     * when switching between ingame/non-ingame update contexts so timing debt
+     * from one screen cannot leak into another.
+     */
+    if(_pause || logical_tick_context != ingame)
     {
-        /* Match the existing update safety ceiling while accumulating backlog. */
-        if(vsync_tick_backlog + interval > 100)
+        logical_tick_backlog = 0;
+        logical_tick_context = ingame;
+    }
+
+    if(!_pause)
+    {
+        /*
+         * Keep the same maximum timing debt already enforced by update()
+         * historically (100 GAME_SPEED ticks).
+         */
+        if(interval >= 100 || logical_tick_backlog >= 100 - interval)
         {
-            vsync_tick_backlog = 100;
+            logical_tick_backlog = 100;
         }
         else
         {
-            vsync_tick_backlog += interval;
+            logical_tick_backlog += interval;
         }
 
-        if(vsync_tick_backlog > 0)
+        if(logical_tick_backlog > 0)
         {
-            /* One logical tick per complete update() iteration, legacy style. */
+            /*
+             * Consume exactly one matured logical tick through one complete
+             * engine pipeline. This is the core compatibility rule.
+             */
             interval = 1;
-            --vsync_tick_backlog;
+            --logical_tick_backlog;
+            present_frame = (logical_tick_backlog == 0);
         }
         else
         {
             interval = 0;
+            present_frame = 1;
         }
-
-        /* Only the last catch-up iteration reaches the physical display. */
-        present_frame = (vsync_tick_backlog == 0);
     }
-    else
-    {
-        /* Do not carry VSync backlog across timing-mode changes. */
-        vsync_tick_backlog = 0;
-    }
-#endif
     if(playrecstatus->status == A_REC_PLAY && !_pause && level) if ( !playRecordedInputs() ) stopRecordInputs();
     inputrefresh(playrecstatus->status);
     if(playrecstatus->status == A_REC_REC && !_pause && level) if ( !recordInputs() ) stopRecordInputs();
@@ -47277,18 +47276,12 @@ void update(int ingame, int usevwait)
             sound_pause_music(1);
             sound_pause_sample(1);
             sound_play_sample(global_sample_list.pause, 0, savedata.effectvol, savedata.effectvol, 100);
-#if SDL
-            vsync_tick_backlog = 0;
-#endif
             pausemenu();
             return;
         }
     }
     if( ingame == 1 && (goto_mainmenu_flag&1) )
     {
-#if SDL
-        vsync_tick_backlog = 0;
-#endif
         backto_mainmenu();
         return;
     }
@@ -47328,6 +47321,15 @@ void update(int ingame, int usevwait)
 #endif
     }
 
+    /*
+     * Intermediate backlog iterations execute the complete engine/render
+     * callback pipeline but are not sent to the physical display. This keeps
+     * callback ordering/cadence compatible without forcing extra VSync waits.
+     *
+     * The final iteration uses the existing platform presentation path
+     * unchanged. Each port remains responsible for its own implementation of
+     * vga_vwait() and video_copy_screen().
+     */
     if(present_frame)
     {
         if(usevwait)
@@ -47338,9 +47340,8 @@ void update(int ingame, int usevwait)
     }
 
     /*
-     * Intermediate catch-up iterations intentionally build a complete frame
-     * (and therefore execute the normal draw callbacks), but only the final
-     * iteration is presented. Always clear the queue before the next update.
+     * display_ents()/ondraw may have queued sprites even for an intermediate
+     * non-presented iteration. They belong only to that logical frame.
      */
     spriteq_clear();
 
