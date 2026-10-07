@@ -31396,17 +31396,26 @@ void set_model_ex(entity *ent, char *modelname, int index, s_model *newmodel, in
                 newmodel->animation[i] = model->animation[i];
             }
         }
-		//normalize_anim_models(model, newmodel);        
-    }
+		//normalize_anim_models(model, newmodel);
 
-    // copy the weapon list if model flag is not set to use its own weapon list
-    if (!(newmodel->model_flag & MODEL_COPY_FLAG_NO_WEAPON))
-    {
-        newmodel->weapon_properties.weapon_index = model->weapon_properties.weapon_index;
-        if (!newmodel->weapon_properties.weapon_list)
+        /*
+         * Backward compatibility with the pre-2023 model copy behavior:
+         * weapon-list inheritance belongs to the basic model-copy block.
+         *
+         * Legacy modelflag 1 disables this block. Models such as
+         * player_foot_junk intentionally define no weapon list; their
+         * weaponframe then falls back through set_weapon() to the entity
+         * default model, completing the weapon cycle.
+         */
+        if (!(newmodel->model_flag & MODEL_COPY_FLAG_NO_WEAPON))
         {
-            newmodel->weapon_properties.weapon_list = model->weapon_properties.weapon_list;
-            newmodel->weapon_properties.weapon_count = model->weapon_properties.weapon_count;
+            newmodel->weapon_properties.weapon_index = model->weapon_properties.weapon_index;
+
+            if (!newmodel->weapon_properties.weapon_list)
+            {
+                newmodel->weapon_properties.weapon_list = model->weapon_properties.weapon_list;
+                newmodel->weapon_properties.weapon_count = model->weapon_properties.weapon_count;
+            }
         }
     }
 
@@ -43399,7 +43408,16 @@ void dropweapon(int flag)
 	// Model override. If this is populated, we use its value
 	// to locate a model by index and revert to that instead
 	// of the default model when a weapon is lost.
-    if(self->modeldata.weapon_properties.loss_index != MODEL_INDEX_NONE)
+    /*
+     * Backward compatibility:
+     * Legacy "weaploss" without a second argument leaves the loss weapon
+     * index at 0. Historically, dropweapon() only applied the model
+     * override when that index was greater than zero. Treating 0 as a
+     * valid override here incorrectly calls set_weapon(self, 0, 0),
+     * reverting weapon-form models to their default model during
+     * dropweapon(2).
+     */
+    if(self->modeldata.weapon_properties.loss_index > 0)
     {
         set_weapon(self, self->modeldata.weapon_properties.loss_index, 0);
     }
@@ -47015,25 +47033,75 @@ void update(int ingame, int usevwait)
 {
     int i = 0;
     int p_keys = 0;
+    int present_frame = 1;
 
-#if SDL
-    if (savedata.fpslimit == 1) // vsync enabled
-    {
-        // To reduce input latency, wait until the last 4 ms (4000 μs) of the current
-        // frame to read inputs or do anything else. We can get away with this because
-        // the CPUs of all modern computers - even phones and low-end, outdated PCs -
-        // are complete overkill for OpenBOR's needs.
-        s64 target_time = timer_uticks() + 1000000/video_current_refresh_rate() - 4000;
-        u64 current_time = timer_uticks();
-        while (current_time < target_time)
-        {
-            usleep(target_time - current_time);
-            current_time = timer_uticks();
-        }
-    }
-#endif
+    /*
+     * Platform-independent logical tick backlog.
+     *
+     * timer_getinterval() is the platform timer's authoritative report of how
+     * many GAME_SPEED ticks elapsed since the previous sample. Modern display
+     * backends may block on VSync/presentation, so a single update() call can
+     * observe multiple elapsed logical ticks at once.
+     *
+     * Historical OpenBOR effectively ran the complete update/render callback
+     * pipeline much closer to one logical tick at a time. Preserve that
+     * behavior by accumulating elapsed ticks here and consuming at most one
+     * logical tick per complete update() invocation. While backlog remains,
+     * build the frame normally (including ondraw) but do not physically
+     * present it. The caller immediately invokes update() again; when the
+     * backlog reaches zero, the resulting frame is presented normally through
+     * the platform's existing vga_vwait()/video_copy_screen() path.
+     *
+     * This intentionally has no SDL, refresh-rate, millisecond, level-type,
+     * entity-name, or module-specific assumptions.
+     */
+    static u32 logical_tick_backlog = 0;
+    static int logical_tick_context = -1;
 
     getinterval();
+
+    /*
+     * A pause has no simulation ticks to recover. Also discard stale backlog
+     * when switching between ingame/non-ingame update contexts so timing debt
+     * from one screen cannot leak into another.
+     */
+    if(_pause || logical_tick_context != ingame)
+    {
+        logical_tick_backlog = 0;
+        logical_tick_context = ingame;
+    }
+
+    if(!_pause)
+    {
+        /*
+         * Keep the same maximum timing debt already enforced by update()
+         * historically (100 GAME_SPEED ticks).
+         */
+        if(interval >= 100 || logical_tick_backlog >= 100 - interval)
+        {
+            logical_tick_backlog = 100;
+        }
+        else
+        {
+            logical_tick_backlog += interval;
+        }
+
+        if(logical_tick_backlog > 0)
+        {
+            /*
+             * Consume exactly one matured logical tick through one complete
+             * engine pipeline. This is the core compatibility rule.
+             */
+            interval = 1;
+            --logical_tick_backlog;
+            present_frame = (logical_tick_backlog == 0);
+        }
+        else
+        {
+            interval = 0;
+            present_frame = 1;
+        }
+    }
     if(playrecstatus->status == A_REC_PLAY && !_pause && level) if ( !playRecordedInputs() ) stopRecordInputs();
     inputrefresh(playrecstatus->status);
     if(playrecstatus->status == A_REC_REC && !_pause && level) if ( !recordInputs() ) stopRecordInputs();
@@ -47253,11 +47321,28 @@ void update(int ingame, int usevwait)
 #endif
     }
 
-    if(usevwait)
+    /*
+     * Intermediate backlog iterations execute the complete engine/render
+     * callback pipeline but are not sent to the physical display. This keeps
+     * callback ordering/cadence compatible without forcing extra VSync waits.
+     *
+     * The final iteration uses the existing platform presentation path
+     * unchanged. Each port remains responsible for its own implementation of
+     * vga_vwait() and video_copy_screen().
+     */
+    if(present_frame)
     {
-        vga_vwait();
+        if(usevwait)
+        {
+            vga_vwait();
+        }
+        video_copy_screen(vscreen);
     }
-    video_copy_screen(vscreen);
+
+    /*
+     * display_ents()/ondraw may have queued sprites even for an intermediate
+     * non-presented iteration. They belong only to that logical frame.
+     */
     spriteq_clear();
 
     check_music();

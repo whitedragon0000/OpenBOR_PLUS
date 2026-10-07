@@ -4802,10 +4802,17 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
         (*pretvar)->lVal = (LONG)ent->nextthink;
         break;
     }
+    /*
+     * Backward compatibility:
+     * Legacy movement properties were exposed to OpenBORScript as
+     * scalar booleans (0/1). After their migration to move_config_flags,
+     * keep the script-facing API boolean instead of returning the raw
+     * bit-mask value.
+     */
     case _ep_no_adjust_base:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_NO_ADJUST_BASE);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_NO_ADJUST_BASE) ? 1 : 0;
         break;
     }
     case _ep_noaicontrol:
@@ -4848,7 +4855,7 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
     case _ep_nohithead:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_NO_HIT_HEAD);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_NO_HIT_HEAD) ? 1 : 0;
         break;
     }
     case _ep_nolife:
@@ -5317,55 +5324,55 @@ HRESULT openbor_getentityproperty(ScriptVariant **varlist , ScriptVariant **pret
     case _ep_subject_to_basemap:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_BASEMAP);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_BASEMAP) ? 1 : 0;
         break;
     }
     case _ep_subject_to_gravity:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_GRAVITY);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_GRAVITY) ? 1 : 0;
         break;
     }
     case _ep_subject_to_hole:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_HOLE);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_HOLE) ? 1 : 0;
         break;
     }
     case _ep_subject_to_maxz:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_MAX_Z);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_MAX_Z) ? 1 : 0;
         break;
     }
     case _ep_subject_to_minz:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_MIN_Z);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_MIN_Z) ? 1 : 0;
         break;
     }
     case _ep_subject_to_obstacle:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_OBSTACLE);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_OBSTACLE) ? 1 : 0;
         break;
     }
     case _ep_subject_to_platform:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_PLATFORM);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_PLATFORM) ? 1 : 0;
         break;
     }
     case _ep_subject_to_screen:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_SCREEN);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_SCREEN) ? 1 : 0;
         break;
     }
     case _ep_subject_to_wall:
     {
         ScriptVariant_ChangeType(*pretvar, VT_INTEGER);
-        (*pretvar)->lVal = (LONG)(ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_WALL);
+        (*pretvar)->lVal = (ent->modeldata.move_config_flags & MOVE_CONFIG_SUBJECT_TO_WALL) ? 1 : 0;
         break;
     }
     case _ep_subtype:
