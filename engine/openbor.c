@@ -7327,7 +7327,15 @@ void collision_attack_initialize_frame_property(s_addframe_data* data, ptrdiff_t
     * Clone source list and populate frame's collision
     * property with the pointer to clone list head.
     */
-    temp_collision = collision_attack_clone_list(data->collision, 1);
+    /*
+     * Backward compatibility:
+     *
+     * Keep the modern clone API and its check_coords capability, but do not
+     * filter coordinates here. Legacy frame construction (Jan 8, 2023 and
+     * earlier) first normalized the temporary collision list, then cloned the
+     * surviving nodes as-is.
+     */
+    temp_collision = collision_attack_clone_list(data->collision, 0);
 
     /* Apply final adjustments to any collision coordinates. */
     collision_attack_prepare_coordinates_for_frame(temp_collision, data->model, data);
@@ -8015,7 +8023,13 @@ void collision_body_initialize_frame_property(s_addframe_data* data, ptrdiff_t f
     * Clone source list and populate frame's collision
     * property with the pointer to clone list head.
     */
-    temp_collision = collision_body_clone_list(data->collision_body, 1);
+    /*
+     * Backward compatibility:
+     *
+     * Same policy as attack collisions: retain the modern clone API while
+     * restoring legacy addframe semantics.
+     */
+    temp_collision = collision_body_clone_list(data->collision_body, 0);
 
     /* Apply final adjustments to any collision coordinates. */
     collision_body_prepare_coordinates_for_frame(temp_collision, data->model, data);
@@ -17690,8 +17704,20 @@ s_model *load_cached_model(char *name, char *owner, char unload)
                 * of keeping the read in values frame to frame
                 * even after a collision box is closed.
                 */
-                //collision_attack_remove_undefined_coordinates(&temp_collision_head);
-                //collision_body_remove_undefined_coordinates(&temp_collision_body_head);
+                /*
+                 * Backward compatibility:
+                 *
+                 * Jan 8, 2023 and earlier removed undefined attack/body
+                 * collision coordinates from the temporary parser lists
+                 * before addframe(). The Jan 9/10 change moved that decision
+                 * into clone_list(check_coords=1), which changed frame-to-frame
+                 * behavior for legacy models.
+                 *
+                 * Restore the legacy parser semantics for attack/body while
+                 * leaving the newer entity-collision subsystem untouched.
+                 */
+                collision_attack_remove_undefined_coordinates(&temp_collision_head);
+                collision_body_remove_undefined_coordinates(&temp_collision_body_head);
 				//collision_entity_remove_undefined_coordinates(&temp_collision_entity_head);
                                 
                 /*
